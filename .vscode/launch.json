@@ -1,0 +1,27 @@
+{
+    "version": "1.0.0",
+    "configurations": [
+        {
+            "name": "NestJS App Simple",
+            "type": "node",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/main.ts",
+            "runtimeExecutable": "node",
+            "runtimeArgs": ["--inspect"],
+            "skipFiles": ["<node_internals>/**"],
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen"
+        },
+        {
+            "name": "NestJS Tests Simple",
+            "type": "node",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/main.ts",
+            "runtimeExecutable": "node",
+            "runtimeArgs": ["--inspect-brk", "${workspaceFolder}/node_modules/.bin/jest"],
+            "skipFiles": ["<node_internals>/**"],
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen"
+        }
+    ]
+}
