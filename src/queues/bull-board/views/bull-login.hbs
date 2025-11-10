@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <title>{{title}}</title>
+    <link rel="stylesheet" href="/admin/views/bull-login.css" />
+  </head>
+  <body>
+    <div class="login-card">
+      <h2>Acceso Bull Board</h2>
+
+      <label for="username">Usuario</label>
+      <input id="username" type="text" placeholder="Usuario" />
+
+      <label for="password">Contraseña</label>
+      <input id="password" type="password" placeholder="Contraseña" />
+
+      <button id="loginBtn">Ingresar</button>
+      <div id="error" class="error"></div>
+    </div>
+
+    <script>
+      window.BASE_URL = "{{baseUrl}}";
+
+      const params = new URLSearchParams(window.location.search);
+      const error = params.get('error');
+      if (error) alert(decodeURIComponent(error));
+
+      document
+        .getElementById('loginBtn')
+        .addEventListener('click', async () => {
+          const username = document.getElementById('username').value.trim();
+          const password = document.getElementById('password').value.trim();
+          const errorDiv = document.getElementById('error');
+          errorDiv.textContent = '';
+
+          if (!username || !password) {
+            errorDiv.textContent = 'Todos los campos son obligatorios.';
+            return;
+          }
+
+          try {
+            const btn = document.getElementById('loginBtn');
+            btn.disabled = true;
+            btn.textContent = 'Conectando...';
+
+            const res = await fetch(`${window.BASE_URL}/auth/login`, {
+              method: 'POST',
+              headers: {
+                'accept': '*/*',
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ credential: username, password, isSystemUser: "true" }),
+            });
+
+            const response = await res.json();
+            if (!res.ok) throw new Error(response.message || 'Error de autenticación');
+
+            document.cookie = `bull_token=${response.data.access_token}; Path=/; SameSite=Lax`;
+            window.location.href = '/admin/queues';
+          } catch (err) {
+            errorDiv.textContent = 'Error: ' + err.message;
+          } finally {
+            const btn = document.getElementById('loginBtn');
+            btn.disabled = false;
+            btn.textContent = 'Ingresar';
+          }
+        });
+    </script>
+  </body>
+</html>

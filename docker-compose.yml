@@ -1,0 +1,101 @@
+version: "3.8"
+
+services:
+  # ===============================
+  # 🚀 SERVICIO PRINCIPAL (NestJS)
+  # ===============================
+  base-servicios:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: base-servicios
+    restart: always
+    env_file: .env
+    volumes:
+      - ./uploads:/app/uploads
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    environment:
+      - TZ=America/Caracas
+    ports:
+      - "${PORT}:${PORT}"
+    networks:
+      - base-net
+    depends_on:
+      - base-redis
+      - db-base
+      - mailpit
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('net').createConnection(process.env.PORT).on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  # ===============================
+  # 🧠 REDIS
+  # ===============================
+  base-redis:
+    image: redis:7
+    container_name: base-redis
+    restart: always
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    networks:
+      - base-net
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  # ===============================
+  # 🐘 POSTGRES
+  # ===============================
+  # db-base:
+  #   image: postgres:15
+  #   container_name: db-base
+  #   restart: always
+  #   environment:
+  #     POSTGRES_USER: ${DB_USER}
+  #     POSTGRES_PASSWORD: ${DB_PASS}
+  #     POSTGRES_DB: ${DB_NAME}
+  #     TZ: America/Caracas
+  #   ports:
+  #     - "${DB_PORT}:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   networks:
+  #     - base-net
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 5
+
+  # ===============================
+  # 📬 MAILPIT (para test de correos)
+  # ===============================
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: mailpit
+    restart: always
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI
+    networks:
+      - base-net
+    environment:
+      - TZ=America/Caracas
+
+# ===============================
+# 🔗 RED Y VOLUMENES
+# ===============================
+networks:
+  base-net:
+    driver: bridge
+
+volumes:
+  redis_data:
+  # postgres_data:

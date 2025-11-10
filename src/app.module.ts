@@ -1,12 +1,15 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import configuration from './configuration';
-import { UserModule } from './user/user.module';
 import { AuthModule } from './auth/auth.module';
-import { RoleModule } from './role/role.module';
+import { PermissionsGuard } from './auth/guards/permission.guard';
+import configuration from './configuration';
 import { getMainConnection } from './database/getMainConnection';
 import { PermissionModule } from './permission/permission.module';
-import { PermissionsGuard } from './auth/permission.guard';
+import { RoleModule } from './role/role.module';
+import { UserModule } from './user/user.module';
+import { LogsModule } from './logs/logs.module';
+import { QueuesModule } from './queues/queues.module';
+import { BullBoardModule } from './queues/bull-board/bull-board.module';
 
 
 @Module({
@@ -20,6 +23,9 @@ import { PermissionsGuard } from './auth/permission.guard';
     AuthModule,
     RoleModule,
     PermissionModule,
+    LogsModule,
+    QueuesModule,
+    BullBoardModule
   ],
   controllers: [],
   providers: [PermissionsGuard],

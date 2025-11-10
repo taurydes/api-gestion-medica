@@ -1,16 +1,23 @@
 import {
-  Injectable,
   BadRequestException,
+  Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { User } from './entities/user.entity';
-import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
 import * as bcrypt from 'bcrypt';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
+import { Repository } from 'typeorm';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { User } from './entities/user.entity';
 
+/**
+ * Servicio: UserService
+ *
+ * Gestiona las operaciones CRUD de usuarios,
+ * incluyendo la validación, cifrado de contraseñas
+ * y manejo de errores asociados.
+ */
 @Injectable()
 export class UserService {
   constructor(
@@ -18,9 +25,16 @@ export class UserService {
     private readonly userRepository: Repository<User>,
   ) {}
 
+  /**
+   * Crea un nuevo usuario en la base de datos.
+   * Verifica duplicados por email y cifra la contraseña antes de guardar.
+   *
+   * @param createUserDto - Datos del nuevo usuario.
+   * @returns El usuario creado sin incluir el campo `password`.
+   * @throws BadRequestException Si el correo ya está en uso o ocurre un error al guardar.
+   */
   async create(createUserDto: CreateUserDto): Promise<Omit<User, 'password'>> {
     try {
-      // Verificar si el usuario ya existe (email)
       const existingUser = await this.userRepository.findOne({
         where: { email: createUserDto.email },
       });
@@ -29,7 +43,6 @@ export class UserService {
         throw new BadRequestException('El correo electrónico ya está en uso.');
       }
 
-      // Cifrar la contraseña antes de guardar
       const saltRounds = 10;
       const hashedPassword = await bcrypt.hash(
         createUserDto.password,
@@ -52,16 +65,28 @@ export class UserService {
     }
   }
 
+  /**
+   * Obtiene la lista de todos los usuarios registrados.
+   *
+   * @returns Un arreglo de usuarios sin incluir sus contraseñas.
+   * @throws NotFoundException Si ocurre un error al recuperar los datos.
+   */
   async findAll(): Promise<Omit<User, 'password'>[]> {
     try {
-      const users = await this.userRepository.find( );
+      const users = await this.userRepository.find();
       return users.map(({ password, ...rest }) => rest);
     } catch (error) {
-      console.log(error);
       throw new NotFoundException('Error al obtener la lista de usuarios.');
     }
   }
 
+  /**
+   * Busca un usuario por su ID.
+   *
+   * @param id - Identificador único del usuario.
+   * @returns El usuario encontrado sin el campo `password`.
+   * @throws NotFoundException Si el usuario no existe o ocurre un error en la consulta.
+   */
   async findOne(id: number): Promise<Omit<User, 'password'> | null> {
     try {
       const user = await this.userRepository.findOneBy({ id });
@@ -79,6 +104,16 @@ export class UserService {
     }
   }
 
+  /**
+   * Actualiza la información de un usuario existente.
+   * Si se incluye una nueva contraseña, se cifra antes de guardarla.
+   *
+   * @param id - Identificador del usuario a actualizar.
+   * @param updateUserDto - Datos a modificar.
+   * @returns El usuario actualizado sin incluir la contraseña.
+   * @throws NotFoundException Si el usuario no existe.
+   * @throws BadRequestException Si ocurre un error durante la actualización.
+   */
   async update(
     id: number,
     updateUserDto: UpdateUserDto,
@@ -114,6 +149,13 @@ export class UserService {
     }
   }
 
+  /**
+   * Elimina un usuario por su ID.
+   *
+   * @param id - Identificador del usuario a eliminar.
+   * @returns void
+   * @throws NotFoundException Si el usuario no existe o no puede eliminarse.
+   */
   async remove(id: number): Promise<void> {
     try {
       const user = await this.findOne(id);

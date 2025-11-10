@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{title}} API KIOSKO</title>
+
+  <!-- Enlazar los archivos CSS y JS -->
+  <link rel="stylesheet" href="/logs/views/logs-page.css">
+</head>
+<body>
+  <!-- Header normal -->
+  <div id="header" class="header">
+    <h1>{{icon}} {{title}}</h1>
+
+    <div class="filters">
+      <select id="f-status">
+        <option value="">Todos los códigos</option>
+        <option value="400">400 Bad Request</option>
+        <option value="401">401 Unauthorized</option>
+        <option value="403">403 Forbidden</option>
+        <option value="404">404 Not Found</option>
+        <option value="500">500 Internal Server Error</option>
+        {{#each statusCodes}}
+          <option value="{{value}}">{{label}}</option>
+        {{/each}}
+      </select>
+
+      <input id="f-message" placeholder="contiene mensaje" />
+      <input id="f-path" placeholder="contiene ruta" />
+      <input id="f-op" placeholder="tipo excepción u operación" />
+      <input id="f-email" placeholder="ID o email del usuario" />
+      <input id="f-correlation" placeholder="Correlation ID" />
+      <input id="f-host" placeholder="Host" />
+      <input id="f-appVersion" placeholder="Versión App" />
+      <input id="f-tags" placeholder="Tags (coma separada)" />
+
+      <select id="f-handled">
+        <option value="">Manejados o no</option>
+        <option value="true">✅ Manejados</option>
+        <option value="false">❌ No manejados</option>
+      </select>
+
+      <div class="datetime-range-section">
+        <div class="datetime-range-header">🕐 Rango de fecha y hora</div>
+        <label for="f-start-datetime">
+          Desde
+          <input type="datetime-local" id="f-start-datetime" />
+        </label>
+        <label for="f-end-datetime">
+          Hasta
+          <input type="datetime-local" id="f-end-datetime" />
+        </label>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <button id="clearFiltersBtn" class="clear-filters-button" onclick="clearAllFilters()">
+        🗑️ Limpiar filtros
+      </button>
+
+      <button id="refreshBtn" class="refresh-button" onclick="refreshData()">
+        <span id="refreshIcon">🔄</span>
+        <span id="refreshText">Actualizar</span>
+      </button>
+    
+      <button id="logoutBtn" class="logout-button" onclick="logout()">
+        🚪 Cerrar sesión
+      </button>
+
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="table-container">
+      <div id="content">
+        <div class="loading">Cargando logs...</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="pagination" style="display: none;">
+    <div class="pagination-left">
+      <button id="prevBtn" onclick="previousPage()">Anterior</button>
+      <span>Página <span id="pg">1</span> de <span id="pgc">1</span></span>
+      <button id="nextBtn" onclick="nextPage()">Siguiente</button>
+    </div>
+    <div class="pagination-right">
+      <span class="total-display">Total: <strong id="totalElements">0</strong> logs</span>
+      <span>Tamaño de página:</span>
+      <select id="ps">
+        <option value="10">10</option>
+        <option value="20" selected>20</option>
+        <option value="50">50</option>
+        <option value="100">100</option>
+      </select>
+      <button id="scrollTopBtn" class="scroll-top-button" onclick="scrollToTop()">
+        ⬆️ Ir arriba
+      </button>
+    </div>
+  </div>
+
+  <div id="modalOverlay" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title" id="modalTitle">Detalles</div>
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+      </div>
+      <div class="modal-content" id="modalContent"></div>
+      <div class="modal-actions">
+        <button class="btn-copy" id="modalCopyBtn" onclick="copyModalContent()">
+          📋 Copiar al portapapeles
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="copyIndicator" class="copy-indicator">
+    ✅ Copiado al portapapeles
+  </div>
+  <script>
+    window.apiEndpoint = '{{apiEndpoint}}';
+    window.API_TOKEN = '{{token}}'; // 👈 Esto expone el token al JS
+  </script>
+  <!-- Carga del script -->
+  <script src="/logs/views/logs-page.js"></script>
+</body>
+</html>

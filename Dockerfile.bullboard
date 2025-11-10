@@ -1,0 +1,17 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install --only=production --legacy-peer-deps
+
+COPY . .
+
+ENV NODE_ENV=production
+ENV TZ=America/Caracas
+
+# Puerto definido en .env (por ejemplo 9999)
+ARG BULL_BOARD_PORT=9999
+EXPOSE ${BULL_BOARD_PORT}
+
+CMD ["node", "dist/bull-board.js"]

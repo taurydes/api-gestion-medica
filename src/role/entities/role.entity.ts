@@ -1,13 +1,13 @@
 import { PermissionRoles } from 'src/permission/entities/PermissionRole.entity';
 import { User } from 'src/user/entities/user.entity';
 import {
-  Entity,
-  PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
-  UpdateDateColumn,
   DeleteDateColumn,
+  Entity,
   OneToMany,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 
 @Entity({ schema: 'selfManagement', name: 'Roles' })

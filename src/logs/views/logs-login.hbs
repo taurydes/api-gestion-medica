@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login Logs - Metro Kiosko</title>
+    <link rel="stylesheet" href="/logs/views/logs-page.css" />
+
+    <style>
+      body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        background: #0f172a;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      }
+
+      .login-card {
+        background: #1e293b;
+        padding: 32px;
+        border-radius: 12px;
+        width: 100%;
+        max-width: 400px;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+        text-align: center;
+      }
+
+      .login-card h2 {
+        color: #60a5fa;
+        margin-bottom: 24px;
+      }
+
+      .login-card input,
+      .login-card select {
+        width: 100%;
+        margin-bottom: 12px;
+        padding: 10px 14px;
+        background: #0b1120;
+        border: 1px solid #334155;
+        color: #e2e8f0;
+        border-radius: 6px;
+        font-size: 14px;
+      }
+
+      .login-card input:focus,
+      .login-card select:focus {
+        outline: none;
+        border-color: #3b82f6;
+      }
+
+      .login-card button {
+        width: 100%;
+        padding: 10px;
+        background: #3b82f6;
+        border: none;
+        border-radius: 6px;
+        color: white;
+        font-size: 15px;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+
+      .login-card button:hover {
+        background: #2563eb;
+      }
+
+      label {
+        display: block;
+        text-align: left;
+        color: #cbd5e1;
+        font-size: 13px;
+        margin-bottom: 4px;
+      }
+
+      .error {
+        color: #ef4444;
+        margin-top: 12px;
+        font-size: 13px;
+        min-height: 16px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="login-card">
+      <h2>Acceso Logs</h2>
+
+      <label for="username">Usuario</label>
+      <input id="username" type="text" placeholder="Usuario" autocomplete="username" />
+
+      <label for="password">Contraseña</label>
+      <input id="password" type="password" placeholder="Contraseña" autocomplete="current-password" />
+
+      <button id="loginBtn">Ingresar</button>
+      <div id="error" class="error"></div>
+    </div>
+
+    <script>
+        window.BASE_URL = "{{baseUrl}}";
+    </script>
+
+<script>
+      const params = new URLSearchParams(window.location.search);
+      const errorMessage = params.get('error');
+      if (errorMessage) {
+        alert(decodeURIComponent(errorMessage));
+      }
+
+      document.getElementById('loginBtn').addEventListener('click', async () => {
+
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value.trim();
+        const errorDiv = document.getElementById('error');
+        errorDiv.textContent = '';
+
+        // Validación básica
+        if (!username || !password) {
+          errorDiv.textContent = 'Todos los campos son obligatorios.';
+          return;
+        }
+
+        try {
+          const btn = document.getElementById('loginBtn');
+          btn.disabled = true;
+          btn.textContent = 'Conectando...';
+
+            const res = await fetch(`${window.BASE_URL}/auth/login`, {
+              method: 'POST',
+              headers: {
+                'accept': '*/*',
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ credential: username, password, isSystemUser: "true" }),
+            });
+
+            const response = await res.json();
+            if (!res.ok) {
+            throw new Error(response.message || 'Error de autenticación');
+            }
+
+           const accessToken = response.data?.access_token;
+
+            if (!accessToken) {
+            throw new Error("El servidor no devolvió un access_token válido");
+            }
+
+            // Guardar en múltiples lugares para asegurar
+            localStorage.setItem('access_token', accessToken);
+
+            // Guardar en sessionStorage también
+            sessionStorage.setItem('access_token', accessToken);
+
+            // Guardar en cookie con opciones seguras
+             document.cookie = `access_token=${accessToken}; Path=/; SameSite=Lax`;
+            // Redirigir CON el token en la URL (como fallback)
+            window.location.href = `/logs/ui/view?token=${encodeURIComponent(accessToken)}`;
+
+        } catch (err) {
+          console.error('❌ Error:', err);
+          errorDiv.textContent = 'Error: ' + err.message;
+        } finally {
+          const btn = document.getElementById('loginBtn');
+          btn.disabled = false;
+          btn.textContent = 'Ingresar';
+        }
+      });
+    </script>
+  </body>
+</html>
