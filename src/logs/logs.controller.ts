@@ -3,19 +3,16 @@ import {
   Get,
   Param,
   Query,
-  Render,
   Req,
   Res,
-  UnauthorizedException,
+  UnauthorizedException
 } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { PaginationLogDto } from './dto/pagination-log.dto';
-import { LogsService } from './logs.service';
 import { Request, Response } from 'express';
 import { Public } from 'src/auth/decorators/public.decorator';
-import { JwtService } from '@nestjs/jwt';
-import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
-import { Reflector } from '@nestjs/core';
+import { PaginationLogDto } from './dto/pagination-log.dto';
+import { LogsService } from './logs.service';
 
 @ApiBearerAuth()
 @ApiTags('logs')
@@ -59,8 +56,7 @@ export class LogsController {
       const secret = process.env.JWT_SECRET;
       try {
         const decoded = this.jwtService.verify(token, { secret });
-        const roleId = decoded?.payload?.roleId;
-        console.log('🔐 Acceso concedido a logs para roleId:', decoded?.payload);
+        const roleId = decoded?.roleId;
         if (Number(roleId) !== 1) {
           console.warn('Acceso denegado: solo superAdministrador');
           return res.redirect('/logs/ui/login?error=Acceso%20denegado');
