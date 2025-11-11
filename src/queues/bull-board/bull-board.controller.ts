@@ -17,6 +17,7 @@ import { QueuesService } from '../queues.service';
 import { AuthService } from 'src/auth/auth.service';
 import { JwtService } from '@nestjs/jwt';
 import { RedisSessionService } from 'src/redis-session/redis-session.service';
+import { RoleEnum } from 'src/role/role.const';
 
 @Controller('admin')
 @Throttle({ short: {} })
@@ -135,7 +136,7 @@ export class BullBoardController {
 
       try {
         const roleId = decoded?.roleId;
-        if (Number(roleId) !== 1) {
+        if (Number(roleId) !== RoleEnum.ADMIN) {
           console.warn('Acceso denegado: solo superAdministrador');
           return res.redirect('/logs/ui/login?error=Acceso%20denegado');
         }
