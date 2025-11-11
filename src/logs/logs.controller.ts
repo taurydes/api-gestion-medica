@@ -13,6 +13,7 @@ import { Request, Response } from 'express';
 import { Public } from 'src/auth/decorators/public.decorator';
 import { PaginationLogDto } from './dto/pagination-log.dto';
 import { LogsService } from './logs.service';
+import { RoleEnum } from 'src/role/role.const';
 
 @ApiBearerAuth()
 @ApiTags('logs')
@@ -57,7 +58,7 @@ export class LogsController {
       try {
         const decoded = this.jwtService.verify(token, { secret });
         const roleId = decoded?.roleId;
-        if (Number(roleId) !== 1) {
+        if (Number(roleId) !== RoleEnum.ADMIN) {
           console.warn('Acceso denegado: solo superAdministrador');
           return res.redirect('/logs/ui/login?error=Acceso%20denegado');
         }
