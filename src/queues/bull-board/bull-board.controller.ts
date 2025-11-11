@@ -11,31 +11,24 @@ import {
 import { Request, Response } from 'express';
 import { createBullBoard } from '@bull-board/api';
 import { ExpressAdapter } from '@bull-board/express';
-import * as jwt from 'jsonwebtoken';
-import { QueuesService } from '../queues.service';
+import { Throttle } from '@nestjs/throttler';
 import { Public } from 'src/auth/decorators/public.decorator';
+import { QueuesService } from '../queues.service';
+import { AuthService } from 'src/auth/auth.service';
+import { JwtService } from '@nestjs/jwt';
+import { RedisSessionService } from 'src/redis-session/redis-session.service';
 
-/**
- * @summary Controlador para la interfaz Bull Board (panel de colas).
- * @description
- * Este controlador gestiona:
- * - El **login protegido con JWT** para acceder al panel Bull Board.
- * - El **renderizado de la UI del panel** bajo `/admin/queues`.
- * 
- * Se apoya en `QueuesService` para obtener los adaptadores BullMQ y
- * conectar el sistema de colas al dashboard.
- */
 @Controller('admin')
+@Throttle({ short: {} })
 export class BullBoardController {
-  /**
-   * @summary Adaptador Express para Bull Board.
-   * @description
-   * Permite integrar la UI de Bull Board dentro del servidor Express
-   * que ejecuta la app NestJS.
-   */
   private serverAdapter = new ExpressAdapter();
 
-  constructor(private readonly queuesService: QueuesService) {
+  constructor(
+    private readonly queuesService: QueuesService,
+    private readonly authService: AuthService,
+    private readonly jwtService: JwtService,
+    private readonly redisSession: RedisSessionService,
+  ) {
     this.serverAdapter.setBasePath('/admin/queues');
 
     createBullBoard({
@@ -45,18 +38,8 @@ export class BullBoardController {
   }
 
   // ======================================================
-  // 🔹 VISTA DE LOGIN
+  // 🔹 VISTA DE LOGIN (FORM)
   // ======================================================
-
-  /**
-   * @summary Renderiza la vista de login del panel Bull Board.
-   * @description
-   * Permite el acceso inicial al formulario de autenticación.
-   * El archivo de plantilla `bull-login.hbs` se encuentra en:
-   * `src/queues/bull-board/views/bull-login.hbs`.
-   *
-   * @route GET /admin/login
-   */
   @Public()
   @Get('login')
   @Render('queues/bull-board/views/bull-login')
@@ -66,26 +49,12 @@ export class BullBoardController {
   }
 
   // ======================================================
-  // 🔹 VALIDACIÓN DE CREDENCIALES
+  // 🔹 LOGIN vía AuthService (usuarios de sistema)
   // ======================================================
-
-  /**
-   * @summary Valida credenciales y genera un token JWT.
-   * @description
-   * Comprueba las credenciales enviadas desde el formulario.
-   * Si son correctas, crea un `access_token` JWT con duración de 1 hora
-   * y lo guarda como cookie segura (`bull_token`).
-   *
-   * @route POST /admin/login
-   * @param body Contiene las credenciales `{ username, password }`.
-   * @throws UnauthorizedException Si las credenciales son incorrectas.
-   */
+  @Public()
   @Post('login')
   async login(@Req() req: Request, @Res() res: Response, @Body() body: any) {
     const { username, password } = body;
-    const USER_BULL = process.env.USER_BULL || 'admin';
-    const PASSWORD_BULL = process.env.PASSWORD_BULL || '123456';
-    const JWT_SECRET_BULL = process.env.JWT_SECRET_BULL || 'bull_secret';
 
     if (!username || !password) {
       return res
@@ -93,84 +62,92 @@ export class BullBoardController {
         .json({ message: 'Usuario y clave son requeridos' });
     }
 
-    if (username !== USER_BULL || password !== PASSWORD_BULL) {
-      throw new UnauthorizedException('Credenciales inválidas');
-    }
-
-    const token = jwt.sign({ user: username }, JWT_SECRET_BULL, {
-      expiresIn: '1h',
+    // 👉 Delegamos al AuthService (mismo pipeline que el resto de la app)
+    //    Aquí forzamos isSystemUser: true para el panel
+    const { access_token } = await this.authService.login({
+      credential: username,
+      password,
+      isSystemUser: true,
     });
 
-    res.cookie('bull_token', token, {
+    // Cookie opcional para UI (httpOnly recomendado)
+    res.cookie('access_token', access_token, {
       httpOnly: true,
+      sameSite: 'lax',
       maxAge: 3600000, // 1 hora
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
     });
 
     return res.json({
       message: 'Login exitoso',
-      data: { access_token: token },
+      data: { access_token },
     });
   }
 
   // ======================================================
   // 🔹 RUTAS DEL PANEL PRINCIPAL
   // ======================================================
-
-  /**
-   * @summary Renderiza la interfaz principal de Bull Board.
-   * @description
-   * Carga el panel en `/admin/queues`, validando previamente el token JWT.
-   * Si el token es inválido o inexistente, redirige al login.
-   *
-   * @route GET /admin/queues
-   */
   @Get('queues')
   async renderQueues(@Req() req: Request, @Res() res: Response) {
     return this.handleBullBoard(req, res);
   }
 
-  /**
-   * @summary Captura todas las rutas hijas de `/admin/queues/*`.
-   * @description
-   * Necesario para que Bull Board maneje rutas internas del dashboard
-   * (por ejemplo `/admin/queues/api/queues` o `/admin/queues/static/*`).
-   *
-   * @route GET /admin/queues/*
-   */
   @Get('queues/*')
   async renderSubRoutes(@Req() req: Request, @Res() res: Response) {
     return this.handleBullBoard(req, res);
   }
 
   // ======================================================
-  // 🧠 LÓGICA DE VALIDACIÓN COMPARTIDA
+  // 🧠 VALIDACIÓN: JWT + Sesión en Redis
   // ======================================================
-
-  /**
-   * @summary Middleware interno para validar acceso al panel.
-   * @description
-   * Verifica el token JWT ya sea desde la cookie (`bull_token`)
-   * o desde el header `Authorization: Bearer <token>`.
-   * 
-   * Si el token no existe o no es válido, redirige automáticamente al login.
-   */
-  private handleBullBoard(req: Request, res: Response) {
+  private async handleBullBoard(req: Request, res: Response) {
+    // 1) Tomamos token de cookie o Authorization
     const token =
-      req.cookies?.bull_token ||
+      req.cookies?.access_token ||
       req.headers.authorization?.replace('Bearer ', '');
-
-    const JWT_SECRET_BULL = process.env.JWT_SECRET_BULL || 'bull_secret';
 
     if (!token) {
       return res.redirect('/admin/login?error=Token%20requerido');
     }
 
     try {
-      jwt.verify(token, JWT_SECRET_BULL);
+      // 2) Verificamos JWT con el mismo secreto de la app
+      const decoded = this.jwtService.verify(token, {
+        secret: process.env.JWT_SECRET,
+      }) as {
+        id: number;
+        name: string;
+        roleId: number;
+        iat: number;
+        exp: number;
+      };
+
+      // 3) Validamos sesión en Redis (single-session / aún activa)
+      const isActive = await this.redisSession.isValidSession(
+        decoded.id.toString(),
+      );
+      if (!isActive) {
+        return res.redirect(
+          '/admin/login?error=Sesion%20invalida%20o%20expirada',
+        );
+      }
+
+      try {
+        const roleId = decoded?.roleId;
+        if (Number(roleId) !== 1) {
+          console.warn('Acceso denegado: solo superAdministrador');
+          return res.redirect('/logs/ui/login?error=Acceso%20denegado');
+        }
+      } catch (err) {
+        throw new UnauthorizedException(err.message);
+      }
+
+      // 4) Delegamos a Bull Board
       const router = this.serverAdapter.getRouter();
-      router(req, res);
+      return router(req, res);
     } catch {
-      return res.redirect('/admin/login?error=Token%20inválido');
+      return res.redirect('/admin/login?error=Token%20invalido%20o%20expirado');
     }
   }
 }

@@ -2,7 +2,7 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <title>{{title}}</title>
+    <title>Login Bull Board - Base</title>
     <link rel="stylesheet" href="/admin/views/bull-login.css" />
   </head>
   <body>
@@ -50,13 +50,13 @@
                 'accept': '*/*',
                 'Content-Type': 'application/json',
               },
-              body: JSON.stringify({ credential: username, password, isSystemUser: "true" }),
+              body: JSON.stringify({ credential: username, password, isSystemUser: true }),
             });
 
             const response = await res.json();
             if (!res.ok) throw new Error(response.message || 'Error de autenticación');
 
-            document.cookie = `bull_token=${response.data.access_token}; Path=/; SameSite=Lax`;
+            document.cookie = `bull_token=${response.access_token}; Path=/; SameSite=Lax`;
             window.location.href = '/admin/queues';
           } catch (err) {
             errorDiv.textContent = 'Error: ' + err.message;

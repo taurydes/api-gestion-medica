@@ -1,12 +1,14 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
-import { RoleService } from './role.service';
+import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
-import { ApiBearerAuth, ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { Role } from './entities/role.entity';
+import { RoleService } from './role.service';
 
-@ApiBearerAuth()
 @ApiTags('Roles')
+@ApiBearerAuth()
+@Throttle({ short: {} })
 @Controller('roles')
 export class RoleController {
   constructor(private readonly roleService: RoleService) {}

@@ -1,27 +1,31 @@
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory, Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { join } from 'path';
-import * as dotenv from 'dotenv';
-import * as express from 'express';
-import * as cookieParser from 'cookie-parser';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import * as cookieParser from 'cookie-parser';
+import * as express from 'express';
+import { join } from 'path';
 
 // 🔹 Módulos internos
 import { AppModule } from './app.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from './auth/guards/permission.guard';
-import { HttpResponseInterceptor } from './common/interceptors/HttpResponseInterceptor';
+import { SessionGuard } from './auth/guards/session.guard';
 import { HttpExceptionFilter } from './common/exceptions/HttpExceptionFilter';
+import { HttpResponseInterceptor } from './common/interceptors/HttpResponseInterceptor';
 import { LogsService } from './logs/logs.service';
 import { registerHandlebarsHelpers } from './logs/views/helpers';
 import { BullBoardService } from './queues/bull-board/bull-board.service';
-
-dotenv.config();
+import { ConfigService } from '@nestjs/config';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // -------------------------------------------------
+  // ⚙️ Inyectamos ConfigService (ya disponible globalmente)
+  // -------------------------------------------------
+  const configService = app.get(ConfigService);
 
   // -------------------------------------------------
   // 🗂️ Configuración de vistas (Logs y BullBoard)
@@ -50,7 +54,7 @@ async function bootstrap() {
   // 🌍 CORS y Swagger
   // -------------------------------------------------
   app.enableCors({
-    origin: true,
+    origin: configService.get('CORS_ORIGIN') || true,
     credentials: true,
     allowedHeaders: [
       'Content-Type',
@@ -62,16 +66,16 @@ async function bootstrap() {
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
   });
 
-  const NODE_ENV = process.env.NODE_ENV || 'development';
+  const NODE_ENV = configService.get<string>('NODE_ENV') || 'development';
   if (NODE_ENV === 'development') {
-    const config = new DocumentBuilder()
-      .setTitle('API BASE - TypeScript + NestJS')
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle(configService.get('APP_NAME') || 'API BASE - TypeScript + NestJS')
       .setDescription('Documentación de la API BASE')
       .setVersion('1.0')
       .addBearerAuth()
       .build();
 
-    const document = SwaggerModule.createDocument(app, config);
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
     SwaggerModule.setup('api', app, document);
     Logger.log('📘 Swagger habilitado en /api');
   } else {
@@ -92,20 +96,15 @@ async function bootstrap() {
   // -------------------------------------------------
   const reflector = app.get(Reflector);
   const jwtService = app.get(JwtService);
+  const sessionGuard = app.get(SessionGuard);
+  const permissionsGuard = app.get(PermissionsGuard);
+  const jwtAuthGuard = new JwtAuthGuard(jwtService, reflector);
 
   app.useGlobalGuards(
-    new JwtAuthGuard(jwtService, reflector),
-    app.get(PermissionsGuard),
+    jwtAuthGuard, // 1️⃣ Valida el token
+    sessionGuard, // 2️⃣ Revisa Redis
+    permissionsGuard, // 3️⃣ Aplica roles/permisos
   );
-
-  // ⚠️ Middleware para excluir /admin/* de los guards globales
-  app.use((req, res, next) => {
-    if (req.path.startsWith('/admin')) {
-      // rutas de Bull Board: sin guard Nest
-      return next();
-    }
-    return next(); // las demás rutas siguen protegidas por los guards globales
-  });
 
   // -------------------------------------------------
   // 📊 Bull Board - Panel de administración
@@ -117,8 +116,8 @@ async function bootstrap() {
   // -------------------------------------------------
   // 🚀 Arranque
   // -------------------------------------------------
-  const PORT = process.env.PORT ?? 3000;
-  const URL_HOST = process.env.URL_HOST ?? 'localhost';
+  const PORT = configService.get<number>('PORT') ?? 3000;
+  const URL_HOST = configService.get<string>('URL_HOST') ?? 'localhost';
   await app.listen(PORT);
 
   Logger.log(`🚀 App corriendo en: http://${URL_HOST}:${PORT}/api`);

@@ -434,17 +434,40 @@ function formatStack(stack) {
 // =====================
 // Cerrar sesión
 // =====================
-function logout() {
-  if (confirm('¿Seguro que deseas cerrar sesión?')) {
-    // Borrar token de todos los lugares posibles
-    localStorage.removeItem('access_token');
-    sessionStorage.removeItem('access_token');
-    document.cookie = 'access_token=; Max-Age=0; path=/;';
-    window.API_TOKEN = null;
+async function logout() {
+  if (!confirm('¿Seguro que deseas cerrar sesión?')) return;
 
-    // Redirigir
-    window.location.href = '/logs/ui/login';
+  try {
+    // Si guardas el token en local/sessionStorage, pásalo como Bearer (opcional si usas cookie httpOnly)
+    const token =
+      localStorage.getItem('access_token') ||
+      sessionStorage.getItem('access_token');
+
+    await fetch('/auth/logout', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      credentials: 'include', // necesario si la cookie es httpOnly
+    });
+  } catch (e) {
+    console.warn('No se pudo notificar logout al servidor:', e);
+    // Continuamos con limpieza local de todas formas
   }
+
+  // 🔒 Limpieza del lado del cliente
+  localStorage.removeItem('access_token');
+  sessionStorage.removeItem('access_token');
+  document.cookie = 'access_token=; Max-Age=0; Path=/; SameSite=Lax';
+
+  // (opcional) Notifica a otras pestañas
+  try {
+    localStorage.setItem('logout_broadcast', Date.now().toString());
+  } catch {}
+
+  // Redirige al login de logs (o a donde quieras)
+  window.location.href = '/logs/ui/login';
 }
 
 // =====================

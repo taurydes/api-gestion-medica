@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsBooleanString, IsString, MinLength } from 'class-validator';
+import { IsBoolean, IsString, MinLength } from 'class-validator';
 
 export class LoginUserDto {
   @ApiProperty({
@@ -25,6 +25,6 @@ export class LoginUserDto {
     example: true,
     default: false,
   })
-  @IsBooleanString({ message: 'Debe ser verdadero o falso' })
-  isSystemUser: string;
+  @IsBoolean({ message: 'Debe ser verdadero o falso' })
+  isSystemUser: boolean;
 }

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Login Logs - Metro Kiosko</title>
+    <title>Login Logs - Base</title>
     <link rel="stylesheet" href="/logs/views/logs-page.css" />
 
     <style>
@@ -131,7 +131,7 @@
                 'accept': '*/*',
                 'Content-Type': 'application/json',
               },
-              body: JSON.stringify({ credential: username, password, isSystemUser: "true" }),
+              body: JSON.stringify({ credential: username, password, isSystemUser: true }),
             });
 
             const response = await res.json();
@@ -139,7 +139,7 @@
             throw new Error(response.message || 'Error de autenticación');
             }
 
-           const accessToken = response.data?.access_token;
+           const accessToken = response.access_token ?? response.data?.access_token;
 
             if (!accessToken) {
             throw new Error("El servidor no devolvió un access_token válido");
