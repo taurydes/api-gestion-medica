@@ -32,7 +32,6 @@ export const GetUser = createParamDecorator(
 
     // Obtiene el usuario autenticado inyectado por el AuthGuard
     const user = req.user;
-
     // Si no hay usuario en la request, lanza error
     if (!user) {
       throw new InternalServerErrorException('User not found (request)');

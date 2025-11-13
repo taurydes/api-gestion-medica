@@ -13,5 +13,6 @@ import { AuthModule } from 'src/auth/auth.module';
     ],
   controllers: [MenuController],
   providers: [MenuService],
+  exports: [MenuService, TypeOrmModule],
 })
 export class MenuModule {}
