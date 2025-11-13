@@ -51,7 +51,7 @@ export class AuthService {
 
     return {
       id: user.id,
-      data: user,
+      user: user,
     };
   }
 
@@ -76,7 +76,7 @@ export class AuthService {
 
     return {
       id: user.id,
-      data: user,
+      user: user,
     };
   }
 
@@ -89,7 +89,7 @@ export class AuthService {
    * @param loginDto Datos de inicio de sesión (`credential`, `password`, `isSystemUser`)
    * @returns Token JWT de acceso.
    */
-  async login(loginDto: LoginUserDto): Promise<{ access_token: string , refresh_token: string, user: Partial<AuthUser> }> {
+  async login(loginDto: LoginUserDto): Promise<{ access_token: string , refresh_token: string, data: Partial<AuthUser> }> {
     let user: AuthUser;
     
     if (loginDto.isSystemUser) {
@@ -100,7 +100,7 @@ export class AuthService {
     } else {
       user = await this.validateUser(loginDto.credential, loginDto.password);
     }
-    const payload = { id: user.id, name: user.data.name, roleId: user.data.roleId, user };
+    const payload = { id: user.id, name: user.user.name, roleId: user.user.roleId, user };
 
     const access_token = this.jwtService.sign(payload, {
       secret: process.env.JWT_SECRET,
@@ -118,19 +118,19 @@ export class AuthService {
         access_token,
         refresh_token,
         userId: user.id,
-        roleId: user.data.roleId,
+        roleId: user.user.roleId,
         loginAt: new Date().toISOString(),
       },
       3600, // TTL del access token
     );
 
-    return { access_token, refresh_token,user };
+    return { access_token, refresh_token,data:user };
   }
 
   // ======================================================
   // 🔹 REFRESH TOKEN
   // ======================================================
-  async refreshTokens(dto: RefreshTokenDto,currentUser:AuthUser):Promise<{ access_token: string ; refresh_token: string, user: AuthUser}> {
+  async refreshTokens(dto: RefreshTokenDto,currentUser:AuthUser):Promise<{ access_token: string ; refresh_token: string, data: AuthUser}> {
     const { refreshToken } = dto;
     const userId= currentUser.id;
     
@@ -199,9 +199,9 @@ export class AuthService {
     return {
       access_token: newAccessToken,
       refresh_token: newRefreshToken,
-      user: {
+      data: {
         id: payload.id,
-        data: currentUser.data,
+        user: currentUser.user,
       },
     };
   }
