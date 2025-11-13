@@ -8,6 +8,7 @@ import { PermissionService } from './permission.service';
 import { PermissionRole } from './entities/Permission-role.entity';
 import { PermissionMenu } from './entities/permission-menu.entity';
 import { Menu } from 'src/menu/entities/menu.entity';
+import { MenuModule } from 'src/menu/menu.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { Menu } from 'src/menu/entities/menu.entity';
       [Permission, PermissionRole,Role,PermissionMenu,Menu],
       DatabaseConnectionName.DB_MAIN,
     ),
+    MenuModule
   ],
   controllers: [PermissionController],
   providers: [PermissionService],

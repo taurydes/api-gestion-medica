@@ -1,11 +1,13 @@
-import { Body, Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { Response, Request } from 'express';
+import { Body, Controller, Get, Post, Req, Res } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
+import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
+import { GetUser } from './decorators/get-user.decorator';
 import { Public } from './decorators/public.decorator';
 import { LoginUserDto } from './dto/login-auth.dto';
-import { SessionGuard } from './guards/session.guard';
-import { Throttle } from '@nestjs/throttler';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { AuthUser } from './interfaces/User';
 
 @ApiTags('Auth')
 @ApiBearerAuth()
@@ -86,4 +88,23 @@ export class AuthController {
       active: isActive,
     };
   }
+
+@Post('refresh')
+async refresh(@Body() dto: RefreshTokenDto, @GetUser() currentUser: AuthUser, @Res() res: Response) {
+  const tokens = await this.authService.refreshTokens(dto, currentUser);
+
+  res.cookie('access_token', tokens.access_token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    maxAge: 3600000,
+  });
+
+  res.cookie('refresh_token', tokens.refresh_token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    maxAge: 7 * 24 * 3600000,
+  });
+
+  return res.json(tokens);
+}
 }

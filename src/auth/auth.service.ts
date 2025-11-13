@@ -9,6 +9,7 @@ import { UserSecurity } from 'src/user/entities/user.system.entity';
 import { User } from '../user/entities/user.entity';
 import { LoginUserDto } from './dto/login-auth.dto';
 import { AuthUser } from './interfaces/User';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
 
 /**
  * @summary Servicio de autenticación principal de la aplicación.
@@ -50,9 +51,7 @@ export class AuthService {
 
     return {
       id: user.id,
-      name: user.name,
-      email: user.email,
-      roleId: user.roleId,
+      data: user,
     };
   }
 
@@ -77,9 +76,7 @@ export class AuthService {
 
     return {
       id: user.id,
-      name: user.name,
-      email: user.email,
-      roleId: user.roleId,
+      data: user,
     };
   }
 
@@ -92,9 +89,9 @@ export class AuthService {
    * @param loginDto Datos de inicio de sesión (`credential`, `password`, `isSystemUser`)
    * @returns Token JWT de acceso.
    */
-  async login(loginDto: LoginUserDto): Promise<{ access_token: string }> {
+  async login(loginDto: LoginUserDto): Promise<{ access_token: string , refresh_token: string, user: Partial<AuthUser> }> {
     let user: AuthUser;
-
+    
     if (loginDto.isSystemUser) {
       user = await this.validateSystemUser(
         loginDto.credential,
@@ -103,27 +100,110 @@ export class AuthService {
     } else {
       user = await this.validateUser(loginDto.credential, loginDto.password);
     }
+    const payload = { id: user.id, name: user.data.name, roleId: user.data.roleId, user };
 
-    const payload = { id: user.id, name: user.name, roleId: user.roleId };
-
-    const token = this.jwtService.sign(payload, {
+    const access_token = this.jwtService.sign(payload, {
       secret: process.env.JWT_SECRET,
       expiresIn: process.env.JWT_EXPIRES_IN || '1h',
     });
 
+    const refresh_token = this.jwtService.sign(payload, {
+      secret: process.env.JWT_REFRESH_SECRET,
+      expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+    });
     // ✅ Guardar sesión activa en Redis
     await this.redisSession.setSession(
       user.id.toString(),
       {
-        token,
+        access_token,
+        refresh_token,
         userId: user.id,
-        roleId: user.roleId,
+        roleId: user.data.roleId,
         loginAt: new Date().toISOString(),
       },
-      3600, // TTL de 1 hora
+      3600, // TTL del access token
     );
 
-    return { access_token: token };
+    return { access_token, refresh_token,user };
+  }
+
+  // ======================================================
+  // 🔹 REFRESH TOKEN
+  // ======================================================
+  async refreshTokens(dto: RefreshTokenDto,currentUser:AuthUser):Promise<{ access_token: string ; refresh_token: string, user: AuthUser}> {
+    const { refreshToken } = dto;
+    const userId= currentUser.id;
+    
+    const session = await this.redisSession.getSession(userId);
+
+    if (!session) {
+      throw new UnauthorizedException('Sesión expirada o inválida');
+    }
+
+    if (session.refresh_token !== refreshToken) {
+      throw new UnauthorizedException('Refresh token inválido');
+    }
+
+    // ========================
+    // 🔥 Decodificar refresh token
+    // ========================
+    let payload: any;
+
+    try {
+      payload = this.jwtService.verify(refreshToken, {
+        secret: process.env.JWT_REFRESH_SECRET,
+      });
+    } catch {
+      throw new UnauthorizedException('Refresh token inválido o expirado');
+    }
+
+    // ========================
+    //  Regenerar tokens
+    // ========================
+    const newAccessToken = this.jwtService.sign(
+      {
+        id: payload.id,
+        name: payload.name,
+        roleId: payload.roleId,
+      },
+      {
+        secret: process.env.JWT_SECRET,
+        expiresIn: process.env.JWT_EXPIRES_IN || '1h',
+      },
+    );
+
+    const newRefreshToken = this.jwtService.sign(
+      {
+        id: payload.id,
+        name: payload.name,
+        roleId: payload.roleId,
+      },
+      {
+        secret: process.env.JWT_REFRESH_SECRET,
+        expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+      },
+    );
+    //  Actualizar sesión en Redis
+    await this.redisSession.setSession(
+      userId,
+      {
+        access_token: newAccessToken,
+        refresh_token: newRefreshToken,
+        userId: payload.id,
+        roleId: payload.roleId,
+        refreshedAt: new Date().toISOString(),
+      },
+      3600,
+    );
+
+    return {
+      access_token: newAccessToken,
+      refresh_token: newRefreshToken,
+      user: {
+        id: payload.id,
+        data: currentUser.data,
+      },
+    };
   }
 
   // ======================================================

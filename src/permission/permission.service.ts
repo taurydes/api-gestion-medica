@@ -10,11 +10,12 @@ import type { Cache } from 'cache-manager';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { Role } from 'src/role/entities/role.entity';
 import { In, Repository } from 'typeorm';
-import { CreatepermissionsRolesDto } from './dto/create-permission-role.dto';
 import { CreatePermissionDto } from './dto/create-permission.dto';
 import { UpdatePermissionDto } from './dto/update-permission.dto';
 import { Permission } from './entities/permission.entity';
 import { PermissionRole } from './entities/Permission-role.entity';
+import { CreatepermissionsRolesDto } from './dto/create-permission-role.dto';
+import { MenuService } from '../menu/menu.service';
 
 /**
  * Servicio: PermissionService
@@ -39,6 +40,8 @@ export class PermissionService {
     @InjectRepository(PermissionRole, DatabaseConnectionName.DB_MAIN)
     private readonly rolePermissionRepository: Repository<PermissionRole>,
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
+
+    private readonly menuService: MenuService,
   ) {}
 
   // -----------------------------
@@ -209,41 +212,50 @@ export class PermissionService {
    *
    * 🧼 Cache: invalida lista y los items de los permisos afectados.
    */
-  async assignPermissionsToRole(
-    createpermissionsRolesDto: CreatepermissionsRolesDto,
-  ): Promise<string> {
-    try {
-      const { roleId, permissionIds } = createpermissionsRolesDto;
+  async assignPermissionsToRole(dto: CreatepermissionsRolesDto): Promise<string> {
+    const { roleId, assignments } = dto;
 
-      // Verifica que el rol exista
-      const role = await this.roleRepository.findOne({ where: { id: roleId } });
-      if (!role) throw new NotFoundException(`Role con ID ${roleId} no encontrado`);
+    // 1. Validar rol
+    const role = await this.roleRepository.findOne({
+      where: { id: roleId },
+    });
+    if (!role) throw new NotFoundException(`Rol con ID ${roleId} no existe`);
 
-      // Verifica que todos los permisos existan
-      const permissions = await this.permissionRepository.find({
-        where: { id: In(permissionIds) },
+    // 2. Validar permisos & submenu
+    for (const item of assignments) {
+      const { permissionId, submenuId } = item;
+
+      const perm = await this.permissionRepository.findOne({
+        where: { id: permissionId },
       });
-      if (permissions.length !== permissionIds.length) {
-        throw new NotFoundException('Uno o más permisos no fueron encontrados');
-      }
+      if (!perm)
+        throw new NotFoundException(
+          `Permiso con ID ${permissionId} no existe`,
+        );
 
-      // Crea las relaciones entre rol y permisos
-      const rolePermissions = permissions.map((perm) =>
-        this.rolePermissionRepository.create({
-          roleId,
-          permissionId: perm.id,
-        }),
-      );
-
-      await this.rolePermissionRepository.save(rolePermissions);
-
-      // 🧼 Invalida cache de lista y de los permisos afectados
-      await this.invalidateListAndItems(permissionIds);
-
-      return 'Permisos asignados correctamente al rol';
-    } catch (error) {
-      if (error instanceof NotFoundException) throw error;
-      throw new InternalServerErrorException('Error al asignar permisos al rol');
+      const submenu = await this.menuService.findOne(submenuId);
+      if (!submenu)
+        throw new NotFoundException(
+          `Submenú con ID ${submenuId} no existe`,
+        );
     }
+
+    // 3. Crear registros en permisos_roles
+    const records = assignments.map((item) =>
+      this.rolePermissionRepository.create({
+        roleId,
+        permissionId: item.permissionId,
+        submenuId: item.submenuId,
+        isActive: true,
+      }),
+    );
+
+    await this.rolePermissionRepository.save(records);
+
+    // 4. Limpiar cache
+    await this.invalidateListAndItems();
+
+    return 'Permisos asignados correctamente al rol';
   }
+
 }
