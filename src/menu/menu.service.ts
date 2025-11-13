@@ -7,21 +7,22 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
-import { IsNull, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { Menu } from './entities/menu.entity';
 import { CreateMenuDto } from './dto/create-menu.dto';
 import { UpdateMenuDto } from './dto/update-menu.dto';
+import { UserService } from '../user/user.service';
 
 @Injectable()
 export class MenuService {
   constructor(
     @InjectRepository(Menu, DatabaseConnectionName.DB_MAIN)
     private readonly menuRepository: Repository<Menu>,
-
     @Inject(CACHE_MANAGER)
     private readonly cacheManager: Cache,
+    private readonly userService: UserService,
   ) {}
 
   /**
@@ -207,5 +208,82 @@ export class MenuService {
         `Error al eliminar el menú: ${error.message}`,
       );
     }
+  }
+
+  /**
+   * Genera el menú dinámico para un usuario basado en su rol y permisos asignados.
+   */
+  async getMenuForUser(userId: number): Promise<Menu[]> {
+    // 1️⃣ Obtener al usuario con rol y permisosRoles
+    const user = await this.userService.findOne(userId);
+
+    if (!user) {
+      throw new NotFoundException(`Usuario con ID ${userId} no encontrado`);
+    }
+
+    // 2️⃣ Obtener los submenuId permitidos por el rol
+    const allowedSubmenuIds = user.role.permissionsRoles
+      .filter((pr) => pr.isActive)
+      .map((pr) => pr.submenuId);
+
+    if (allowedSubmenuIds.length === 0) {
+      return [];
+    }
+
+    // 3️⃣ Obtener los menús correspondientes a estos submenús
+    const allowedMenus = await this.menuRepository.find({
+      where: { id: In(allowedSubmenuIds) },
+      relations: ['parent'],
+    });
+
+    // 4️⃣ Obtener todos los padres necesarios
+    const parentIds = allowedMenus
+      .filter((m) => m.parent)
+      .map((m) => m.parent.id);
+
+    const parents = parentIds.length
+      ? await this.menuRepository.find({
+          where: { id: In(parentIds) },
+          relations: ['parent'],
+        })
+      : [];
+
+    // 5️⃣ Unir menús y padres
+    const fullMenus = [...parents, ...allowedMenus];
+
+    // 6️⃣ Construir árbol final
+    return this.buildMenuTree(fullMenus);
+  }
+
+  /**
+   * Construye un árbol jerárquico de menús.
+   */
+  private buildMenuTree(menus: Menu[]): Menu[] {
+    const menuMap = new Map<number, Menu>();
+
+    // Crear copia limpia sin children
+    menus.forEach((menu) => {
+      menu.children = [];
+      menuMap.set(menu.id, menu);
+    });
+
+    const rootList: Menu[] = [];
+
+    menus.forEach((menu) => {
+      if (menu.parent) {
+        const parent = menuMap.get(menu.parent.id);
+        if (parent) parent.children.push(menu);
+      } else {
+        rootList.push(menu);
+      }
+    });
+
+    // Ordenar por order asc
+    rootList.sort((a, b) => a.order - b.order);
+    rootList.forEach((menu) => {
+      menu.children.sort((a, b) => a.order - b.order);
+    });
+
+    return rootList;
   }
 }

@@ -8,11 +8,11 @@ import { UserController } from './user.controller';
 import { UserService } from './user.service';
 import { CommonPerson } from './entities/common-person.entity';
 import { IdentityDocument } from 'src/parameters/entities/identity-document.entity';
+import { UserSecurity } from './entities/user.system.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User,CommonPerson,IdentityDocument], DatabaseConnectionName.DB_MAIN), 
-    AuthModule,
+    TypeOrmModule.forFeature([User,UserSecurity,CommonPerson,IdentityDocument], DatabaseConnectionName.DB_MAIN), 
     forwardRef(() => RoleModule),
   ],
   controllers: [UserController],
