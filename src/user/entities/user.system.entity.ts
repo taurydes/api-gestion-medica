@@ -1,108 +1,138 @@
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  ManyToOne,
-  JoinColumn,
-} from 'typeorm';
 import { Role } from 'src/role/entities/role.entity';
-
-@Entity({ schema: 'security', name: 'Users' })
+import {
+  Column,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
+import { CommonPerson } from './common-person.entity';
+@Entity({ schema: 'seguridad', name: 'users' })
 export class UserSecurity {
   @PrimaryGeneratedColumn({ type: 'bigint' })
   id: number;
 
-  @Column({ type: 'varchar', length: 255 })
+  @Column({ type: 'varchar', length: 255, unique: true })
   name: string;
 
-  @Column({ type: 'varchar', length: 255 })
+  @Column({ type: 'varchar', length: 255, unique: true })
   email: string;
 
-  @Column({ type: 'timestamp', nullable: true })
-  email_verifiedAt: Date | null;
+  @Column({
+    name: 'email_verified_at',
+    type: 'timestamp',
+    nullable: true,
+    default: () => 'now()',
+  })
+  emailVerifiedAt: Date | null;
 
   @Column({ type: 'varchar', length: 255 })
   password: string;
 
-  @Column({ type: 'varchar', length: 100, nullable: true })
-  remember_token: string | null;
+  @Column({ name: 'remember_token', type: 'varchar', length: 100, nullable: true })
+  rememberToken: string | null;
 
   @Column({ type: 'boolean', nullable: true })
   activated: boolean | null;
 
-  @Column({ type: 'varchar', length: 255, nullable: true })
-  activation_code: string | null;
+  @Column({ name: 'activation_code', type: 'varchar', length: 255, nullable: true })
+  activationCode: string | null;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({ name: 'activated_at', type: 'timestamp', nullable: true })
   activatedAt: Date | null;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({ name: 'last_login', type: 'timestamp', nullable: true })
   lastLogin: Date | null;
 
-  @Column({ type: 'bigint' })
-  document: number;
+  @Column({
+    name: 'telefono_local',
+    type: 'varchar',
+    length: 20,
+    nullable: true,
+  })
+  localPhone: string | null;
 
-  @Column({ type: 'varchar', length: 30 })
-  firstName: string;
+  @Column({
+    name: 'telefono_movil',
+    type: 'varchar',
+    length: 20,
+  })
+  personalPhone: string;
 
-  @Column({ type: 'varchar', length: 30, nullable: true })
-  middleName: string | null;
+  @Column({
+    name: 'direccion_habitacion',
+    type: 'varchar',
+    length: 255,
+  })
+  houseAddress: string;
 
-  @Column({ type: 'varchar', length: 30 })
-  lastName: string;
-
-  @Column({ type: 'varchar', length: 30, nullable: true })
-  secondLastName: string | null;
-
-  @Column({ type: 'varchar', length: 20, nullable: true })
-  homePhone: string | null;
-
-  @Column({ type: 'varchar', length: 20 })
-  mobilePhone: string;
-
-  @Column({ type: 'varchar', length: 255 })
-  homeAddress: string;
-
-  @Column({ type: 'varchar', length: 255, nullable: true })
+  @Column({
+    name: 'direccion_trabajo',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+  })
   workAddress: string | null;
 
-  @Column({ type: 'boolean', default: true })
-  activo: boolean;
+  @Column({
+    name: 'estatus',
+    type: 'boolean',
+    default: true,
+  })
+  status: boolean;
 
-  @Column({ type: 'boolean' })
-  internalUser: boolean;
-
-  @Column({ type: 'bigint', nullable: true })
+  @Column({
+    name: 'user_id',
+    type: 'bigint',
+    nullable: true,
+    default: () => '1',
+  })
   userId: number | null;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({ name: 'created_at', type: 'timestamp', nullable: true })
   createdAt: Date | null;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({ name: 'updated_at', type: 'timestamp', nullable: true })
   updatedAt: Date | null;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({ name: 'deleted_at', type: 'timestamp', nullable: true })
   deletedAt: Date | null;
 
-  @Column({ type: 'bigint' })
+  @Column({ name: 'rol_id', type: 'bigint' })
   roleId: number;
 
-  @Column({ type: 'varchar', length: 1 })
-  letter: string;
+  @Column({
+    name: 'persona_comun_id',
+    type: 'bigint',
+    nullable: true,
+  })
+  commonPersonId: number | null;
 
-  @Column({ type: 'bigint', nullable: true })
-  institutionId: number | null;
+  @Column({
+    name: 'fecha_nacimiento',
+    type: 'date',
+    nullable: true,
+  })
+  birthDate: Date | null;
 
-  @Column({ type: 'bigint', nullable: true })
-  parishId: number | null;
+  @Column({
+    name: 'first_login',
+    type: 'boolean',
+    default: false,
+  })
+  firstLogin: boolean;
 
-  @Column({ type: 'boolean', default: false })
-  temporaryPassword: boolean;
-
-  @Column({ type: 'bigint', nullable: true })
-  regionalAddressId: number | null;
+  // RELACIONES
 
   @ManyToOne(() => Role, { onDelete: 'NO ACTION', onUpdate: 'NO ACTION' })
-  @JoinColumn({ name: 'roleId' })
+  @JoinColumn({ name: 'rol_id' })
   role: Role;
+
+  @ManyToOne(() => CommonPerson, { onDelete: 'NO ACTION', onUpdate: 'CASCADE' })
+  @JoinColumn({ name: 'persona_comun_id' })
+  commonPerson: CommonPerson;
+
+  @ManyToOne(() => UserSecurity, { onDelete: 'NO ACTION', onUpdate: 'NO ACTION' })
+  @JoinColumn({ name: 'user_id' })
+  createdBy: UserSecurity;
 }

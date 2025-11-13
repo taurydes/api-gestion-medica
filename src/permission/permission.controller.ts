@@ -16,7 +16,7 @@ import {
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Permission } from 'src/auth/decorators/permission.decorator';
-import { CreatePermissionsRoleDto } from './dto/create-permission-role.dto';
+import { CreatepermissionsRolesDto } from './dto/create-permission-role.dto';
 import { CreatePermissionDto } from './dto/create-permission.dto';
 import { UpdatePermissionDto } from './dto/update-permission.dto';
 import { PermissionService } from './permission.service';
@@ -89,10 +89,10 @@ export class PermissionController {
   @ApiResponse({ status: 200, description: 'Permisos asignados correctamente' })
   @ApiResponse({ status: 404, description: 'Rol o permisos no encontrados' })
   assignPermissionsToRole(
-    @Body() createPermissionsRoleDto: CreatePermissionsRoleDto,
+    @Body() createpermissionsRolesDto: CreatepermissionsRolesDto,
   ) {
     return this.permissionService.assignPermissionsToRole(
-      createPermissionsRoleDto,
+      createpermissionsRolesDto,
     );
   }
 }

@@ -17,6 +17,8 @@ import { QueuesModule } from './queues/queues.module';
 import { RedisSessionModule } from './redis-session/redis-session.module';
 import { RoleModule } from './role/role.module';
 import { UserModule } from './user/user.module';
+import { ParametersModule } from './parameters/parameters.module';
+import { MenuModule } from './menu/menu.module';
 
 @Module({
   imports: [
@@ -69,6 +71,8 @@ import { UserModule } from './user/user.module';
     BullBoardModule,
     RedisSessionModule,
     HealthModule,
+    ParametersModule,
+    MenuModule,
   ],
   controllers: [],
   providers: [
