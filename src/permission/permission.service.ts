@@ -10,11 +10,11 @@ import type { Cache } from 'cache-manager';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { Role } from 'src/role/entities/role.entity';
 import { In, Repository } from 'typeorm';
-import { CreatePermissionsRoleDto } from './dto/create-permission-role.dto';
+import { CreatepermissionsRolesDto } from './dto/create-permission-role.dto';
 import { CreatePermissionDto } from './dto/create-permission.dto';
 import { UpdatePermissionDto } from './dto/update-permission.dto';
 import { Permission } from './entities/permission.entity';
-import { PermissionRoles } from './entities/PermissionRole.entity';
+import { PermissionRole } from './entities/Permission-role.entity';
 
 /**
  * Servicio: PermissionService
@@ -36,8 +36,8 @@ export class PermissionService {
     @InjectRepository(Role, DatabaseConnectionName.DB_MAIN)
     private readonly roleRepository: Repository<Role>,
 
-    @InjectRepository(PermissionRoles, DatabaseConnectionName.DB_MAIN)
-    private readonly rolePermissionRepository: Repository<PermissionRoles>,
+    @InjectRepository(PermissionRole, DatabaseConnectionName.DB_MAIN)
+    private readonly rolePermissionRepository: Repository<PermissionRole>,
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) {}
 
@@ -202,7 +202,7 @@ export class PermissionService {
   /**
    * Asigna uno o varios permisos a un rol.
    *
-   * @param createPermissionsRoleDto - Contiene el ID del rol y los IDs de los permisos a asignar.
+   * @param createpermissionsRolesDto - Contiene el ID del rol y los IDs de los permisos a asignar.
    * @returns Un mensaje de confirmación de la asignación.
    * @throws NotFoundException Si el rol o alguno de los permisos no existen.
    * @throws InternalServerErrorException Si ocurre un error durante la asignación.
@@ -210,10 +210,10 @@ export class PermissionService {
    * 🧼 Cache: invalida lista y los items de los permisos afectados.
    */
   async assignPermissionsToRole(
-    createPermissionsRoleDto: CreatePermissionsRoleDto,
+    createpermissionsRolesDto: CreatepermissionsRolesDto,
   ): Promise<string> {
     try {
-      const { roleId, permissionIds } = createPermissionsRoleDto;
+      const { roleId, permissionIds } = createpermissionsRolesDto;
 
       // Verifica que el rol exista
       const role = await this.roleRepository.findOne({ where: { id: roleId } });

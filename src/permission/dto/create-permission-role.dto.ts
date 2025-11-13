@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { ArrayNotEmpty, IsArray, IsInt, IsNumber } from 'class-validator';
 
-export class CreatePermissionsRoleDto {
+export class CreatepermissionsRolesDto {
   @ApiProperty({
     description: 'ID del rol al que se asignarán los permisos',
     example: 1,

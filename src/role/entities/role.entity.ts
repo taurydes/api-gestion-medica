@@ -1,38 +1,52 @@
-import { PermissionRoles } from 'src/permission/entities/PermissionRole.entity';
-import { User } from 'src/user/entities/user.entity';
+import { PermissionMenu } from 'src/permission/entities/permission-menu.entity';
+import { PermissionRole } from 'src/permission/entities/Permission-role.entity';
+import { UserSecurity } from 'src/user/entities/user.system.entity';
 import {
-  Column,
-  CreateDateColumn,
-  DeleteDateColumn,
   Entity,
-  OneToMany,
   PrimaryGeneratedColumn,
-  UpdateDateColumn,
+  Column,
+  OneToMany,
 } from 'typeorm';
 
-@Entity({ schema: 'selfManagement', name: 'Roles' })
+
+@Entity({ schema: 'seguridad', name: 'roles' })
 export class Role {
-  @PrimaryGeneratedColumn()
+  @PrimaryGeneratedColumn({ type: 'bigint' })
   id: number;
 
-  @Column({ length: 255 })
+  @Column({ name: 'nombre', type: 'varchar', length: 255 })
   name: string;
 
-  @Column({ default: true })
-  active: boolean;
+  @Column({ name: 'user_id', type: 'bigint' })
+  userId: number;
 
-  @CreateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  @Column({ name: 'activo', type: 'boolean', default: true })
+  isActive: boolean;
+
+  @Column({
+    name: 'created_at',
+    type: 'timestamp',
+    default: () => 'now()',
+  })
   createdAt: Date;
 
-  @UpdateDateColumn({ type: 'timestamp', nullable: true })
-  updatedAt: Date;
+  @Column({ name: 'updated_at', type: 'timestamp', nullable: true })
+  updatedAt: Date | null;
 
-  @DeleteDateColumn({ type: 'timestamp', nullable: true })
-  deletedAt: Date;
+  @Column({ name: 'deleted_at', type: 'timestamp', nullable: true })
+  deletedAt: Date | null;
 
-  @OneToMany(() => User, (user) => user.role)
-  users: User[];
+  @Column({ name: 'telpo', type: 'boolean', default: false })
+  isTelpo: boolean;
 
-  @OneToMany(() => PermissionRoles, (permissionsRoles) => permissionsRoles.role)
-  permissionsRoles: PermissionRoles[];
+  // RELATIONS
+
+  @OneToMany(() => UserSecurity, (user) => user.role)
+  users: UserSecurity[];
+
+  @OneToMany(() => PermissionMenu, (pm) => pm.role)
+  permissionMenus: PermissionMenu[];
+
+  @OneToMany(() => PermissionRole, (pm) => pm.permission)
+  permissionsRoles: PermissionRole[];
 }

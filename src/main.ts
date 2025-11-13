@@ -69,8 +69,8 @@ async function bootstrap() {
   const NODE_ENV = configService.get<string>('NODE_ENV') || 'development';
   if (NODE_ENV === 'development') {
     const swaggerConfig = new DocumentBuilder()
-      .setTitle(configService.get('APP_NAME') || 'API BASE - TypeScript + NestJS')
-      .setDescription('Documentación de la API BASE')
+      .setTitle(configService.get('APP_NAME') || 'API SUVE ADS')
+      .setDescription('Documentación de la API SUVE ADS')
       .setVersion('1.0')
       .addBearerAuth()
       .build();

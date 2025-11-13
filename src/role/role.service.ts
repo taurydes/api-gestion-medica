@@ -91,7 +91,6 @@ export class RoleService {
           name: true,
           permissionsRoles: {
             id: true,
-            active: true,
             permission: {
               id: true,
               name: true,
