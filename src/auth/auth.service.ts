@@ -10,6 +10,9 @@ import { User } from '../user/entities/user.entity';
 import { LoginUserDto } from './dto/login-auth.dto';
 import { AuthUser } from './interfaces/User';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { MenuService } from 'src/menu/menu.service';
+import { Menu } from 'src/menu/entities/menu.entity';
+import { JwtPayload } from './auth.const';
 
 /**
  * @summary Servicio de autenticación principal de la aplicación.
@@ -28,6 +31,7 @@ export class AuthService {
 
     private readonly jwtService: JwtService,
     private readonly redisSession: RedisSessionService,
+    private readonly menuService: MenuService,
   ) {}
 
   // ======================================================
@@ -91,7 +95,7 @@ export class AuthService {
    * @param loginDto Datos de inicio de sesión (`credential`, `password`, `isSystemUser`)
    * @returns Token JWT de acceso.
    */
-  async login(loginDto: LoginUserDto): Promise<{ access_token: string , refresh_token: string, data: Partial<AuthUser> }> {
+  async login(loginDto: LoginUserDto): Promise<JwtPayload> {
     let user: AuthUser;
     
     if (loginDto.isSystemUser) {
@@ -125,14 +129,14 @@ export class AuthService {
       },
       3600, // TTL del access token
     );
-
-    return { access_token, refresh_token,data:user };
+    const menu = await this.menuService.getMenuForUser(user.id);
+    return { access_token, refresh_token, data: user, menu };
   }
 
   // ======================================================
   // 🔹 REFRESH TOKEN
   // ======================================================
-  async refreshTokens(dto: RefreshTokenDto,currentUser:AuthUser):Promise<{ access_token: string ; refresh_token: string, data: AuthUser}> {
+  async refreshTokens(dto: RefreshTokenDto,currentUser:AuthUser):Promise<JwtPayload> {
     const { refreshToken } = dto;
     const userId= currentUser.id;
     
@@ -197,7 +201,7 @@ export class AuthService {
       },
       3600,
     );
-
+    const menu = await this.menuService.getMenuForUser(userId);
     return {
       access_token: newAccessToken,
       refresh_token: newRefreshToken,
@@ -205,6 +209,7 @@ export class AuthService {
         id: payload.id,
         data: currentUser.data,
       },
+      menu,
     };
   }
 
