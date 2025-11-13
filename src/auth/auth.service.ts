@@ -44,14 +44,15 @@ export class AuthService {
     });
 
     if (!user) throw new UnauthorizedException('Usuario no encontrado');
-
+    const { password: _, ...safeUser } = user;
+    
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid)
       throw new UnauthorizedException('Credenciales inválidas');
 
     return {
       id: user.id,
-      user: user,
+      data: safeUser,
     };
   }
 
@@ -69,6 +70,7 @@ export class AuthService {
 
     if (!user)
       throw new UnauthorizedException('Usuario de seguridad no encontrado');
+    const { password: _, ...safeUser } = user;
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid)
@@ -76,7 +78,7 @@ export class AuthService {
 
     return {
       id: user.id,
-      user: user,
+      data: safeUser,
     };
   }
 
@@ -100,7 +102,7 @@ export class AuthService {
     } else {
       user = await this.validateUser(loginDto.credential, loginDto.password);
     }
-    const payload = { id: user.id, name: user.user.name, roleId: user.user.roleId, user };
+    const payload = { id: user.id, name: user.data.name, roleId: user.data.roleId, user };
 
     const access_token = this.jwtService.sign(payload, {
       secret: process.env.JWT_SECRET,
@@ -118,7 +120,7 @@ export class AuthService {
         access_token,
         refresh_token,
         userId: user.id,
-        roleId: user.user.roleId,
+        roleId: user.data.roleId,
         loginAt: new Date().toISOString(),
       },
       3600, // TTL del access token
@@ -201,7 +203,7 @@ export class AuthService {
       refresh_token: newRefreshToken,
       data: {
         id: payload.id,
-        user: currentUser.user,
+        data: currentUser.data,
       },
     };
   }
