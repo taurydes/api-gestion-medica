@@ -8,56 +8,82 @@ import { Reflector } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Request } from 'express';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
-import { User } from 'src/user/entities/user.entity';
+import { UserSecurity } from 'src/user/entities/user.system.entity';
 import { Repository } from 'typeorm';
+import { PERMISSIONS_KEY } from '../decorators/permission.decorator';
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
-    @InjectRepository(User, DatabaseConnectionName.DB_MAIN)
-    private readonly userRepository: Repository<User>,
+
+    @InjectRepository(UserSecurity, DatabaseConnectionName.DB_MAIN)
+    private readonly userSecurityRepository: Repository<UserSecurity>,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const requiredPermissions = this.reflector.get<string[]>(
-      'permissions',
-      context.getHandler(),
-    );
+    // 1️⃣ Leer permisos desde el decorador @Permission()
+    const requiredPermissions =
+      this.reflector.getAllAndOverride<string[]>(PERMISSIONS_KEY, [
+        context.getHandler(),
+        context.getClass(),
+      ]);
+
+    // Si no requiere permisos → dejar pasar
     if (!requiredPermissions || requiredPermissions.length === 0) {
-      return true; // Si no se requieren permisos, permitir acceso
+      return true;
     }
 
+    // 2️⃣ Obtener al usuario desde req.user (validado por JWT)
     const request = context.switchToHttp().getRequest<Request>();
-    const userRaw: any = request.user;
+    const authUser: any = request.user;
 
-    if (!userRaw || !userRaw.id) {
+    if (!authUser || !authUser.id) {
       throw new ForbiddenException('Usuario no autenticado');
     }
-    // Consultar al usuario con sus relaciones (rol y permisos)
-    const user = await this.userRepository.findOne({
-      where: { id: userRaw.id },
+
+    // 3️⃣ Cargar usuario con rol y permisos necesarios
+    const user = await this.userSecurityRepository.findOne({
+      where: { id: authUser.id },
       relations: [
         'role',
         'role.permissionsRoles',
         'role.permissionsRoles.permission',
+        'role.permissionsRoles.submenu',
       ],
     });
 
-    if (!user) {
-      throw new ForbiddenException('Usuario no encontrado');
+    if (!user || !user.role) {
+      throw new ForbiddenException('Rol de usuario no encontrado');
     }
 
-    //  // Verificar si el rol del usuario tiene al menos uno de los permisos requeridos
-    // const hasPermission = user.role.permissionsRoles.some(
-    //   (pr) => requiredPermissions.includes(pr.permission.name) && pr.active,
-    // );
+    const rolePermissions = user.role.permissionsRoles ?? [];
 
-    // if (!hasPermission) {
-    //   throw new ForbiddenException(
-    //     'No tienes permiso para acceder a este recurso',
-    //   );
-    // }
+    // 4️⃣ Construir lista de permisos en formato module.permission
+    // ejemplo: usuarios.crear, roles.eliminar, reportes.ver
+    const userPermissionCodes = rolePermissions
+      .filter(
+        (pr) =>
+          pr.isActive &&
+          pr.submenu?.slug &&
+          pr.permission?.isActive &&
+          pr.permission?.name,
+      )
+      .map((pr) => `${pr.submenu.slug}.${pr.permission.name}`);
+
+    // (opcional: debug)
+    // console.log('PERMISOS DEL USUARIO:', userPermissionCodes);
+
+    // 5️⃣ Validar que el usuario tenga al menos uno de los permisos requeridos
+    const hasPermission = requiredPermissions.some((required) =>
+      userPermissionCodes.includes(required),
+    );
+
+    if (!hasPermission) {
+      throw new ForbiddenException(
+        `No tienes permisos. Se requiere uno de: ${requiredPermissions.join(', ')}`,
+      );
+    }
 
     return true;
   }

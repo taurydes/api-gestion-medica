@@ -2,17 +2,16 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
-import { Repository } from 'typeorm';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
+import { MenuService } from 'src/menu/menu.service';
 import { RedisSessionService } from 'src/redis-session/redis-session.service';
 import { UserSecurity } from 'src/user/entities/user.system.entity';
+import { Repository } from 'typeorm';
 import { User } from '../user/entities/user.entity';
-import { LoginUserDto } from './dto/login-auth.dto';
-import { AuthUser } from './interfaces/User';
-import { RefreshTokenDto } from './dto/refresh-token.dto';
-import { MenuService } from 'src/menu/menu.service';
-import { Menu } from 'src/menu/entities/menu.entity';
 import { JwtPayload } from './auth.const';
+import { LoginUserDto } from './dto/login-auth.dto';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { AuthUser } from './interfaces/User';
 
 /**
  * @summary Servicio de autenticación principal de la aplicación.
@@ -56,7 +55,7 @@ export class AuthService {
 
     return {
       id: user.id,
-      data: safeUser,
+      user: safeUser,
     };
   }
 
@@ -82,7 +81,7 @@ export class AuthService {
 
     return {
       id: user.id,
-      data: safeUser,
+      user: safeUser,
     };
   }
 
@@ -106,7 +105,7 @@ export class AuthService {
     } else {
       user = await this.validateUser(loginDto.credential, loginDto.password);
     }
-    const payload = { id: user.id, name: user.data.name, roleId: user.data.roleId, user };
+    const payload = { id: user.id, name: user.user.name, roleId: user.user.roleId, user };
 
     const access_token = this.jwtService.sign(payload, {
       secret: process.env.JWT_SECRET,
@@ -124,7 +123,7 @@ export class AuthService {
         access_token,
         refresh_token,
         userId: user.id,
-        roleId: user.data.roleId,
+        roleId: user.user.roleId,
         loginAt: new Date().toISOString(),
       },
       3600, // TTL del access token
@@ -207,7 +206,7 @@ export class AuthService {
       refresh_token: newRefreshToken,
       data: {
         id: payload.id,
-        data: currentUser.data,
+        user: currentUser.user,
       },
       menu,
     };

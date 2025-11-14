@@ -47,6 +47,6 @@ export class Role {
   @OneToMany(() => PermissionMenu, (pm) => pm.role)
   permissionMenus: PermissionMenu[];
 
-  @OneToMany(() => PermissionRole, (pm) => pm.permission)
+  @OneToMany(() => PermissionRole, (pr) => pr.role)
   permissionsRoles: PermissionRole[];
 }

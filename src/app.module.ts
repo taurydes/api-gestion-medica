@@ -19,6 +19,7 @@ import { RoleModule } from './role/role.module';
 import { UserModule } from './user/user.module';
 import { ParametersModule } from './parameters/parameters.module';
 import { MenuModule } from './menu/menu.module';
+import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
 @Module({
   imports: [
@@ -78,6 +79,7 @@ import { MenuModule } from './menu/menu.module';
   providers: [
     PermissionsGuard,
     SessionGuard,
+    JwtAuthGuard,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard, // Esto aplicará el guard automáticamente

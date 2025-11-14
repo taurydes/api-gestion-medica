@@ -76,6 +76,34 @@ export class RedisSessionService {
     return exists === 1;
   }
 
+    /**
+   * @summary Verifica que exista sesión y que el access_token coincida.
+   * @param userId ID del usuario
+   * @param accessToken Token de acceso presentado en la petición
+   * @returns true si coincide y está activa
+   */
+async isValidSessionToken(
+  userId: string | number,
+  accessToken: string,
+): Promise<boolean> {
+  const key = `session:${userId}`;
+  const raw = await this.redisClient.get(key);
+
+  if (!raw) return false;
+
+  try {
+    const data = JSON.parse(raw);
+    // Validación estricta:
+    return (
+      typeof data.access_token === 'string' &&
+      data.access_token === accessToken
+    );
+  } catch {
+    return false;
+  }
+}
+
+  
   /**
    * @summary Refresca la sesión del usuario.
    * @description

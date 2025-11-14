@@ -12,6 +12,7 @@ import { Repository } from 'typeorm';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { Role } from './entities/role.entity';
+import { AuthUser } from 'src/auth/interfaces/User';
 
 /**
  * Servicio: RoleService
@@ -31,18 +32,20 @@ export class RoleService {
   /**
    * Crea un nuevo rol en la base de datos.
    */
-  async create(createRoleDto: CreateRoleDto): Promise<Role> {
+  async create(createRoleDto: CreateRoleDto,currentUser: AuthUser): Promise<Role> {
     try {
-      const role = this.roleRepository.create(createRoleDto);
+      const role = this.roleRepository.create({...createRoleDto,userId: currentUser.id});
       const savedRole = await this.roleRepository.save(role);
 
       // 🧹 Invalida cache de roles (para forzar refresco)
       await this.cacheManager.del('roles:all');
 
       return savedRole;
-    } catch {
-      throw new InternalServerErrorException('Error al crear el rol');
-    }
+    } catch (error) {
+      throw new InternalServerErrorException(
+        `Error al crear el rol: ${error.message}`,
+      );
+}
   }
 
   /**
@@ -64,8 +67,8 @@ export class RoleService {
       await this.cacheManager.set(cacheKey, roles, 300 /* segundos */);
 
       return roles;
-    } catch {
-      throw new InternalServerErrorException('Error al obtener los roles');
+    } catch (error) {
+      throw new InternalServerErrorException(`Error al obtener los roles: ${error.message}`);
     }
   }
 
@@ -109,7 +112,7 @@ export class RoleService {
       return role;
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
-      throw new InternalServerErrorException('Error al obtener el rol');
+      throw new InternalServerErrorException(`Error al obtener el rol: ${error.message}`);
     }
   }
 
@@ -129,7 +132,7 @@ export class RoleService {
       return updated;
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
-      throw new InternalServerErrorException('Error al actualizar el rol');
+      throw new InternalServerErrorException(`Error al actualizar el rol: ${error.message}`);
     }
   }
 
@@ -146,7 +149,7 @@ export class RoleService {
       await this.cacheManager.del('roles:all');
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
-      throw new InternalServerErrorException('Error al eliminar el rol');
+      throw new InternalServerErrorException(`Error al eliminar el rol: ${error.message}`);
     }
   }
 }

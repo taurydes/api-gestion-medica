@@ -32,14 +32,6 @@ export class AuthController {
   @Post('login')
   async login(@Body() loginDto: LoginUserDto, @Res() res: Response) {
     const result = await this.authService.login(loginDto);
-
-    // Guardar token en cookie (opcional, útil para paneles web)
-    res.cookie('access_token', result.access_token, {
-      httpOnly: true,
-      sameSite: 'lax',
-      maxAge: 3600000, // 1 hora
-    });
-
     return res.json(result);
   }
 
@@ -62,7 +54,6 @@ export class AuthController {
     if (userId) {
       await this.authService.logout(userId.toString());
     }
-
     res.clearCookie('access_token');
     return res.json({ message: 'Sesión cerrada correctamente' });
   }
@@ -92,19 +83,6 @@ export class AuthController {
 @Post('refresh')
 async refresh(@Body() dto: RefreshTokenDto, @GetUser() currentUser: AuthUser, @Res() res: Response) {
   const tokens = await this.authService.refreshTokens(dto, currentUser);
-
-  res.cookie('access_token', tokens.access_token, {
-    httpOnly: true,
-    sameSite: 'lax',
-    maxAge: 3600000,
-  });
-
-  res.cookie('refresh_token', tokens.refresh_token, {
-    httpOnly: true,
-    sameSite: 'lax',
-    maxAge: 7 * 24 * 3600000,
-  });
-
   return res.json(tokens);
 }
 }
