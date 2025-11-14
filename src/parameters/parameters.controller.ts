@@ -1,34 +1,37 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param
+} from '@nestjs/common';
 import { ParametersService } from './parameters.service';
-import { CreateParameterDto } from './dto/create-parameter.dto';
-import { UpdateParameterDto } from './dto/update-parameter.dto';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 
-@Controller('parameters')
+@ApiTags('Parameters')
+@Controller('Parameters')
 export class ParametersController {
   constructor(private readonly parametersService: ParametersService) {}
 
-  @Post()
-  create(@Body() createParameterDto: CreateParameterDto) {
-    return this.parametersService.create(createParameterDto);
-  }
-
+  // -------------------------------------------------
+  // LIST
+  // -------------------------------------------------
   @Get()
-  findAll() {
-    return this.parametersService.findAll();
+  @ApiOperation({
+    summary: 'List all kiosks',
+    description: 'Returns a list of all kiosks in the system.',
+  })
+  async list() {
+    return await this.parametersService.listKiosko();
   }
 
+  // -------------------------------------------------
+  // FIND ONE
+  // -------------------------------------------------
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.parametersService.findOne(+id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateParameterDto: UpdateParameterDto) {
-    return this.parametersService.update(+id, updateParameterDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.parametersService.remove(+id);
+  @ApiOperation({
+    summary: 'Get a kiosk by ID',
+    description: 'Returns the kiosk details for the given ID.',
+  })
+  async findOne(@Param('id') id: number) {
+    return await this.parametersService.findKiosko(id);
   }
 }
