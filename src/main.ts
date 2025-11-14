@@ -96,9 +96,9 @@ async function bootstrap() {
   // -------------------------------------------------
   const reflector = app.get(Reflector);
   const jwtService = app.get(JwtService);
+  const jwtAuthGuard = new JwtAuthGuard(jwtService, reflector);
   const sessionGuard = app.get(SessionGuard);
   const permissionsGuard = app.get(PermissionsGuard);
-  const jwtAuthGuard = new JwtAuthGuard(jwtService, reflector);
 
   app.useGlobalGuards(
     jwtAuthGuard, // 1️⃣ Valida el token

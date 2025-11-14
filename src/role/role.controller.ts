@@ -5,6 +5,9 @@ import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { Role } from './entities/role.entity';
 import { RoleService } from './role.service';
+import { GetUser } from '../auth/decorators/get-user.decorator';
+import { AuthUser } from 'src/auth/interfaces/User';
+import { Permission } from 'src/auth/decorators/permission.decorator';
 
 @ApiTags('Roles')
 @ApiBearerAuth()
@@ -16,13 +19,14 @@ export class RoleController {
   @Post()
   @ApiOperation({ summary: 'Crear un nuevo rol' })
   @ApiResponse({ status: 201, description: 'El rol ha sido creado.', type: Role })
-  create(@Body() createRoleDto: CreateRoleDto) {
-    return this.roleService.create(createRoleDto);
+  create(@Body() createRoleDto: CreateRoleDto, @GetUser() currentUser: AuthUser ){
+    return this.roleService.create(createRoleDto, currentUser);
   }
 
   @Get()
   @ApiOperation({ summary: 'Obtener todos los roles' })
   @ApiResponse({ status: 200, description: 'Lista de roles.', type: [Role] })
+  @Permission('roles.consultar')
   findAll() {
     return this.roleService.findAll();
   }
