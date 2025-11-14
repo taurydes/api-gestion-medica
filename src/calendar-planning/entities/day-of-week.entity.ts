@@ -6,6 +6,7 @@ import {
 } from 'typeorm';
 import { ScheduleProgram } from './schedule-program.entity';
 
+
 /**
  * Día de la semana → DayOfWeek
  */

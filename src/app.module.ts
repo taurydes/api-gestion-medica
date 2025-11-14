@@ -20,6 +20,8 @@ import { UserModule } from './user/user.module';
 import { ParametersModule } from './parameters/parameters.module';
 import { MenuModule } from './menu/menu.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
+import { PlanModule } from './plan/plan.module';
+import { CalendarPlanningModule } from './calendar-planning/calendar-planning.module';
 
 @Module({
   imports: [
@@ -74,6 +76,8 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     HealthModule,
     ParametersModule,
     MenuModule,
+    PlanModule,
+    CalendarPlanningModule,
   ],
   controllers: [],
   providers: [
