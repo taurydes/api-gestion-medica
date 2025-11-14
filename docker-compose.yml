@@ -4,15 +4,15 @@ services:
   # ===============================
   # 🚀 SERVICIO PRINCIPAL (NestJS)
   # ===============================
-  base-servicios:
+  api-ads-suve:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: base-servicios
+    container_name: api-ads-suve
     restart: always
     env_file: .env
     volumes:
-      - ./uploads:/app/uploads
+      - ${UPLOADS_PATH}:/app/uploads
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
     environment:
@@ -22,9 +22,9 @@ services:
     networks:
       - base-net
     depends_on:
-      - base-redis
-      - db-base
-      - mailpit
+      - redis-api-ads-suve
+      #- db-base
+      # - mailpit
     healthcheck:
       test: ["CMD", "node", "-e", "require('net').createConnection(process.env.PORT).on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
       interval: 30s
@@ -34,9 +34,9 @@ services:
   # ===============================
   # 🧠 REDIS
   # ===============================
-  base-redis:
+  redis-api-ads-suve:
     image: redis:7
-    container_name: base-redis
+    container_name: redis-api-ads-suve
     restart: always
     ports:
       - "${REDIS_PORT:-6379}:6379"
@@ -77,17 +77,17 @@ services:
   # ===============================
   # 📬 MAILPIT (para test de correos)
   # ===============================
-  mailpit:
-    image: axllent/mailpit:latest
-    container_name: mailpit
-    restart: always
-    ports:
-      - "1025:1025"   # SMTP
-      - "8025:8025"   # Web UI
-    networks:
-      - base-net
-    environment:
-      - TZ=America/Caracas
+  # mailpit:
+  #   image: axllent/mailpit:latest
+  #   container_name: mailpit
+  #   restart: always
+  #   ports:
+  #     - "1025:1025"   # SMTP
+  #     - "8025:8025"   # Web UI
+  #   networks:
+  #     - base-net
+  #   environment:
+  #     - TZ=America/Caracas
 
 # ===============================
 # 🔗 RED Y VOLUMENES
