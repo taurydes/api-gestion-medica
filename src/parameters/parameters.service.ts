@@ -1,26 +1,20 @@
 import { Injectable } from '@nestjs/common';
-import { CreateParameterDto } from './dto/create-parameter.dto';
-import { UpdateParameterDto } from './dto/update-parameter.dto';
+import { FindKioskoUseCase } from './use-cases/kiosko/find-kiosko.usecase';
+import { ListKioskoUseCase } from './use-cases/kiosko/list-kiosko.usecase';
+
 
 @Injectable()
 export class ParametersService {
-  create(createParameterDto: CreateParameterDto) {
-    return 'This action adds a new parameter';
+  constructor(
+    private readonly findKioskoUC: FindKioskoUseCase,
+    private readonly listKioskoUC: ListKioskoUseCase,
+  ) {}
+
+  async findKiosko(id: number) {
+    return await this.findKioskoUC.execute(id);
   }
 
-  findAll() {
-    return `This action returns all parameters`;
-  }
-
-  findOne(id: number) {
-    return `This action returns a #${id} parameter`;
-  }
-
-  update(id: number, updateParameterDto: UpdateParameterDto) {
-    return `This action updates a #${id} parameter`;
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} parameter`;
+  async listKiosko() {
+    return await this.listKioskoUC.execute();
   }
 }

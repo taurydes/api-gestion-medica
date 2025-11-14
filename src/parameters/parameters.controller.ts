@@ -1,34 +1,38 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Param } from '@nestjs/common';
 import { ParametersService } from './parameters.service';
-import { CreateParameterDto } from './dto/create-parameter.dto';
-import { UpdateParameterDto } from './dto/update-parameter.dto';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 
+@ApiTags('Parameters')
 @Controller('parameters')
+@ApiBearerAuth()
+@Throttle({ short: {} })
 export class ParametersController {
   constructor(private readonly parametersService: ParametersService) {}
 
-  @Post()
-  create(@Body() createParameterDto: CreateParameterDto) {
-    return this.parametersService.create(createParameterDto);
-  }
-
+  /**
+   * @summary Listar todos los kioskos.
+   * @description Retorna el listado completo de kioskos registrados en el sistema.
+   */
   @Get()
-  findAll() {
-    return this.parametersService.findAll();
+  @ApiOperation({
+    summary: 'List all kiosks',
+    description: 'Returns a list of all kiosks in the system.',
+  })
+  async list() {
+    return this.parametersService.listKiosko();
   }
 
+  /**
+   * @summary Obtener kiosko por ID.
+   * @description Busca y retorna el detalle de un kiosko específico según su identificador.
+   */
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.parametersService.findOne(+id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateParameterDto: UpdateParameterDto) {
-    return this.parametersService.update(+id, updateParameterDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.parametersService.remove(+id);
+  @ApiOperation({
+    summary: 'Get a kiosk by ID',
+    description: 'Returns the kiosk details for the given ID.',
+  })
+  async findOne(@Param('id') id: number) {
+    return this.parametersService.findKiosko(id);
   }
 }
