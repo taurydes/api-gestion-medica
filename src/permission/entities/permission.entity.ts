@@ -1,49 +1,62 @@
 import {
   Column,
-  CreateDateColumn,
-  DeleteDateColumn,
   Entity,
   OneToMany,
   PrimaryGeneratedColumn,
-  UpdateDateColumn,
 } from 'typeorm';
-import { PermissionRoles } from './PermissionRole.entity';
+import { PermissionRole } from './Permission-role.entity';
+import { PermissionMenu } from './permission-menu.entity';
 
-@Entity({ schema: 'selfManagement', name: 'Permissions' })
+
+@Entity({ schema: 'seguridad', name: 'permisos' })
 export class Permission {
-  @PrimaryGeneratedColumn()
+  @PrimaryGeneratedColumn({ type: 'bigint' })
   id: number;
 
-  @Column({ type: 'varchar', length: 255 })
+  @Column({ name: 'nombre', type: 'varchar', length: 255 })
   name: string;
 
-  @Column({ type: 'varchar', length: 255 })
+  @Column({ name: 'nombre_mostrar', type: 'varchar', length: 255 })
   displayName: string;
 
-  @Column({ type: 'int', nullable: true })
-  order: number | null;
+  @Column({ name: 'user_id', type: 'bigint' })
+  userId: number;
 
-  @Column({ type: 'boolean', default: false })
-  required: boolean;
+  @Column({ name: 'activo', type: 'boolean', default: true })
+  isActive: boolean;
 
-  @Column({ type: 'varchar', length: 255, nullable: true })
-  controlType: string | null;
-
-  @Column({ type: 'boolean', default: true })
-  active: boolean;
-
-  @CreateDateColumn({ type: 'timestamp' })
+  @Column({
+    name: 'created_at',
+    type: 'timestamp',
+    default: () => 'now()',
+  })
   createdAt: Date;
 
-  @UpdateDateColumn({ type: 'timestamp', nullable: true })
+  @Column({ name: 'updated_at', type: 'timestamp', nullable: true })
   updatedAt: Date | null;
 
-  @DeleteDateColumn({ type: 'timestamp', nullable: true })
+  @Column({ name: 'deleted_at', type: 'timestamp', nullable: true })
   deletedAt: Date | null;
 
-  @OneToMany(
-    () => PermissionRoles,
-    (permissionsRoles) => permissionsRoles.permission,
-  )
-  permissionsRoles: PermissionRoles[];
+  @Column({ name: 'orden', type: 'int', nullable: true })
+  order: number | null;
+
+  @Column({ name: 'requerido', type: 'boolean', default: false })
+  isRequired: boolean;
+
+  @Column({
+    name: 'tipo_control',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+  })
+  controlType: string | null;
+
+  // RELATIONS
+
+  @OneToMany(() => PermissionRole, (pr) => pr.permission)
+  permissionRoles: PermissionRole[];
+
+  @OneToMany(() => PermissionMenu, (pm) => pm.permission)
+  permissionMenus: PermissionMenu[];
 }

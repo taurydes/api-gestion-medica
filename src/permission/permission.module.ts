@@ -3,16 +3,20 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { Role } from 'src/role/entities/role.entity';
 import { Permission } from './entities/permission.entity';
-import { PermissionRoles } from './entities/PermissionRole.entity';
 import { PermissionController } from './permission.controller';
 import { PermissionService } from './permission.service';
+import { PermissionRole } from './entities/Permission-role.entity';
+import { PermissionMenu } from './entities/permission-menu.entity';
+import { Menu } from 'src/menu/entities/menu.entity';
+import { MenuModule } from 'src/menu/menu.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature(
-      [Permission, PermissionRoles,Role],
+      [Permission, PermissionRole,Role,PermissionMenu,Menu],
       DatabaseConnectionName.DB_MAIN,
     ),
+    MenuModule
   ],
   controllers: [PermissionController],
   providers: [PermissionService],

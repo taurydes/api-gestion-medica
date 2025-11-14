@@ -31,8 +31,10 @@ COPY --from=builder /app/package*.json ./
 RUN npm install --only=production --legacy-peer-deps
 
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/uploads ./uploads
 COPY --from=builder /app/src/logs/views ./src/logs/views
+
+# Crear directorio para uploads (se montará como volumen)
+RUN mkdir -p ./uploads
 
 # Exponer el puerto
 ARG PORT=7008

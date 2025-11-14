@@ -1,11 +1,13 @@
-import { Body, Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { Response, Request } from 'express';
+import { Body, Controller, Get, Post, Req, Res } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
+import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
+import { GetUser } from './decorators/get-user.decorator';
 import { Public } from './decorators/public.decorator';
 import { LoginUserDto } from './dto/login-auth.dto';
-import { SessionGuard } from './guards/session.guard';
-import { Throttle } from '@nestjs/throttler';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { AuthUser } from './interfaces/User';
 
 @ApiTags('Auth')
 @ApiBearerAuth()
@@ -30,14 +32,6 @@ export class AuthController {
   @Post('login')
   async login(@Body() loginDto: LoginUserDto, @Res() res: Response) {
     const result = await this.authService.login(loginDto);
-
-    // Guardar token en cookie (opcional, útil para paneles web)
-    res.cookie('access_token', result.access_token, {
-      httpOnly: true,
-      sameSite: 'lax',
-      maxAge: 3600000, // 1 hora
-    });
-
     return res.json(result);
   }
 
@@ -60,7 +54,6 @@ export class AuthController {
     if (userId) {
       await this.authService.logout(userId.toString());
     }
-
     res.clearCookie('access_token');
     return res.json({ message: 'Sesión cerrada correctamente' });
   }
@@ -86,4 +79,10 @@ export class AuthController {
       active: isActive,
     };
   }
+
+@Post('refresh')
+async refresh(@Body() dto: RefreshTokenDto, @GetUser() currentUser: AuthUser, @Res() res: Response) {
+  const tokens = await this.authService.refreshTokens(dto, currentUser);
+  return res.json(tokens);
+}
 }

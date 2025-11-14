@@ -13,6 +13,7 @@ import { Repository } from 'typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User } from './entities/user.entity';
+import { UserSecurity } from './entities/user.system.entity';
 
 /**
  * Servicio: UserService
@@ -24,8 +25,8 @@ import { User } from './entities/user.entity';
 @Injectable()
 export class UserService {
   constructor(
-    @InjectRepository(User, DatabaseConnectionName.DB_MAIN)
-    private readonly userRepository: Repository<User>,
+    @InjectRepository(UserSecurity, DatabaseConnectionName.DB_MAIN)
+    private readonly userSecurityRepository: Repository<UserSecurity>,
 
     // 🔹 Inyectamos el manejador de caché global (Redis)
     @Inject(CACHE_MANAGER)
@@ -41,9 +42,9 @@ export class UserService {
    * @returns El usuario creado sin incluir el campo `password`.
    * @throws BadRequestException Si el correo ya está en uso o ocurre un error al guardar.
    */
-  async create(createUserDto: CreateUserDto): Promise<Omit<User, 'password'>> {
+  async create(createUserDto: CreateUserDto): Promise<Omit<UserSecurity, 'password'>> {
     try {
-      const existingUser = await this.userRepository.findOne({
+      const existingUser = await this.userSecurityRepository.findOne({
         where: { email: createUserDto.email },
       });
 
@@ -57,12 +58,12 @@ export class UserService {
         saltRounds,
       );
 
-      const newUser = this.userRepository.create({
+      const newUser = this.userSecurityRepository.create({
         ...createUserDto,
         password: hashedPassword,
       });
 
-      const user = await this.userRepository.save(newUser);
+      const user = await this.userSecurityRepository.save(newUser);
       const { password, ...rest } = user;
 
       // 🧹 Limpiar caché de la lista general
@@ -83,17 +84,17 @@ export class UserService {
    * @returns Un arreglo de usuarios sin incluir sus contraseñas.
    * @throws NotFoundException Si ocurre un error al recuperar los datos.
    */
-  async findAll(): Promise<Omit<User, 'password'>[]> {
+  async findAll(): Promise<Omit<UserSecurity, 'password'>[]> {
     const cacheKey = 'users:all';
 
     try {
       // 1️⃣ Intentar obtener desde caché
       const cachedUsers =
-        await this.cacheManager.get<Omit<User, 'password'>[]>(cacheKey);
+        await this.cacheManager.get<Omit<UserSecurity, 'password'>[]>(cacheKey);
       if (cachedUsers) return cachedUsers;
 
       // 2️⃣ Si no hay caché, obtener desde DB
-      const users = await this.userRepository.find();
+      const users = await this.userSecurityRepository.find();
       const sanitized = users.map(({ password, ...rest }) => rest);
 
       // 3️⃣ Guardar en caché por 5 minutos
@@ -113,17 +114,21 @@ export class UserService {
    * @returns El usuario encontrado sin el campo `password`.
    * @throws NotFoundException Si el usuario no existe o ocurre un error en la consulta.
    */
-  async findOne(id: number): Promise<Omit<User, 'password'> | null> {
+  async findOne(id: number): Promise<Omit<UserSecurity, 'password'> | null> {
     const cacheKey = `user:${id}`;
 
     try {
       // 1️⃣ Intentar obtener desde caché
       const cachedUser =
-        await this.cacheManager.get<Omit<User, 'password'>>(cacheKey);
+        await this.cacheManager.get<Omit<UserSecurity, 'password'>>(cacheKey);
       if (cachedUser) return cachedUser;
 
       // 2️⃣ Si no hay caché, buscar en la DB
-      const user = await this.userRepository.findOneBy({ id });
+      const user = await this.userSecurityRepository.findOne({ where: { id },relations: [
+        'role',
+        'role.permissionsRoles',
+        'role.permissionsRoles.permission',
+      ], });
       if (!user) {
         throw new NotFoundException(`Usuario con ID ${id} no encontrado.`);
       }
@@ -155,9 +160,9 @@ export class UserService {
   async update(
     id: number,
     updateUserDto: UpdateUserDto,
-  ): Promise<Omit<User, 'password'> | null> {
+  ): Promise<Omit<UserSecurity, 'password'> | null> {
     try {
-      const user = await this.userRepository.findOneBy({ id });
+      const user = await this.userSecurityRepository.findOneBy({ id });
 
       if (!user) {
         throw new NotFoundException(`Usuario con ID ${id} no encontrado.`);
@@ -171,8 +176,8 @@ export class UserService {
         );
       }
 
-      await this.userRepository.update(id, updateUserDto);
-      const updatedUser = await this.userRepository.findOneBy({ id });
+      await this.userSecurityRepository.update(id, updateUserDto);
+      const updatedUser = await this.userSecurityRepository.findOneBy({ id });
 
       if (!updatedUser) {
         throw new NotFoundException('Error al actualizar el usuario.');
@@ -207,7 +212,7 @@ export class UserService {
         throw new NotFoundException(`Usuario con ID ${id} no encontrado.`);
       }
 
-      await this.userRepository.delete(id);
+      await this.userSecurityRepository.delete(id);
 
       // 🧹 Limpiar caché relacionado
       await this.cacheManager.del(`user:${id}`);
