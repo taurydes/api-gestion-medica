@@ -13,7 +13,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from './auth/guards/permission.guard';
 import { SessionGuard } from './auth/guards/session.guard';
 import { HttpExceptionFilter } from './common/exceptions/HttpExceptionFilter';
-import { HttpResponseInterceptor } from './common/interceptors/HttpResponseInterceptor';
+import { HttpResponseInterceptor } from './common/interceptors/HttpResponse.interceptor';
 import { LogsService } from './logs/logs.service';
 import { registerHandlebarsHelpers } from './logs/views/helpers';
 import { BullBoardService } from './queues/bull-board/bull-board.service';

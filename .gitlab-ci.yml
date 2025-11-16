@@ -1,0 +1,93 @@
+image: alpine:latest
+stages:
+    - test
+    - deploy-qa
+    - deploy-calidad
+    - sonar
+cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+        - vendor/
+        - node_modules/
+.init_ssh: &init_ssh |
+   command -v ssh-agent >/dev/null || ( apk add --update openssh )
+   eval $(ssh-agent -s)
+   echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+   mkdir -p ~/.ssh
+   chmod 700 ~/.ssh
+   ssh-keyscan $SSH_HOST >> ~/.ssh/known_hosts
+   chmod 644 ~/.ssh/known_hosts
+
+.init_ssh-calidad: &init_ssh-calidad |
+   command -v ssh-agent >/dev/null || ( apk add --update openssh )
+   eval $(ssh-agent -s)
+   echo $SSH_PRIVATE_KEY_CALIDAD
+   echo "$SSH_PRIVATE_KEY_CALIDAD" | tr -d '\r' | ssh-add -
+   mkdir -p ~/.ssh
+   chmod 700 ~/.ssh
+   ssh-keyscan $SSH_HOST_CALIDAD >> ~/.ssh/known_hosts
+   chmod 644 ~/.ssh/known_hosts
+
+testing:
+    stage: test
+    script:
+        - echo "Configurar test"
+deploy-qa:
+    stage: deploy-qa
+    before_script:
+        # Initialization the SSH connection
+        - *init_ssh
+    script:
+        # Deployment steps:
+        # 1. Checkout to desired branch
+        # 2. Pull the updates for specific branch
+        # 3. Install the dependencies
+        # 4. Run compose install
+        #- ssh $SSH_USER@$SSH_HOST "sudo su && cd $DEPLOY_PATH && git checkout master && git pull origin master && exit"
+        - ssh $SSH_USER@$SSH_HOST "cd $DEPLOY_PATH_QA && sudo git checkout devel && sudo git pull origin devel && cd .. && docker compose build $SERVICES_NAME && docker compose up -d $SERVICES_NAME && exit "
+    environment:
+        name: qa
+    only:
+        - devel
+
+
+################Calidad-93####################
+deploy-calidad:
+    stage: deploy-calidad
+    before_script:
+        # Initialization the SSH connection
+        - *init_ssh-calidad
+    script:
+        # Deployment steps:
+        # 1. Checkout to desired branch
+        # 2. Pull the updates for specific branch
+        # 3. Install the dependencies
+        # 4. Run compose install
+        #- ssh $SSH_USER@$SSH_HOST "sudo su && cd $DEPLOY_PATH && git checkout master && git pull origin master && exit"
+        - ssh $SSH_USER@$SSH_HOST_CALIDAD "cd $DEPLOY_PATH_QA && sudo git checkout calidad && sudo git pull origin calidad && cd .. && docker compose build $SERVICES_NAME && docker compose up -d $SERVICES_NAME && exit "
+    environment:
+        name: calidad
+    only:
+        - calidad
+    tags:
+        - calidadks2-93
+                
+sonarqube-check:
+  stage: sonar
+  image: 
+    name: sonarsource/sonar-scanner-cli:latest
+    entrypoint: [""]
+  variables:
+    SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"  # Defines the location of the analysis task cache
+    GIT_DEPTH: "0"  # Tells git to fetch all the branches of the project, required by the analysis task
+  cache:
+    key: "${CI_JOB_NAME}"
+    paths:
+      - .sonar/cache
+  script: 
+    - sonar-scanner -X
+  allow_failure: true
+  environment:
+        name: sonar
+  only:
+    - qa|

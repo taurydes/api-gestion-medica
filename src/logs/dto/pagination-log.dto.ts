@@ -8,9 +8,9 @@ import {
   IsString,
   IsUUID,
 } from 'class-validator';
-import { PaginationDto } from 'src/common/dto/paginationDto';
+import { QueryPaginationDto } from 'src/common/dto/query-pagination.dto';
 
-export class PaginationLogDto extends PaginationDto {
+export class PaginationLogDto extends QueryPaginationDto {
   @ApiProperty({
     required: false,
     example: 500,
