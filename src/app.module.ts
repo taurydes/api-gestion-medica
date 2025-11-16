@@ -20,9 +20,6 @@ import { UserModule } from './user/user.module';
 import { ParametersModule } from './parameters/parameters.module';
 import { MenuModule } from './menu/menu.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
-import { PlanModule } from './plan/plan.module';
-import { CustomerModule } from './customer/customer.module';
-import { CompanyModule } from './company/company.module';
 import { FilesModule } from './files/files.module';
 
 @Module({
@@ -78,9 +75,6 @@ import { FilesModule } from './files/files.module';
     HealthModule,
     ParametersModule,
     MenuModule,
-    PlanModule,
-    CustomerModule,
-    CompanyModule,
     FilesModule,
   ],
   controllers: [],
