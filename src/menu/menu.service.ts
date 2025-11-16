@@ -13,7 +13,8 @@ import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { Menu } from './entities/menu.entity';
 import { CreateMenuDto } from './dto/create-menu.dto';
 import { UpdateMenuDto } from './dto/update-menu.dto';
-import { UserService } from '../user/user.service';
+import { UserSecurityService } from 'src/user/user-security.service';
+import { MenuQueryDto } from './dto/menu-query.dto';
 
 @Injectable()
 export class MenuService {
@@ -22,7 +23,7 @@ export class MenuService {
     private readonly menuRepository: Repository<Menu>,
     @Inject(CACHE_MANAGER)
     private readonly cacheManager: Cache,
-    private readonly userService: UserService,
+    private readonly userSecurityService: UserSecurityService,
   ) {}
 
   /**
@@ -62,33 +63,52 @@ export class MenuService {
    * Retorna todos los menús.
    * Usa Redis como caché para mejorar rendimiento.
    */
-  async findAll(): Promise<Menu[]> {
-    const cacheKey = 'menus:all';
+  async findAll(query: MenuQueryDto) {
+    const { page, limit, order, search, parentId, isActive } = query;
 
-    try {
-      // 1️⃣ Intentar obtener desde caché
-      const cachedMenus = await this.cacheManager.get<Menu[]>(cacheKey);
-      if (cachedMenus) return cachedMenus;
+    const cacheKey = `menus:query:${JSON.stringify(query)}`;
+    const listKey = 'menus:query:keys';
 
-      // 2️⃣ No hay caché → consultar DB
-      const menus = await this.menuRepository.find({
-        relations: ['parent', 'children'],
-        where: { parent: IsNull() },
-        order: {
-          order: 'ASC',
-          id: 'ASC',
-        },
-      });
+    const cached = await this.cacheManager.get(cacheKey);
+    if (cached) return cached;
 
-      // 3️⃣ Guardar en caché 5 min
-      await this.cacheManager.set(cacheKey, menus, 300);
+    const qb = this.menuRepository
+      .createQueryBuilder('m')
+      .leftJoinAndSelect('m.parent', 'parent')
+      .leftJoinAndSelect('m.children', 'children')
+      .where('m.deletedAt IS NULL');
 
-      return menus;
-    } catch (error) {
-      throw new NotFoundException(
-        `Error al obtener la lista de menús: ${error.message}`,
+    if (search) {
+      qb.andWhere(
+        `(m.name ILIKE :s OR m.route ILIKE :s OR m.icon ILIKE :s)`,
+        { s: `%${search}%` },
       );
     }
+
+    if (parentId !== undefined) {
+      qb.andWhere('m.parentId = :parentId', { parentId });
+    }
+
+    if (isActive !== undefined) {
+      qb.andWhere('m.isActive = :isActive', { isActive });
+    }
+
+    qb.orderBy('m.order', order);
+    qb.skip((page - 1) * limit).take(limit);
+
+    const [data, total] = await qb.getManyAndCount();
+
+    const result = { data, total, page, limit };
+
+    await this.cacheManager.set(cacheKey, result, 300);
+
+    const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
+    if (!keys.includes(cacheKey)) {
+      keys.push(cacheKey);
+      await this.cacheManager.set(listKey, keys);
+    }
+
+    return result;
   }
 
   /**
@@ -215,7 +235,7 @@ export class MenuService {
    */
   async getMenuForUser(userId: number): Promise<Menu[]> {
     // 1️⃣ Obtener al usuario con rol y permisosRoles
-    const user = await this.userService.findOne(userId);
+    const user = await this.userSecurityService.findOne(userId);
 
     if (!user) {
       throw new NotFoundException(`Usuario con ID ${userId} no encontrado`);

@@ -6,13 +6,16 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Public } from 'src/auth/decorators/public.decorator';
-import { CreateUserDto } from './dto/create-user.dto';
+import { CreateUserSecurityDto } from './dto/create-user-security.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UserSecurityQueryDto } from './dto/user-security-query.dto';
 import { UserService } from './user.service';
+import { CreateUserDto } from './dto/create-user.dto';
 
 @ApiTags('Users')
 @ApiBearerAuth()
@@ -44,8 +47,8 @@ export class UserController {
   })
   @Public()
   @Get()
-  findAll() {
-    return this.userService.findAll();
+  findAll(@Query() query: UserSecurityQueryDto) {
+    return this.userService.findAll(query);
   }
 
   /**

@@ -1,73 +1,77 @@
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import {
   BadRequestException,
+  Inject,
   Injectable,
   NotFoundException,
-  Inject,
 } from '@nestjs/common';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { Cache } from 'cache-manager';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
+import { Cache } from 'cache-manager';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { Repository } from 'typeorm';
+
+import { User } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { User } from './entities/user.entity';
-import { UserSecurity } from './entities/user.system.entity';
+import { UserQueryDto } from './dto/user-query.dto copy';
 
-/**
- * Servicio: UserService
- *
- * Gestiona las operaciones CRUD de usuarios,
- * incluyendo la validación, cifrado de contraseñas,
- * manejo de errores y uso de caché Redis para mejorar el rendimiento.
- */
+
 @Injectable()
 export class UserService {
   constructor(
-    @InjectRepository(UserSecurity, DatabaseConnectionName.DB_MAIN)
-    private readonly userSecurityRepository: Repository<UserSecurity>,
+    @InjectRepository(User, DatabaseConnectionName.DB_MAIN)
+    private readonly repo: Repository<User>,
 
-    // 🔹 Inyectamos el manejador de caché global (Redis)
     @Inject(CACHE_MANAGER)
     private readonly cacheManager: Cache,
   ) {}
 
-  /**
-   * Crea un nuevo usuario en la base de datos.
-   * Verifica duplicados por email y cifra la contraseña antes de guardar.
-   * También limpia el caché global de usuarios.
-   *
-   * @param createUserDto - Datos del nuevo usuario.
-   * @returns El usuario creado sin incluir el campo `password`.
-   * @throws BadRequestException Si el correo ya está en uso o ocurre un error al guardar.
-   */
-  async create(createUserDto: CreateUserDto): Promise<Omit<UserSecurity, 'password'>> {
+  // ============================================================
+  // 🔥 Limpiar todas las keys generadas por paginación
+  // ============================================================
+
+  private async clearQueryCache(): Promise<void> {
+    const listKey = 'user:query:keys';
+
+    const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
+
+    for (const key of keys) {
+      await this.cacheManager.del(key);
+    }
+
+    await this.cacheManager.del(listKey);
+  }
+
+  // ============================================================
+  // 🟢 Crear usuario
+  // ============================================================
+
+  async create(
+    dto: CreateUserDto,
+  ): Promise<Omit<User, 'password'>> {
     try {
-      const existingUser = await this.userSecurityRepository.findOne({
-        where: { email: createUserDto.email },
+      const exists = await this.repo.findOne({
+        where: { email: dto.email },
       });
 
-      if (existingUser) {
+      if (exists) {
         throw new BadRequestException('El correo electrónico ya está en uso.');
       }
 
-      const saltRounds = 10;
-      const hashedPassword = await bcrypt.hash(
-        createUserDto.password,
-        saltRounds,
-      );
+      const hashedPassword = await bcrypt.hash(dto.password, 10);
 
-      const newUser = this.userSecurityRepository.create({
-        ...createUserDto,
+      const entity = this.repo.create({
+        ...dto,
         password: hashedPassword,
       });
 
-      const user = await this.userSecurityRepository.save(newUser);
-      const { password, ...rest } = user;
+      const saved = await this.repo.save(entity);
 
-      // 🧹 Limpiar caché de la lista general
-      await this.cacheManager.del('users:all');
+      const { password, ...rest } = saved;
+
+      await this.cacheManager.del('user:all');
+      await this.clearQueryCache();
 
       return rest;
     } catch (error) {
@@ -77,117 +81,114 @@ export class UserService {
     }
   }
 
-  /**
-   * Obtiene la lista de todos los usuarios registrados.
-   * Intenta primero obtener los datos desde Redis antes de consultar la base de datos.
-   *
-   * @returns Un arreglo de usuarios sin incluir sus contraseñas.
-   * @throws NotFoundException Si ocurre un error al recuperar los datos.
-   */
-  async findAll(): Promise<Omit<UserSecurity, 'password'>[]> {
-    const cacheKey = 'users:all';
+  // ============================================================
+  // 🟢 Listar usuarios (paginación + filtros + cache)
+  // ============================================================
 
-    try {
-      // 1️⃣ Intentar obtener desde caché
-      const cachedUsers =
-        await this.cacheManager.get<Omit<UserSecurity, 'password'>[]>(cacheKey);
-      if (cachedUsers) return cachedUsers;
+  async findAll(query: UserQueryDto) {
+    const { page, limit, order, search, roleId, status } = query;
 
-      // 2️⃣ Si no hay caché, obtener desde DB
-      const users = await this.userSecurityRepository.find();
-      const sanitized = users.map(({ password, ...rest }) => rest);
+    const cacheKey = `user:query:${JSON.stringify(query)}`;
+    const listKey = 'user:query:keys';
 
-      // 3️⃣ Guardar en caché por 5 minutos
-      await this.cacheManager.set(cacheKey, sanitized, 300);
+    const cached = await this.cacheManager.get(cacheKey);
+    if (cached) return cached;
 
-      return sanitized;
-    } catch (error) {
-      throw new NotFoundException('Error al obtener la lista de usuarios.');
-    }
-  }
+    const qb = this.repo
+      .createQueryBuilder('user')
+      .leftJoinAndSelect('user.role', 'role')
+      .where('user.deletedAt IS NULL');
 
-  /**
-   * Busca un usuario por su ID.
-   * Intenta primero obtener los datos desde Redis antes de consultar la base de datos.
-   *
-   * @param id - Identificador único del usuario.
-   * @returns El usuario encontrado sin el campo `password`.
-   * @throws NotFoundException Si el usuario no existe o ocurre un error en la consulta.
-   */
-  async findOne(id: number): Promise<Omit<UserSecurity, 'password'> | null> {
-    const cacheKey = `user:${id}`;
-
-    try {
-      // 1️⃣ Intentar obtener desde caché
-      const cachedUser =
-        await this.cacheManager.get<Omit<UserSecurity, 'password'>>(cacheKey);
-      if (cachedUser) return cachedUser;
-
-      // 2️⃣ Si no hay caché, buscar en la DB
-      const user = await this.userSecurityRepository.findOne({ where: { id },relations: [
-        'role',
-        'role.permissionsRoles',
-        'role.permissionsRoles.permission',
-      ], });
-      if (!user) {
-        throw new NotFoundException(`Usuario con ID ${id} no encontrado.`);
-      }
-
-      const { password, ...rest } = user;
-
-      // 3️⃣ Guardar en caché por 10 minutos
-      await this.cacheManager.set(cacheKey, rest, 600);
-
-      return rest;
-    } catch (error) {
-      throw new NotFoundException(
-        `Error al obtener el usuario: ${error.message}`,
+    if (search) {
+      qb.andWhere(
+        '(user.name ILIKE :search OR user.email ILIKE :search)',
+        { search: `%${search}%` },
       );
     }
+
+    if (roleId) qb.andWhere('user.roleId = :roleId', { roleId });
+
+    if (status !== undefined) qb.andWhere('user.activo = :status', { status });
+
+    qb.orderBy('user.id', order);
+    qb.skip((page - 1) * limit).take(limit);
+
+    const [items, total] = await qb.getManyAndCount();
+
+    const sanitized = items.map(({ password, ...rest }) => rest);
+
+    const result = { data: sanitized, total, page, limit };
+
+    await this.cacheManager.set(cacheKey, result, 300);
+
+    const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
+
+    if (!keys.includes(cacheKey)) {
+      keys.push(cacheKey);
+      await this.cacheManager.set(listKey, keys);
+    }
+
+    return result;
   }
 
-  /**
-   * Actualiza la información de un usuario existente.
-   * Si se incluye una nueva contraseña, se cifra antes de guardarla.
-   * Además, limpia el caché correspondiente.
-   *
-   * @param id - Identificador del usuario a actualizar.
-   * @param updateUserDto - Datos a modificar.
-   * @returns El usuario actualizado sin incluir la contraseña.
-   * @throws NotFoundException Si el usuario no existe.
-   * @throws BadRequestException Si ocurre un error durante la actualización.
-   */
+  // ============================================================
+  // 🟢 Obtener usuario por ID
+  // ============================================================
+
+  async findOne(id: number): Promise<Omit<User, 'password'> | null> {
+    const cacheKey = `user:${id}`;
+    const cached = await this.cacheManager.get<Omit<User, 'password'>>(cacheKey);
+ 
+    if (cached) return cached;
+
+    const user = await this.repo.findOne({
+      where: { id },
+      relations: ['role'],
+    });
+
+    if (!user) {
+      throw new NotFoundException(`Usuario con ID ${id} no encontrado.`);
+    }
+
+    const { password, ...rest } = user;
+
+    await this.cacheManager.set(cacheKey, rest, 600);
+
+    return rest;
+  }
+
+  // ============================================================
+  // 🟢 Actualizar usuario
+  // ============================================================
+
   async update(
     id: number,
-    updateUserDto: UpdateUserDto,
-  ): Promise<Omit<UserSecurity, 'password'> | null> {
+    dto: UpdateUserDto,
+  ): Promise<Omit<User, 'password'> | null> {
     try {
-      const user = await this.userSecurityRepository.findOneBy({ id });
+      const exists = await this.repo.findOneBy({ id });
 
-      if (!user) {
+      if (!exists) {
         throw new NotFoundException(`Usuario con ID ${id} no encontrado.`);
       }
 
-      if (updateUserDto.password) {
-        const saltRounds = 10;
-        updateUserDto.password = await bcrypt.hash(
-          updateUserDto.password,
-          saltRounds,
-        );
+      if (dto.password) {
+        dto.password = await bcrypt.hash(dto.password, 10);
       }
 
-      await this.userSecurityRepository.update(id, updateUserDto);
-      const updatedUser = await this.userSecurityRepository.findOneBy({ id });
+      await this.repo.update(id, dto);
 
-      if (!updatedUser) {
+      const updated = await this.repo.findOneBy({ id });
+
+      if (!updated) {
         throw new NotFoundException('Error al actualizar el usuario.');
       }
 
-      const { password, ...rest } = updatedUser;
+      const { password, ...rest } = updated;
 
-      // 🧹 Limpiar caché relacionado
       await this.cacheManager.del(`user:${id}`);
-      await this.cacheManager.del('users:all');
+      await this.cacheManager.del('user:all');
+      await this.clearQueryCache();
 
       return rest;
     } catch (error) {
@@ -197,26 +198,23 @@ export class UserService {
     }
   }
 
-  /**
-   * Elimina un usuario por su ID.
-   * También elimina el caché asociado al usuario y la lista completa.
-   *
-   * @param id - Identificador del usuario a eliminar.
-   * @returns void
-   * @throws NotFoundException Si el usuario no existe o no puede eliminarse.
-   */
+  // ============================================================
+  // 🟢 Eliminar usuario
+  // ============================================================
+
   async remove(id: number): Promise<void> {
     try {
       const user = await this.findOne(id);
+
       if (!user) {
         throw new NotFoundException(`Usuario con ID ${id} no encontrado.`);
       }
 
-      await this.userSecurityRepository.delete(id);
+      await this.repo.delete(id);
 
-      // 🧹 Limpiar caché relacionado
       await this.cacheManager.del(`user:${id}`);
-      await this.cacheManager.del('users:all');
+      await this.cacheManager.del('user:all');
+      await this.clearQueryCache();
     } catch (error) {
       throw new NotFoundException(
         `Error al eliminar el usuario: ${error.message}`,

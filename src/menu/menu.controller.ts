@@ -1,10 +1,12 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Permission } from 'src/auth/decorators/permission.decorator';
 import { CreateMenuDto } from './dto/create-menu.dto';
 import { UpdateMenuDto } from './dto/update-menu.dto';
 import { MenuService } from './menu.service';
+import { MenuQueryDto } from './dto/menu-query.dto';
+import { PermissionActionsMenu } from 'src/permission/permission.const';
 
 @ApiTags('Menu')
 @ApiBearerAuth()
@@ -22,6 +24,7 @@ export class MenuController {
     description: 'Crea un nuevo menú con sus propiedades básicas.',
   })
   @Post()
+  @Permission(`menu.${PermissionActionsMenu.CREATE}`)
   create(@Body() createMenuDto: CreateMenuDto) {
     return this.menuService.create(createMenuDto);
   }
@@ -35,9 +38,8 @@ export class MenuController {
     description: 'Obtiene el listado completo de menús si el usuario tiene el permiso requerido.',
   })
   @Get()
-  @Permission('videos.view')
-  findAll() {
-    return this.menuService.findAll();
+  findAll(@Query() query: MenuQueryDto) {
+    return this.menuService.findAll(query);
   }
 
   /**
@@ -62,6 +64,7 @@ export class MenuController {
     description: 'Actualiza campos del menú identificado por su ID.',
   })
   @Patch(':id')
+  @Permission(`menu.${PermissionActionsMenu.UPDATE}`)
   update(@Param('id') id: string, @Body() updateMenuDto: UpdateMenuDto) {
     return this.menuService.update(+id, updateMenuDto);
   }
@@ -75,6 +78,7 @@ export class MenuController {
     description: 'Elimina un menú existente usando su ID.',
   })
   @Delete(':id')
+  @Permission(`menu.${PermissionActionsMenu.DELETE}`)
   remove(@Param('id') id: string) {
     return this.menuService.remove(+id);
   }

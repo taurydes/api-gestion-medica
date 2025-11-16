@@ -6,8 +6,8 @@ import {
   JoinColumn,
   Check,
 } from 'typeorm';
-import { Customer } from './customer.entity'; // parametro.cliente
-import { Company } from './company.entity';   // parametro.empresa
+import { Customer } from '../../customer/entities/customer.entity'; // parametro.cliente
+import { Company } from '../../company/entities/company.entity';   // parametro.empresa
 
 /**
  * English name: VideoPublicity

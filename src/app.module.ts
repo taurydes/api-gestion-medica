@@ -21,7 +21,9 @@ import { ParametersModule } from './parameters/parameters.module';
 import { MenuModule } from './menu/menu.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { PlanModule } from './plan/plan.module';
-import { CalendarPlanningModule } from './calendar-planning/calendar-planning.module';
+import { CustomerModule } from './customer/customer.module';
+import { CompanyModule } from './company/company.module';
+import { FilesModule } from './files/files.module';
 
 @Module({
   imports: [
@@ -77,7 +79,9 @@ import { CalendarPlanningModule } from './calendar-planning/calendar-planning.mo
     ParametersModule,
     MenuModule,
     PlanModule,
-    CalendarPlanningModule,
+    CustomerModule,
+    CompanyModule,
+    FilesModule,
   ],
   controllers: [],
   providers: [
