@@ -9,6 +9,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { UserSecurity } from 'src/user/entities/user.system.entity';
+import { MenuModule } from 'src/menu/menu.module';
 
 dotenv.config();
 @Module({
@@ -22,6 +23,7 @@ dotenv.config();
       secret: process.env.JWT_SECRET || 'secret',
       signOptions: { expiresIn: process.env.JWT_EXPIRES_IN || '1h' },
     }),
+    MenuModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],

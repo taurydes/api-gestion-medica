@@ -117,7 +117,7 @@ DB_HOST=localhost
 DB_PORT=5432
 DB_USER=postgres
 DB_PASS=123456
-DB_NAME=db_api_graphql_base
+DB_NAME=bd_metro_ads
 
 # ---------------------------
 # Redis (cache y colas)

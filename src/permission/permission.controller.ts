@@ -16,9 +16,10 @@ import {
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Permission } from 'src/auth/decorators/permission.decorator';
-import { CreatePermissionsRoleDto } from './dto/create-permission-role.dto';
+import { CreatepermissionsRolesDto } from './dto/create-permission-role.dto';
 import { CreatePermissionDto } from './dto/create-permission.dto';
 import { UpdatePermissionDto } from './dto/update-permission.dto';
+import { PermissionActionsMenu } from './permission.const';
 import { PermissionService } from './permission.service';
 
 @ApiTags('Permissions')
@@ -30,7 +31,7 @@ export class PermissionController {
 
   @Post()
   @ApiOperation({ summary: 'Crear un nuevo permiso' })
-  @Permission('crear permisos')
+  @Permission(`permissions.${PermissionActionsMenu.CREATE}`)
   create(@Body() createPermissionDto: CreatePermissionDto) {
     return this.permissionService.create(createPermissionDto);
   }
@@ -55,6 +56,7 @@ export class PermissionController {
     type: Permission,
   })
   @ApiResponse({ status: 404, description: 'Permiso no encontrado.' })
+  @Permission(`permissions.${PermissionActionsMenu.VIEW}`)
   findOne(@Param('id') id: string) {
     return this.permissionService.findOne(+id);
   }
@@ -68,6 +70,7 @@ export class PermissionController {
     type: Permission,
   })
   @ApiResponse({ status: 404, description: 'Permiso no encontrado.' })
+  @Permission(`permissions.${PermissionActionsMenu.UPDATE}`)
   update(
     @Param('id') id: string,
     @Body() updatePermissionDto: UpdatePermissionDto,
@@ -80,6 +83,7 @@ export class PermissionController {
   @ApiParam({ name: 'id', description: 'ID del permiso', example: 1 })
   @ApiResponse({ status: 200, description: 'El permiso ha sido eliminado.' })
   @ApiResponse({ status: 404, description: 'Permiso no encontrado.' })
+  @Permission(`permissions.${PermissionActionsMenu.DELETE}`)
   remove(@Param('id') id: string) {
     return this.permissionService.remove(+id);
   }
@@ -88,11 +92,12 @@ export class PermissionController {
   @ApiOperation({ summary: 'Asignar permisos a un rol' })
   @ApiResponse({ status: 200, description: 'Permisos asignados correctamente' })
   @ApiResponse({ status: 404, description: 'Rol o permisos no encontrados' })
+  @Permission(`permissions.${PermissionActionsMenu.ASSIGN}`)
   assignPermissionsToRole(
-    @Body() createPermissionsRoleDto: CreatePermissionsRoleDto,
+    @Body() createpermissionsRolesDto: CreatepermissionsRolesDto,
   ) {
     return this.permissionService.assignPermissionsToRole(
-      createPermissionsRoleDto,
+      createpermissionsRolesDto,
     );
   }
 }

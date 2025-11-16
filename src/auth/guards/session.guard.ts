@@ -51,8 +51,7 @@ export class SessionGuard implements CanActivate {
       context.getClass(),
     ]);
     if (isPublic) return true;
-
-    // 🔹 2. Obtener la request y validar existencia del usuario
+      // 🔹 2. Obtener la request y validar existencia del usuario
     const req = context.switchToHttp().getRequest();
     const user = req.user;
 
@@ -60,8 +59,12 @@ export class SessionGuard implements CanActivate {
       throw new UnauthorizedException('Usuario no autenticado');
     }
 
+    const accessToken = req.accessToken;
     // 🔹 3. Consultar si la sesión del usuario sigue activa en Redis
-    const isValid = await this.redisSession.isValidSession(user.id);
+    const isValid = await this.redisSession.isValidSessionToken(
+      user.id,
+      accessToken,
+    );
 
     if (!isValid) {
       throw new UnauthorizedException('Sesión expirada o cerrada');

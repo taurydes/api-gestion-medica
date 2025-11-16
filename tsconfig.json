@@ -18,6 +18,6 @@
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
     "typeRoots": ["./node_modules/@types"], // Asegúrate de incluir los tipos
-    "types": ["node"] // Incluye los tipos de Node.js
+    "types": ["node", "express", "multer"] // Incluye los tipos de Node.js
   }
 }

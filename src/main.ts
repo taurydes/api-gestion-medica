@@ -13,7 +13,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from './auth/guards/permission.guard';
 import { SessionGuard } from './auth/guards/session.guard';
 import { HttpExceptionFilter } from './common/exceptions/HttpExceptionFilter';
-import { HttpResponseInterceptor } from './common/interceptors/HttpResponseInterceptor';
+import { HttpResponseInterceptor } from './common/interceptors/HttpResponse.interceptor';
 import { LogsService } from './logs/logs.service';
 import { registerHandlebarsHelpers } from './logs/views/helpers';
 import { BullBoardService } from './queues/bull-board/bull-board.service';
@@ -69,7 +69,7 @@ async function bootstrap() {
   const NODE_ENV = configService.get<string>('NODE_ENV') || 'development';
   if (NODE_ENV === 'development') {
     const swaggerConfig = new DocumentBuilder()
-      .setTitle(configService.get('APP_NAME') || 'API BASE - TypeScript + NestJS')
+      .setTitle(configService.get('APP_NAME') || 'API BASE')
       .setDescription('Documentación de la API BASE')
       .setVersion('1.0')
       .addBearerAuth()
@@ -96,9 +96,9 @@ async function bootstrap() {
   // -------------------------------------------------
   const reflector = app.get(Reflector);
   const jwtService = app.get(JwtService);
+  const jwtAuthGuard = new JwtAuthGuard(jwtService, reflector);
   const sessionGuard = app.get(SessionGuard);
   const permissionsGuard = app.get(PermissionsGuard);
-  const jwtAuthGuard = new JwtAuthGuard(jwtService, reflector);
 
   app.useGlobalGuards(
     jwtAuthGuard, // 1️⃣ Valida el token

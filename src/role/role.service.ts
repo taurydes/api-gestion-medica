@@ -7,147 +7,191 @@ import {
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { Repository } from 'typeorm';
+import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
+import { Role } from './entities/role.entity';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
-import { Role } from './entities/role.entity';
+import { AuthUser } from 'src/auth/interfaces/User';
+import { RoleQueryDto } from './dto/role-query.dto';
 
-/**
- * Servicio: RoleService
- *
- * Gestiona las operaciones CRUD de roles,
- * incluyendo el uso de Redis Cache para optimizar consultas frecuentes.
- */
 @Injectable()
 export class RoleService {
   constructor(
     @InjectRepository(Role, DatabaseConnectionName.DB_MAIN)
     private readonly roleRepository: Repository<Role>,
-    @Inject(CACHE_MANAGER)  // ✅Inyectamos el cache global
+
+    @Inject(CACHE_MANAGER)
     private readonly cacheManager: Cache,
   ) {}
 
   /**
-   * Crea un nuevo rol en la base de datos.
+   * 🔥 Limpia el cache de las paginaciones dinámicas
    */
-  async create(createRoleDto: CreateRoleDto): Promise<Role> {
-    try {
-      const role = this.roleRepository.create(createRoleDto);
-      const savedRole = await this.roleRepository.save(role);
+  private async clearQueryCache(): Promise<void> {
+    const listKey = 'roles:query:keys';
 
-      // 🧹 Invalida cache de roles (para forzar refresco)
+    const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
+
+    for (const key of keys) {
+      await this.cacheManager.del(key);
+    }
+
+    await this.cacheManager.del(listKey);
+  }
+
+  /**
+   * Crear rol
+   */
+  async create(
+    createRoleDto: CreateRoleDto,
+    currentUser: AuthUser,
+  ): Promise<Role> {
+    try {
+      const role = this.roleRepository.create({
+        ...createRoleDto,
+        userId: currentUser.id,
+      });
+
+      const saved = await this.roleRepository.save(role);
+
       await this.cacheManager.del('roles:all');
+      await this.clearQueryCache();
 
-      return savedRole;
-    } catch {
-      throw new InternalServerErrorException('Error al crear el rol');
+      return saved;
+    } catch (error) {
+      throw new InternalServerErrorException(
+        `Error al crear el rol: ${error.message}`,
+      );
     }
   }
 
   /**
-   * Obtiene todos los roles registrados (con cache Redis).
+   * Listar roles con filtros + paginación + redis cache
    */
-  async findAll(): Promise<Role[]> {
-    try {
-      // 🔹 1. Buscar en cache
-      const cacheKey = 'roles:all';
-      const cached = await this.cacheManager.get<Role[]>(cacheKey);
-      if (cached) {
-        return cached;
-      }
+  async findAll(query: RoleQueryDto) {
+    const { page, limit, order, search, userId, isActive } = query;
 
-      // 🔹 2. Si no hay cache → consulta a DB
-      const roles = await this.roleRepository.find();
+    const cacheKey = `roles:query:${JSON.stringify(query)}`;
+    const listKey = 'roles:query:keys';
 
-      // 🔹 3. Guardar en cache por 5 minutos
-      await this.cacheManager.set(cacheKey, roles, 300 /* segundos */);
+    const cached = await this.cacheManager.get(cacheKey);
+    if (cached) return cached;
 
-      return roles;
-    } catch {
-      throw new InternalServerErrorException('Error al obtener los roles');
+    const qb = this.roleRepository
+      .createQueryBuilder('role')
+      .leftJoinAndSelect('role.permissionsRoles', 'permissionsRoles')
+      .leftJoinAndSelect('permissionsRoles.permission', 'permission')
+      .where('role.deletedAt IS NULL');
+
+    // 🔍 Filtros
+    if (search) {
+      qb.andWhere('role.name ILIKE :search', { search: `%${search}%` });
     }
+
+    if (userId) {
+      qb.andWhere('role.userId = :userId', { userId });
+    }
+
+    if (isActive !== undefined) {
+      qb.andWhere('role.isActive = :isActive', { isActive });
+    }
+
+    qb.orderBy('role.id', order);
+    qb.skip((page - 1) * limit).take(limit);
+
+    const [items, total] = await qb.getManyAndCount();
+
+    const result = {
+      data: items,
+      total,
+      page,
+      limit,
+    };
+
+    // Guardar en cache por 5 min
+    await this.cacheManager.set(cacheKey, result, 300);
+
+    // Registrar keys para poder limpiarlas después
+    const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
+    if (!keys.includes(cacheKey)) {
+      keys.push(cacheKey);
+      await this.cacheManager.set(listKey, keys);
+    }
+
+    return result;
   }
 
   /**
-   * Busca un rol por su ID (usa cache individual por rol).
+   * Obtener rol por ID
    */
   async findOne(id: number): Promise<Role> {
     const cacheKey = `role:${id}`;
 
     try {
-      // 🔹 1. Revisar cache
-      const cachedRole = await this.cacheManager.get<Role>(cacheKey);
-      if (cachedRole) {
-        return cachedRole;
-      }
+      const cached = await this.cacheManager.get<Role>(cacheKey);
+      if (cached) return cached;
 
-      // 🔹 2. Consultar DB
       const role = await this.roleRepository.findOne({
         where: { id },
         relations: ['permissionsRoles', 'permissionsRoles.permission'],
-        select: {
-          id: true,
-          name: true,
-          permissionsRoles: {
-            id: true,
-            active: true,
-            permission: {
-              id: true,
-              name: true,
-            },
-          },
-        },
       });
 
       if (!role) {
         throw new NotFoundException(`Rol con ID ${id} no encontrado`);
       }
 
-      // 🔹 3. Guardar en cache individual
-      await this.cacheManager.set(cacheKey, role,  600 );
+      await this.cacheManager.set(cacheKey, role, 600);
 
       return role;
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
-      throw new InternalServerErrorException('Error al obtener el rol');
+
+      throw new InternalServerErrorException(
+        `Error al obtener el rol: ${error.message}`,
+      );
     }
   }
 
   /**
-   * Actualiza la información de un rol existente.
+   * Actualizar rol
    */
   async update(id: number, updateRoleDto: UpdateRoleDto): Promise<Role> {
     try {
       const role = await this.findOne(id);
+
       Object.assign(role, updateRoleDto);
+
       const updated = await this.roleRepository.save(role);
 
-      // 🧹 Limpiar cache del rol individual y la lista
       await this.cacheManager.del(`role:${id}`);
       await this.cacheManager.del('roles:all');
+      await this.clearQueryCache();
 
       return updated;
     } catch (error) {
-      if (error instanceof NotFoundException) throw error;
-      throw new InternalServerErrorException('Error al actualizar el rol');
+      throw new InternalServerErrorException(
+        `Error al actualizar el rol: ${error.message}`,
+      );
     }
   }
 
   /**
-   * Elimina un rol de la base de datos.
+   * Eliminar rol
    */
   async remove(id: number): Promise<void> {
     try {
       const role = await this.findOne(id);
+
       await this.roleRepository.remove(role);
 
-      // 🧹 Limpiar cache relacionado
       await this.cacheManager.del(`role:${id}`);
       await this.cacheManager.del('roles:all');
+      await this.clearQueryCache();
     } catch (error) {
-      if (error instanceof NotFoundException) throw error;
-      throw new InternalServerErrorException('Error al eliminar el rol');
+      throw new InternalServerErrorException(
+        `Error al eliminar el rol: ${error.message}`,
+      );
     }
   }
 }

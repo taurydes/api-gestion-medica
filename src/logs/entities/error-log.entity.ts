@@ -1,6 +1,6 @@
 import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from "typeorm";
 
-@Entity({ name: 'error_log', schema: 'audit' })
+@Entity({ name: 'error_log', schema: 'auditoria' })
 export class ErrorLog {
   @PrimaryGeneratedColumn()
   id: number;

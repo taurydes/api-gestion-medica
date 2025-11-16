@@ -17,6 +17,10 @@ import { QueuesModule } from './queues/queues.module';
 import { RedisSessionModule } from './redis-session/redis-session.module';
 import { RoleModule } from './role/role.module';
 import { UserModule } from './user/user.module';
+import { ParametersModule } from './parameters/parameters.module';
+import { MenuModule } from './menu/menu.module';
+import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
+import { FilesModule } from './files/files.module';
 
 @Module({
   imports: [
@@ -69,11 +73,15 @@ import { UserModule } from './user/user.module';
     BullBoardModule,
     RedisSessionModule,
     HealthModule,
+    ParametersModule,
+    MenuModule,
+    FilesModule,
   ],
   controllers: [],
   providers: [
     PermissionsGuard,
     SessionGuard,
+    JwtAuthGuard,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard, // Esto aplicará el guard automáticamente
