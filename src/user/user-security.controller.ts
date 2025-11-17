@@ -10,12 +10,11 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { Public } from 'src/auth/decorators/public.decorator';
-import { CreateUserDto } from './dto/create-user.dto';
+import { CreateUserSecurityDto } from './dto/create-user-security.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserSecurityQueryDto } from './dto/user-security-query.dto';
 import { UserSecurityService } from './user-security.service';
-import { CreateUserSecurityDto } from './dto/create-user-security.dto';
+import { ModuleItemsMenu } from 'src/menu/menu.const';
 import { Permission } from 'src/auth/decorators/permission.decorator';
 import { PermissionActionsMenu } from 'src/permission/permission.const';
 
@@ -35,7 +34,7 @@ export class UserSecurityController {
     description: 'Crea un nuevo usuario en el sistema.',
   })
   @Post()
-  //@Permission(`users-security.${PermissionActionsMenu.CREATE}`)
+  @Permission(`${ModuleItemsMenu.UserModule}.${PermissionActionsMenu.CREATE}`)
   create(@Body() createUserSecurityDto: CreateUserSecurityDto) {
     return this.userSecurityService.create(createUserSecurityDto);
   }
@@ -49,7 +48,7 @@ export class UserSecurityController {
     description: 'Retorna todos los usuarios registrados. Ruta pública.',
   })
   @Get()
-  //@Permission(`users-security.${PermissionActionsMenu.VIEW}`)
+  @Permission(`${ModuleItemsMenu.UserModule}.${PermissionActionsMenu.VIEW}`)
   findAll(@Query() query: UserSecurityQueryDto) {
     return this.userSecurityService.findAll(query);
   }
@@ -63,7 +62,7 @@ export class UserSecurityController {
     description: 'Recupera un usuario mediante su ID numérico.',
   })
   @Get(':id')
- // @Permission(`users-security.${PermissionActionsMenu.VIEW}`)
+  @Permission(`${ModuleItemsMenu.UserModule}.${PermissionActionsMenu.VIEW}`)
   findOne(@Param('id') id: string) {
     return this.userSecurityService.findOne(+id);
   }
@@ -77,7 +76,7 @@ export class UserSecurityController {
     description: 'Actualiza campos del usuario identificado por su ID.',
   })
   @Patch(':id')
-  //@Permission(`users-security.${PermissionActionsMenu.UPDATE}`)
+  @Permission(`${ModuleItemsMenu.UserModule}.${PermissionActionsMenu.UPDATE}`)
   update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
     return this.userSecurityService.update(+id, updateUserDto);
   }
@@ -91,7 +90,7 @@ export class UserSecurityController {
     description: 'Elimina un usuario existente usando su ID.',
   })
   @Delete(':id')
- // @Permission(`users-security.${PermissionActionsMenu.DELETE}`)
+  @Permission(`${ModuleItemsMenu.UserModule}.${PermissionActionsMenu.DELETE}`)
   remove(@Param('id') id: string) {
     return this.userSecurityService.remove(+id);
   }

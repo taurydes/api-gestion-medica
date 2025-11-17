@@ -1,0 +1,15 @@
+export enum ModuleItemsMenu {
+    UserModule = 'User',
+    AuthModule = 'Auth',
+    RoleModule = 'Role',
+    PermissionModule = 'Permission',
+    LogsModule = 'Logs',
+    QueuesModule = 'Queues',
+    BullBoardModule = 'BullBoard',
+    RedisSessionModule = 'RedisSession',
+    HealthModule = 'Health',
+    ParametersModule = 'Parameters',
+    MenuModule = 'Menu',
+    FilesModule = 'File',
+    EmailModule = 'Email',
+}

@@ -25,6 +25,9 @@ import {
 
 import { FileInterceptor } from '@nestjs/platform-express';
 import { VideoValidationInterceptor } from 'src/common/interceptors/video.interceptor';
+import { ModuleItemsMenu } from 'src/menu/menu.const';
+import { PermissionActionsMenu } from 'src/permission/permission.const';
+import { Permission } from 'src/auth/decorators/permission.decorator';
 
 @ApiTags('Files & Videos')
 @ApiBearerAuth()
@@ -41,6 +44,7 @@ export class FilesController {
       'Recibe un archivo en base64, lo guarda y devuelve la URL pública.',
   })
   @Post('upload-base64')
+  @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.CREATE}`)
   async uploadBase64(@Body() dto: UploadFileDto) {
     return await this.filesService.uploadFile(dto);
   }
@@ -53,6 +57,7 @@ export class FilesController {
     description: 'Devuelve la URL pública completa del archivo almacenado.',
   })
   @Get('download-url/:name')
+  @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.VIEW}`)
   getFileUrl(@Param('name') name: string) {
     return this.filesService.getFileUrl(name);
   }
@@ -66,6 +71,7 @@ export class FilesController {
       'Guarda un archivo en base64 en la carpeta del cliente y lo registra en base de datos.',
   })
   @Post('video-base64')
+  @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.CREATE}`)
   async createBase64(@Body() dto: CreateVideoBase64Dto) {
     return this.filesService.create(dto);
   }
@@ -90,6 +96,7 @@ export class FilesController {
     }),
     VideoValidationInterceptor,
   )
+  @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.CREATE}`)
   async uploadVideoMultipart(
     @Body() dto: CreateVideoMultipartDto,
     @UploadedFile() file: Express.Multer.File,
@@ -106,6 +113,7 @@ export class FilesController {
       'Devuelve un stream del archivo MP4 almacenado en el servidor.',
   })
   @Get('video/:id')
+  @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.VIEW}`)
   async downloadVideo(@Param('id') id: number, @Res() res) {
     return this.filesService.downloadVideo(id, res);
   }
