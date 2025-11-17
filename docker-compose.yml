@@ -5,31 +5,29 @@ services:
   # 🚀 SERVICIO PRINCIPAL (NestJS)
   # ===============================
   api-ads-suve:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: api-ads-suve
-    restart: always
-    env_file: .env
-    volumes:
-      - ${UPLOADS_PATH}:/app/uploads
-      - /etc/localtime:/etc/localtime:ro
-      - /etc/timezone:/etc/timezone:ro
-    environment:
-      - TZ=America/Caracas
-    ports:
-      - "${PORT}:${PORT}"
-    networks:
-      - base-net
-    depends_on:
-      - redis-api-ads-suve
-      #- db-base
-      # - mailpit
-    healthcheck:
-      test: ["CMD", "node", "-e", "require('net').createConnection(process.env.PORT).on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
+      build:
+        context: .
+        dockerfile: Dockerfile
+      container_name: api-ads-suve
+      restart: always
+      env_file: .env
+      volumes:
+        - ${UPLOADS_PATH}:/app/uploads
+        - /etc/localtime:/etc/localtime:ro
+        - /etc/timezone:/etc/timezone:ro
+      environment:
+        TZ: America/Caracas
+      ports:
+        - "${PORT}:${PORT}"
+      networks:
+        - base-net
+      depends_on:
+        - redis-api-ads-suve
+      healthcheck:
+        test: ["CMD", "node", "-e", "require('net').createConnection(process.env.PORT).on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
+        interval: 30s
+        timeout: 5s
+        retries: 5
 
   # ===============================
   # 🧠 REDIS
