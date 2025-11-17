@@ -14,6 +14,10 @@ import { Public } from 'src/auth/decorators/public.decorator';
 import { PaginationLogDto } from './dto/pagination-log.dto';
 import { LogsService } from './logs.service';
 import { RoleEnum } from 'src/role/role.const';
+import { ModuleItemsMenu } from 'src/menu/menu.const';
+import { Permission } from 'src/auth/decorators/permission.decorator';
+import { PermissionActionsMenu } from 'src/permission/permission.const';
+
 
 @ApiBearerAuth()
 @ApiTags('logs')
@@ -27,6 +31,7 @@ export class LogsController {
   // 🔹 Endpoint REST tradicional (para Swagger o API externa)
   @ApiOperation({ summary: 'Obtener todos los logs (API REST)' })
   @Get()
+  @Permission(`${ModuleItemsMenu.LogsModule}.${PermissionActionsMenu.CREATE}`)
   findAll(@Query() pagination: PaginationLogDto) {
     return this.logsService.findAll(pagination);
   }
@@ -34,6 +39,7 @@ export class LogsController {
   // 🔹 Endpoint REST para obtener un log específico
   @ApiOperation({ summary: 'Obtener un log por ID' })
   @Get(':id')
+  @Permission(`${ModuleItemsMenu.LogsModule}.${PermissionActionsMenu.VIEW}`)
   findOne(@Param('id') id: string) {
     return this.logsService.findOne(+id);
   }

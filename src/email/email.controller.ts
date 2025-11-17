@@ -3,6 +3,9 @@ import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { CreateEmailDto, SendTemplateEmailDto } from './dto/create-email.dto';
 import { EmailService } from './email.service';
+import { Permission } from 'src/auth/decorators/permission.decorator';
+import { ModuleItemsMenu } from 'src/menu/menu.const';
+import { PermissionActionsMenu } from 'src/permission/permission.const';
 
 @ApiTags('email')
 @Controller('email')
@@ -13,6 +16,7 @@ export class EmailController {
   @Post('send')
   @ApiOperation({ summary: 'Enviar correo de prueba' })
   @ApiResponse({ status: 201, description: 'Correo enviado correctamente.' })
+  @Permission(`${ModuleItemsMenu.EmailModule}.${PermissionActionsMenu.CREATE}`)
   async sendEmail(@Body() dto: CreateEmailDto) {
     return await this.emailService.sendEmail(dto);
   }
@@ -24,6 +28,7 @@ export class EmailController {
     status: 201,
     description: 'Correo con plantilla enviado correctamente.',
   })
+  @Permission(`${ModuleItemsMenu.EmailModule}.${PermissionActionsMenu.CREATE}`)
   async sendEmailWithTemplate(@Body() dto: SendTemplateEmailDto) {
     return await this.emailService.sendEmailWithTemplate(dto, dto.replacements);
   }
@@ -34,6 +39,7 @@ export class EmailController {
     status: 201,
     description: 'Correo encolado correctamente.',
   })
+  @Permission(`${ModuleItemsMenu.EmailModule}.${PermissionActionsMenu.CREATE}`)
   async sendEmailQueued(@Body() dto: CreateEmailDto) {
     return await this.emailService.sendEmailQueued(dto);
   }

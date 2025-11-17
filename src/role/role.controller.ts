@@ -18,6 +18,7 @@ import { RoleQueryDto } from './dto/role-query.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { RoleService } from './role.service';
 import { PermissionActionsMenu } from 'src/permission/permission.const';
+import { ModuleItemsMenu } from 'src/menu/menu.const';
 
 @ApiTags('Roles')
 @ApiBearerAuth()
@@ -28,35 +29,35 @@ export class RoleController {
 
   @Post()
   @ApiOperation({ summary: 'Crear rol' })
-  @Permission(`roles.${PermissionActionsMenu.CREATE}`)
+  @Permission(`${ModuleItemsMenu.RoleModule}.${PermissionActionsMenu.CREATE}`)
   create(@Body() dto: CreateRoleDto, @GetUser() currentUser: AuthUser) {
     return this.roleService.create(dto, currentUser);
   }
 
   @Get()
   @ApiOperation({ summary: 'Listar roles con paginación' })
-  @Permission(`roles.${PermissionActionsMenu.VIEW}`)
+  @Permission(`${ModuleItemsMenu.RoleModule}.${PermissionActionsMenu.VIEW}`)
   findAll(@Query() query: RoleQueryDto) {
     return this.roleService.findAll(query);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Obtener rol por ID' })
-  @Permission(`roles.${PermissionActionsMenu.VIEW}`)
+  @Permission(`${ModuleItemsMenu.RoleModule}.${PermissionActionsMenu.VIEW}`)
   findOne(@Param('id') id: string) {
     return this.roleService.findOne(+id);
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Actualizar rol' })
-  @Permission(`roles.${PermissionActionsMenu.UPDATE}`)
+  @Permission(`${ModuleItemsMenu.RoleModule}.${PermissionActionsMenu.UPDATE}`)
   update(@Param('id') id: string, @Body() dto: UpdateRoleDto) {
     return this.roleService.update(+id, dto);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar rol' })
-  @Permission(`roles.${PermissionActionsMenu.DELETE}`)
+  @Permission(`${ModuleItemsMenu.RoleModule}.${PermissionActionsMenu.DELETE}`)
   remove(@Param('id') id: string) {
     return this.roleService.remove(+id);
   }

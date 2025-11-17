@@ -21,6 +21,7 @@ import { CreatePermissionDto } from './dto/create-permission.dto';
 import { UpdatePermissionDto } from './dto/update-permission.dto';
 import { PermissionActionsMenu } from './permission.const';
 import { PermissionService } from './permission.service';
+import { ModuleItemsMenu } from 'src/menu/menu.const';
 
 @ApiTags('Permissions')
 @ApiBearerAuth()
@@ -31,7 +32,7 @@ export class PermissionController {
 
   @Post()
   @ApiOperation({ summary: 'Crear un nuevo permiso' })
-  @Permission(`permissions.${PermissionActionsMenu.CREATE}`)
+  @Permission(`${ModuleItemsMenu.PermissionModule}.${PermissionActionsMenu.CREATE}`)
   create(@Body() createPermissionDto: CreatePermissionDto) {
     return this.permissionService.create(createPermissionDto);
   }
@@ -43,6 +44,7 @@ export class PermissionController {
     description: 'Lista de permisos.',
     type: [Permission],
   })
+  @Permission(`${ModuleItemsMenu.PermissionModule}.${PermissionActionsMenu.VIEW}`)
   findAll() {
     return this.permissionService.findAll();
   }
@@ -56,7 +58,7 @@ export class PermissionController {
     type: Permission,
   })
   @ApiResponse({ status: 404, description: 'Permiso no encontrado.' })
-  @Permission(`permissions.${PermissionActionsMenu.VIEW}`)
+  @Permission(`${ModuleItemsMenu.PermissionModule}.${PermissionActionsMenu.VIEW}`)
   findOne(@Param('id') id: string) {
     return this.permissionService.findOne(+id);
   }
@@ -70,7 +72,7 @@ export class PermissionController {
     type: Permission,
   })
   @ApiResponse({ status: 404, description: 'Permiso no encontrado.' })
-  @Permission(`permissions.${PermissionActionsMenu.UPDATE}`)
+  @Permission(`${ModuleItemsMenu.PermissionModule}.${PermissionActionsMenu.UPDATE}`)
   update(
     @Param('id') id: string,
     @Body() updatePermissionDto: UpdatePermissionDto,
@@ -83,7 +85,7 @@ export class PermissionController {
   @ApiParam({ name: 'id', description: 'ID del permiso', example: 1 })
   @ApiResponse({ status: 200, description: 'El permiso ha sido eliminado.' })
   @ApiResponse({ status: 404, description: 'Permiso no encontrado.' })
-  @Permission(`permissions.${PermissionActionsMenu.DELETE}`)
+  @Permission(`${ModuleItemsMenu.PermissionModule}.${PermissionActionsMenu.DELETE}`)
   remove(@Param('id') id: string) {
     return this.permissionService.remove(+id);
   }
@@ -92,7 +94,7 @@ export class PermissionController {
   @ApiOperation({ summary: 'Asignar permisos a un rol' })
   @ApiResponse({ status: 200, description: 'Permisos asignados correctamente' })
   @ApiResponse({ status: 404, description: 'Rol o permisos no encontrados' })
-  @Permission(`permissions.${PermissionActionsMenu.ASSIGN}`)
+  @Permission(`${ModuleItemsMenu.PermissionModule}.${PermissionActionsMenu.ASSIGN}`)
   assignPermissionsToRole(
     @Body() createpermissionsRolesDto: CreatepermissionsRolesDto,
   ) {
