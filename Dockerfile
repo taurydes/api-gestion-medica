@@ -1,45 +1,52 @@
 # ===========================
-# 📦 Etapa 1 - Build (compilación)
+# 📦 Etapa 1 - Build
 # ===========================
-FROM node:20-alpine AS builder
+FROM node:20-slim AS builder
 
 WORKDIR /app
 
-# Copiar package.json e instalar dependencias
+# Instalar dependencias necesarias
+RUN apt-get update && apt-get install -y python3 build-essential
+
+# Copiar package.json e instalar deps
 COPY package*.json ./
 RUN npm install --legacy-peer-deps
 
-# Copiar todo el código fuente
+# Copiar código fuente
 COPY . .
 
-# Compilar TypeScript
+# Compilar TS
 RUN npm run build
 
+
 # ===========================
-# 🚀 Etapa 2 - Runtime (producción)
+# 🚀 Etapa 2 - Runtime
 # ===========================
-FROM node:20-alpine
+FROM node:20-slim
 
 WORKDIR /app
 
-# Variables de entorno básicas
+# Instalar FFmpeg + ffprobe
+RUN apt-get update && apt-get install -y ffmpeg
+
+# Variables del entorno
 ENV NODE_ENV=production
 ENV TZ=America/Caracas
 
-# Copiar solo lo necesario desde la etapa anterior
+# Copiar dependencias y dist
 COPY --from=builder /app/package*.json ./
 RUN npm install --only=production --legacy-peer-deps
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/src/logs/views ./src/logs/views
 
-# Crear directorio para uploads (se montará como volumen)
+# Crear directorio para uploads
 RUN mkdir -p ./uploads
 
-# Exponer el puerto
+# Exponer puerto
 ARG PORT=7008
 ENV PORT=${PORT}
 EXPOSE ${PORT}
 
-# Comando de inicio
+# Iniciar app
 CMD ["node", "dist/main.js"]

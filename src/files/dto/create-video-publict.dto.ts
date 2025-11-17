@@ -1,8 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, IsNumber } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsString,
+  IsNumber,
+  IsNumberString,
+} from 'class-validator';
 
 export class CreateVideoBase64Dto {
-  
   @ApiProperty({ example: 'Video promocional' })
   @IsString()
   @IsNotEmpty()
@@ -20,11 +24,11 @@ export class CreateVideoBase64Dto {
   tamano?: number;
 
   @ApiProperty({ example: 5 })
-  @IsNumber()
+  @IsNumberString()
   clienteId: number;
 
   @ApiProperty({ example: 1 })
-  @IsNumber()
+  @IsNumberString()
   empresaId: number;
 
   @ApiProperty({ example: 'video.mp4' })
@@ -32,14 +36,16 @@ export class CreateVideoBase64Dto {
   @IsNotEmpty()
   fileName: string;
 
-  @ApiProperty({ example: 'base64String...', description: 'Archivo codificado en base64' })
+  @ApiProperty({
+    example: 'base64String...',
+    description: 'Archivo codificado en base64',
+  })
   @IsString()
   @IsNotEmpty()
   fileBase64: string;
 }
 
 export class CreateVideoMultipartDto {
-
   @ApiProperty({ example: 'Video promocional' })
   @IsString()
   @IsNotEmpty()
@@ -49,14 +55,13 @@ export class CreateVideoMultipartDto {
   descripcion?: string;
 
   @ApiProperty({ example: 5 })
-  @IsNumber()
+  @IsNumberString()
   clienteId: number;
 
   @ApiProperty({ example: 1 })
-  @IsNumber()
+  @IsNumberString()
   empresaId: number;
 
   @ApiProperty({ type: 'string', format: 'binary' })
   file: any;
 }
-
