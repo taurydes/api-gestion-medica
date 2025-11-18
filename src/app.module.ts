@@ -21,6 +21,7 @@ import { ParametersModule } from './parameters/parameters.module';
 import { MenuModule } from './menu/menu.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { FilesModule } from './files/files.module';
+import { CryptoModule } from './crypto/crypto.module';
 
 @Module({
   imports: [
@@ -76,6 +77,7 @@ import { FilesModule } from './files/files.module';
     ParametersModule,
     MenuModule,
     FilesModule,
+    CryptoModule,
   ],
   controllers: [],
   providers: [
