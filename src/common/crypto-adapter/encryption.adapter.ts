@@ -198,11 +198,13 @@ export class DefaultEncryptionAdapter extends EncryptionAdapter {
     let salted = Buffer.alloc(0);
     let dx = Buffer.alloc(0);
     while (salted.length < 48) {
-      dx = crypto
+      dx = Buffer.from(
+        crypto
         .createHash('md5')
         .update(Buffer.concat([dx, Buffer.from(passphrase), salt]))
-        .digest();
-      salted = Buffer.concat([salted, dx]);
+        .digest(),
+      );
+      salted = Buffer.from(Buffer.concat([salted, dx]));
     }
     const key = salted.subarray(0, 32);
     const iv = salted.subarray(32, 48);

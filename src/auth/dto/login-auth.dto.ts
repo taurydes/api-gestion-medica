@@ -4,7 +4,7 @@ import { IsBoolean, IsString, MinLength } from 'class-validator';
 export class LoginUserDto {
   @ApiProperty({
     description: 'Nombre de usuario o correo electrónico',
-    example: 'juan@example.com',
+    example: 'admin',
   })
   @IsString({
     message: 'Debe ingresar un correo electrónico o nombre de usuario',
@@ -13,7 +13,7 @@ export class LoginUserDto {
 
   @ApiProperty({
     description: 'Contraseña del usuario',
-    example: 'Abcd1234.',
+    example: '123456',
     minLength: 6,
   })
   @IsString({ message: 'La contraseña debe ser una cadena de texto' })

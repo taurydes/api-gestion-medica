@@ -16,6 +16,7 @@ import { Permission } from './entities/permission.entity';
 import { PermissionRole } from './entities/Permission-role.entity';
 import { CreatepermissionsRolesDto } from './dto/create-permission-role.dto';
 import { MenuService } from '../menu/menu.service';
+import { ModuleItemsMenu } from 'src/menu/menu.const';
 
 /**
  * Servicio: PermissionService
@@ -256,6 +257,86 @@ export class PermissionService {
     await this.invalidateListAndItems();
 
     return 'Permisos asignados correctamente al rol';
+  }
+
+    /**
+   * Asignar TODOS los permisos activos a un rol para TODOS los menús cuyos slug estén en ModuleItemsMenu.
+   * Crea registros en permisos_roles solo si no existen (evita duplicados).
+   * Retorna resumen de la operación.
+   */
+  async assignAllPermissionsToRole(roleId: number): Promise<{
+    roleId: number;
+    totalMenus: number;
+    totalPermissions: number;
+    created: number;
+    skipped: number;
+  }> {
+    // 1. Validar rol
+    const role = await this.roleRepository.findOne({ where: { id: roleId }, relations: ['permissionsRoles'] });
+    if (!role) throw new NotFoundException(`Rol con ID ${roleId} no existe`);
+
+    // 2. Obtener todos los menús (submenús) cuyos slug estén en el enum
+    const targetSlugs = Object.values(ModuleItemsMenu).map((v) => String(v).trim());
+    const menus = await this.menuService['menuRepository'].find({
+      where: { name: In(targetSlugs) },
+    });
+
+    if (!menus.length) {
+      throw new NotFoundException('No se encontraron menús para los slugs definidos en ModuleItemsMenu');
+    }
+
+    const submenuIds = menus.map((m) => m.id);
+
+    // 3. Permisos activos
+    const permissions = await this.permissionRepository.find({ where: { isActive: true } });
+    if (!permissions.length) {
+      throw new NotFoundException('No hay permisos activos para asignar');
+    }
+
+    // 4. Existentes (para evitar duplicados)
+    const existing = await this.rolePermissionRepository.find({
+      where: {
+        roleId,
+        submenuId: In(submenuIds),
+        permissionId: In(permissions.map((p) => p.id)),
+      },
+    });
+    const existingKey = new Set(existing.map((e) => `${e.submenuId}:${e.permissionId}`));
+
+    // 5. Construir nuevos registros
+    const toCreate: PermissionRole[] = [];
+    for (const submenuId of submenuIds) {
+      for (const perm of permissions) {
+        const key = `${submenuId}:${perm.id}`;
+        if (existingKey.has(key)) continue;
+        toCreate.push(
+          this.rolePermissionRepository.create({
+            roleId,
+            submenuId,
+            permissionId: perm.id,
+            isActive: true,
+          }),
+        );
+      }
+    }
+
+    // 6. Guardar
+    let created = 0;
+    if (toCreate.length) {
+      await this.rolePermissionRepository.save(toCreate);
+      created = toCreate.length;
+    }
+
+    // 7. Invalidar cache
+    await this.invalidateListAndItems();
+
+    return {
+      roleId,
+      totalMenus: menus.length,
+      totalPermissions: permissions.length,
+      created,
+      skipped: existingKey.size,
+    };
   }
 
 }

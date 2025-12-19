@@ -1,18 +1,18 @@
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  OneToMany,
-  ManyToOne,
-  JoinColumn,
-} from 'typeorm';
-import { UserSecurity } from './user.system.entity';
 import { IdentityDocument } from 'src/parameters/entities/identity-document.entity';
+import {
+  Column,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  OneToOne,
+  PrimaryGeneratedColumn
+} from 'typeorm';
+import { User } from './user.entity';
 
 // Si algún día mapeas parametro.documento_identidad:
 // import { IdentityDocument } from 'src/identity-document/entities/identity-document.entity';
 
-@Entity({ schema: 'seguridad', name: 'persona_comun' })
+@Entity({ schema: 'selfManagement', name: 'persona_comun' })
 export class CommonPerson {
   @PrimaryGeneratedColumn({ type: 'bigint' })
   id: number;
@@ -67,8 +67,9 @@ export class CommonPerson {
 
   // RELATIONS
 
-  @OneToMany(() => UserSecurity, (user) => user.commonPerson)
-  users: UserSecurity[];
+  @OneToOne(() => User, (user) => user.commonPerson)
+  @JoinColumn({ name: 'user_id' }) 
+  user: User;
 
   @ManyToOne(() => IdentityDocument, {
     onDelete: 'NO ACTION',
@@ -76,6 +77,5 @@ export class CommonPerson {
   })
   @JoinColumn({ name: 'letra', referencedColumnName: 'letter' })
   identityDocument: IdentityDocument;
-
 
 }

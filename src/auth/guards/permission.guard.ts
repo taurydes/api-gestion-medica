@@ -65,18 +65,18 @@ export class PermissionsGuard implements CanActivate {
       .filter(
         (pr) =>
           pr.isActive &&
-          pr.submenu?.slug &&
+          pr.submenu?.name &&
           pr.permission?.isActive &&
           pr.permission?.name,
       )
-      .map((pr) => `${pr.submenu.slug}.${pr.permission.name}`);
-
+      .map((pr) => `${pr.submenu.name}.${pr.permission.name}`);
     // (opcional: debug)
     // console.log('PERMISOS DEL USUARIO:', userPermissionCodes);
-
+      const lowerrequiredPermissions = requiredPermissions.map(permission => permission.toLowerCase());
+      const lowerUserPermissionCodes = userPermissionCodes.map(permission => permission.toLowerCase());
     // 5️⃣ Validar que el usuario tenga al menos uno de los permisos requeridos
-    const hasPermission = requiredPermissions.some((required) =>
-      userPermissionCodes.includes(required),
+    const hasPermission = lowerrequiredPermissions.some((required) =>
+      lowerUserPermissionCodes.includes(required),
     );
 
     if (!hasPermission) {

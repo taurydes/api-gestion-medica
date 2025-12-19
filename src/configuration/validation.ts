@@ -28,7 +28,7 @@ export const validationSchema = Joi.object({
   DB_PORT: Joi.number().default(5432),
   DB_USER: Joi.string().default('postgres'),
   DB_PASS: Joi.string().allow('').default('123456'),
-  DB_NAME: Joi.string().default('bd_metro_ads'),
+  DB_NAME: Joi.string().default('bd_gestion_medica'),
 
   // ---------------------------
   // 🔹 Redis principal (colas)

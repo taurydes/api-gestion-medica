@@ -117,7 +117,7 @@ DB_HOST=localhost
 DB_PORT=5432
 DB_USER=postgres
 DB_PASS=123456
-DB_NAME=bd_metro_ads
+DB_NAME=bd_gestion_medica
 
 # ---------------------------
 # Redis (cache y colas)

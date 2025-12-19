@@ -22,11 +22,13 @@ import { MenuModule } from './menu/menu.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { FilesModule } from './files/files.module';
 import { CryptoModule } from './crypto/crypto.module';
+import { PatientModule } from './patient/patient.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: ['.env'],
       load: [configuration],
       validationSchema,
     }),
@@ -78,6 +80,7 @@ import { CryptoModule } from './crypto/crypto.module';
     MenuModule,
     FilesModule,
     CryptoModule,
+    PatientModule,
   ],
   controllers: [],
   providers: [

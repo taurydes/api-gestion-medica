@@ -1,14 +1,12 @@
-version: "3.8"
-
 services:
   # ===============================
   # 🚀 SERVICIO PRINCIPAL (NestJS)
   # ===============================
-  api-ads-suve:
+  api-gestion-medica:
       build:
         context: .
         dockerfile: Dockerfile
-      container_name: api-ads-suve
+      container_name: api-gestion-medica
       restart: always
       env_file: .env
       volumes:
@@ -22,7 +20,7 @@ services:
       networks:
         - base-net
       depends_on:
-        - redis-api-ads-suve
+        - redis-api
       healthcheck:
         test: ["CMD", "node", "-e", "require('net').createConnection(process.env.PORT).on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
         interval: 30s
@@ -32,9 +30,9 @@ services:
   # ===============================
   # 🧠 REDIS
   # ===============================
-  redis-api-ads-suve:
+  redis-api:
     image: redis:7
-    container_name: redis-api-ads-suve
+    container_name: redis-api
     restart: always
     ports:
       - "${REDIS_PORT:-6379}:6379"
@@ -51,26 +49,26 @@ services:
   # ===============================
   # 🐘 POSTGRES
   # ===============================
-  # db-base:
-  #   image: postgres:15
-  #   container_name: db-base
-  #   restart: always
-  #   environment:
-  #     POSTGRES_USER: ${DB_USER}
-  #     POSTGRES_PASSWORD: ${DB_PASS}
-  #     POSTGRES_DB: ${DB_NAME}
-  #     TZ: America/Caracas
-  #   ports:
-  #     - "${DB_PORT}:5432"
-  #   volumes:
-  #     - postgres_data:/var/lib/postgresql/data
-  #   networks:
-  #     - base-net
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 5
+  db-base:
+    image: postgres:15
+    container_name: db-base
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+      POSTGRES_DB: ${DB_NAME}
+      TZ: America/Caracas
+    ports:
+      - "${DB_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - base-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
   # ===============================
   # 📬 MAILPIT (para test de correos)
@@ -96,4 +94,4 @@ networks:
 
 volumes:
   redis_data:
-  # postgres_data:
+  postgres_data:

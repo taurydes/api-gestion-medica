@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseIntPipe,
   Patch,
   Post,
 } from '@nestjs/common';
@@ -101,5 +102,18 @@ export class PermissionController {
     return this.permissionService.assignPermissionsToRole(
       createpermissionsRolesDto,
     );
+  }
+
+    @Post('roles/:roleId/assign-all')
+  @ApiOperation({
+    summary:
+      'Asignar todos los permisos activos a un rol para todos los menús del sistema',
+  })
+  @ApiParam({ name: 'roleId', description: 'ID del rol', example: 1 })
+  @Permission(
+    `${ModuleItemsMenu.PermissionModule}.${PermissionActionsMenu.ASSIGN}`,
+  )
+  assignAllToRole(@Param('roleId', ParseIntPipe) roleId: number) {
+    return this.permissionService.assignAllPermissionsToRole(roleId);
   }
 }

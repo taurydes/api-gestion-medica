@@ -1,6 +1,7 @@
 import { PermissionMenu } from 'src/permission/entities/permission-menu.entity';
 import { PermissionRole } from 'src/permission/entities/Permission-role.entity';
 import { UserSecurity } from 'src/user/entities/user.system.entity';
+import { User } from '../../user/entities/user.entity';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -36,13 +37,13 @@ export class Role {
   @Column({ name: 'deleted_at', type: 'timestamp', nullable: true })
   deletedAt: Date | null;
 
-  @Column({ name: 'telpo', type: 'boolean', default: false })
-  isTelpo: boolean;
-
   // RELATIONS
 
   @OneToMany(() => UserSecurity, (user) => user.role)
-  users: UserSecurity[];
+  userSecurity: UserSecurity[];
+
+  @OneToMany(() => User, (user) => user.role)
+  users: User[];
 
   @OneToMany(() => PermissionMenu, (pm) => pm.role)
   permissionMenus: PermissionMenu[];

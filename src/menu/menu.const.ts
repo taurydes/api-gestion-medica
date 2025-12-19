@@ -1,5 +1,6 @@
 export enum ModuleItemsMenu {
     UserModule = 'User',
+    UserSecurityModule = 'UserSecurity', 
     AuthModule = 'Auth',
     RoleModule = 'Role',
     PermissionModule = 'Permission',
@@ -12,4 +13,5 @@ export enum ModuleItemsMenu {
     MenuModule = 'Menu',
     FilesModule = 'File',
     EmailModule = 'Email',
+    CryptoModule = 'Crypto',
 }

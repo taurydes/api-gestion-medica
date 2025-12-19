@@ -5,17 +5,17 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { Cache } from 'cache-manager';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 
-import { User } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserQueryDto } from './dto/user-query.dto copy';
-
+import { CommonPerson } from './entities/common-person.entity';
+import { User } from './entities/user.entity';
 
 @Injectable()
 export class UserService {
@@ -23,8 +23,13 @@ export class UserService {
     @InjectRepository(User, DatabaseConnectionName.DB_MAIN)
     private readonly repo: Repository<User>,
 
+    @InjectRepository(CommonPerson, DatabaseConnectionName.DB_MAIN)
+    private readonly commonPersonrepo: Repository<CommonPerson>,
+
     @Inject(CACHE_MANAGER)
     private readonly cacheManager: Cache,
+    @InjectDataSource(DatabaseConnectionName.DB_MAIN)
+    private readonly dataSource: DataSource,
   ) {}
 
   // ============================================================
@@ -43,32 +48,65 @@ export class UserService {
     await this.cacheManager.del(listKey);
   }
 
+  private async validateUserData(data: CreateUserDto): Promise<void> {
+    const qb = this.repo
+      .createQueryBuilder('u')
+      .where('u.email = :email', { email: data.email })
+      .orWhere('u.name = :name', { name: data.name });
+    const existsUser = await qb.getOne();
+    if (existsUser) {
+      throw new BadRequestException(
+        'El correo electrónico o nombre ya está en uso.',
+      );
+    }
+
+    const qbPerson = this.commonPersonrepo
+      .createQueryBuilder('u')
+      .where('u.documentNumber = :documentNumber', {
+        documentNumber: data.commonPerson.documentNumber,
+      })
+      .andWhere('u.letter = :letter', { letter: data.commonPerson.letter });
+    const existsPerson = await qbPerson.getOne();
+    if (existsPerson) {
+      throw new BadRequestException(
+        'el numero de documento ya está registrado.',
+      );
+    }
+  }
+
   // ============================================================
   // 🟢 Crear usuario
   // ============================================================
 
-  async create(
-    dto: CreateUserDto,
-  ): Promise<Omit<User, 'password'>> {
+  async create(dto: CreateUserDto): Promise<Omit<User, 'password'>> {
     try {
-      const exists = await this.repo.findOne({
-        where: { email: dto.email },
-      });
+      const { commonPerson: _commonPerson, ...data } = dto;
 
-      if (exists) {
-        throw new BadRequestException('El correo electrónico ya está en uso.');
-      }
+      await this.validateUserData(dto);
 
-      const hashedPassword = await bcrypt.hash(dto.password, 10);
+      const hashedPassword = await bcrypt.hash(data.password, 10);
 
-      const entity = this.repo.create({
-        ...dto,
+      const queryRunner = this.dataSource.createQueryRunner();
+      await queryRunner.connect();
+      await queryRunner.startTransaction();
+
+      const user = queryRunner.manager.create(User, {
+        ...data,
         password: hashedPassword,
       });
+      await queryRunner.manager.save(user);
 
-      const saved = await this.repo.save(entity);
+      const commonPerson = queryRunner.manager.create(CommonPerson, {
+        ..._commonPerson,
+        userId: user.id,
+      });
 
-      const { password, ...rest } = saved;
+      await queryRunner.manager.save(commonPerson);
+
+      await queryRunner.commitTransaction();
+      await queryRunner.release();
+
+      const { password, ...rest } = user;
 
       await this.cacheManager.del('user:all');
       await this.clearQueryCache();
@@ -100,10 +138,9 @@ export class UserService {
       .where('user.deletedAt IS NULL');
 
     if (search) {
-      qb.andWhere(
-        '(user.name ILIKE :search OR user.email ILIKE :search)',
-        { search: `%${search}%` },
-      );
+      qb.andWhere('(user.name ILIKE :search OR user.email ILIKE :search)', {
+        search: `%${search}%`,
+      });
     }
 
     if (roleId) qb.andWhere('user.roleId = :roleId', { roleId });
@@ -137,8 +174,9 @@ export class UserService {
 
   async findOne(id: number): Promise<Omit<User, 'password'> | null> {
     const cacheKey = `user:${id}`;
-    const cached = await this.cacheManager.get<Omit<User, 'password'>>(cacheKey);
- 
+    const cached =
+      await this.cacheManager.get<Omit<User, 'password'>>(cacheKey);
+
     if (cached) return cached;
 
     const user = await this.repo.findOne({
@@ -199,26 +237,51 @@ export class UserService {
   }
 
   // ============================================================
-  // 🟢 Eliminar usuario
+  // 🟢 Eliminar usuario (soft delete en transacción)
   // ============================================================
-
   async remove(id: number): Promise<void> {
-    try {
-      const user = await this.findOne(id);
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-      if (!user) {
+    try {
+      const userRepo = queryRunner.manager.getRepository(User);
+      const cpRepo = queryRunner.manager.getRepository(CommonPerson);
+
+      const exists = await userRepo.findOne({ where: { id } });
+      if (!exists) {
         throw new NotFoundException(`Usuario con ID ${id} no encontrado.`);
       }
 
-      await this.repo.delete(id);
+      const now = new Date();
+
+      // Soft delete del usuario
+      await userRepo.update(id, {
+        deletedAt: now,
+        updatedAt: now,
+        status: false,
+      });
+
+      // Soft delete de persona_comun asociada (si existe)
+      await cpRepo
+        .createQueryBuilder()
+        .update()
+        .set({ deletedAt: now, updatedAt: now, isActive: false })
+        .where('user_id = :id', { id })
+        .execute();
+
+      await queryRunner.commitTransaction();
 
       await this.cacheManager.del(`user:${id}`);
       await this.cacheManager.del('user:all');
       await this.clearQueryCache();
     } catch (error) {
+      await queryRunner.rollbackTransaction();
       throw new NotFoundException(
-        `Error al eliminar el usuario: ${error.message}`,
+        `Error al eliminar el usuario: ${error instanceof Error ? error.message : String(error)}`,
       );
+    } finally {
+      await queryRunner.release();
     }
   }
 }
