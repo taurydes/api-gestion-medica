@@ -23,6 +23,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { FilesModule } from './files/files.module';
 import { CryptoModule } from './crypto/crypto.module';
 import { PatientModule } from './patient/patient.module';
+import { SchemaInitService } from './database/schema-init.service';
 
 @Module({
   imports: [
@@ -87,6 +88,7 @@ import { PatientModule } from './patient/patient.module';
     PermissionsGuard,
     SessionGuard,
     JwtAuthGuard,
+    SchemaInitService,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard, // Esto aplicará el guard automáticamente

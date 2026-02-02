@@ -54,7 +54,7 @@ export class PermissionsGuard implements CanActivate {
     });
 
     if (!user || !user.role) {
-      throw new ForbiddenException('Rol de usuario no encontrado');
+      throw new ForbiddenException('No posee permisos suficientes para el modulo');
     }
 
     const rolePermissions = user.role.permissionsRoles ?? [];

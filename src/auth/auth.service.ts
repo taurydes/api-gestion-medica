@@ -128,7 +128,7 @@ export class AuthService {
       },
       3600, // TTL del access token
     );
-    const menu = await this.menuService.getMenuForUser(user.id);
+    const menu = await this.menuService.getMenuForUser(user.id, loginDto.isSystemUser);
     return { access_token, refresh_token, data: user, menu };
   }
 
@@ -200,7 +200,7 @@ export class AuthService {
       },
       3600,
     );
-    const menu = await this.menuService.getMenuForUser(userId);
+    const menu = await this.menuService.getMenuForUser(userId, currentUser.user instanceof UserSecurity);
     return {
       access_token: newAccessToken,
       refresh_token: newRefreshToken,
