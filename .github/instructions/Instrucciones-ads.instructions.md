@@ -3,11 +3,11 @@
 
 ## 1. Descripción general
 
-Este proyecto implementa un backend **NestJS** para administrar un sistema de **publicidades reproducidas en dispositivos Android (kioskos)**.
+Este proyecto implementa un backend **NestJS** para administrar un sistema de **publicidades gestion medica**.
 
 Incluye:
 
-- Gestión de contenido publicitario (videos, imágenes, playlists).
+- Gestión medica (centros medicos,pacientes , usuarios, historiales, videos, imágenes, playlists).
 - Configuración de kioskos físicos.
 - Horarios de reproducción.
 - Planes publicitarios.

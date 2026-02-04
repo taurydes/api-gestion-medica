@@ -24,6 +24,8 @@ import { FilesModule } from './files/files.module';
 import { CryptoModule } from './crypto/crypto.module';
 import { PatientModule } from './patient/patient.module';
 import { SchemaInitService } from './database/schema-init.service';
+import { MedicalCenterModule } from './medical-center/medical-center.module';
+import { DoctorsModule } from './doctors/doctors.module';
 
 @Module({
   imports: [
@@ -82,6 +84,8 @@ import { SchemaInitService } from './database/schema-init.service';
     FilesModule,
     CryptoModule,
     PatientModule,
+    MedicalCenterModule,
+    DoctorsModule,
   ],
   controllers: [],
   providers: [
