@@ -86,7 +86,7 @@ export function getMainConnection() {
         password: configService.get('database.pass')!, // Contraseña
         database: configService.get('database.name')!, // Nombre de la base
         autoLoadEntities: true,  // Carga automática de entidades (sin necesidad de importarlas manualmente)
-        synchronize: true,      // ⚠️ No usar true en producción, ya que puede alterar el esquema
+        synchronize: false,      // Se desactiva para crear esquemas primero y sincronizar manualmente
       };
     },
   });

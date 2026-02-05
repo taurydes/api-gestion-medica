@@ -54,7 +54,7 @@ export class PermissionsGuard implements CanActivate {
     });
 
     if (!user || !user.role) {
-      throw new ForbiddenException('Rol de usuario no encontrado');
+      throw new ForbiddenException('No posee permisos suficientes para el modulo');
     }
 
     const rolePermissions = user.role.permissionsRoles ?? [];
@@ -71,7 +71,7 @@ export class PermissionsGuard implements CanActivate {
       )
       .map((pr) => `${pr.submenu.name}.${pr.permission.name}`);
     // (opcional: debug)
-    // console.log('PERMISOS DEL USUARIO:', userPermissionCodes);
+     console.log('PERMISOS DEL USUARIO:', userPermissionCodes);
       const lowerrequiredPermissions = requiredPermissions.map(permission => permission.toLowerCase());
       const lowerUserPermissionCodes = userPermissionCodes.map(permission => permission.toLowerCase());
     // 5️⃣ Validar que el usuario tenga al menos uno de los permisos requeridos

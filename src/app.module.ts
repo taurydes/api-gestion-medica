@@ -23,6 +23,12 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { FilesModule } from './files/files.module';
 import { CryptoModule } from './crypto/crypto.module';
 import { PatientModule } from './patient/patient.module';
+import { SchemaInitService } from './database/schema-init.service';
+import { MedicalCenterModule } from './medical-center/medical-center.module';
+import { DoctorsModule } from './doctors/doctors.module';
+import { CommonPersonModule } from './common-person/common-person.module';
+import { MedicalHistoryModule } from './medical-history/medical-history.module';
+import { RecipeModule } from './recipe/recipe.module';
 
 @Module({
   imports: [
@@ -32,6 +38,7 @@ import { PatientModule } from './patient/patient.module';
       load: [configuration],
       validationSchema,
     }),
+    CommonPersonModule,
     CacheModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -81,12 +88,17 @@ import { PatientModule } from './patient/patient.module';
     FilesModule,
     CryptoModule,
     PatientModule,
+    MedicalCenterModule,
+    DoctorsModule,
+    MedicalHistoryModule,
+    RecipeModule,
   ],
   controllers: [],
   providers: [
     PermissionsGuard,
     SessionGuard,
     JwtAuthGuard,
+    SchemaInitService,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard, // Esto aplicará el guard automáticamente

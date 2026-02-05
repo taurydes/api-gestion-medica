@@ -4,7 +4,7 @@ import {
   Column,
   OneToMany,
 } from 'typeorm';
-import { CommonPerson } from 'src/user/entities/common-person.entity';
+import { CommonPerson } from 'src/common-person/entities/common-person.entity';
 
 @Entity({ schema: 'parametro', name: 'documento_identidad' })
 export class IdentityDocument {

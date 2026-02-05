@@ -1,6 +1,13 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, OneToOne } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
+  OneToOne,
+} from 'typeorm';
 import { Role } from 'src/role/entities/role.entity';
-import { CommonPerson } from './common-person.entity';
+import { CommonPerson } from '../../common-person/entities/common-person.entity';
 
 @Entity({ schema: 'selfManagement', name: 'users' })
 export class User {

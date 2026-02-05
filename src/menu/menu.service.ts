@@ -15,6 +15,10 @@ import { CreateMenuDto } from './dto/create-menu.dto';
 import { UpdateMenuDto } from './dto/update-menu.dto';
 import { UserSecurityService } from 'src/user/user-security.service';
 import { MenuQueryDto } from './dto/menu-query.dto';
+import { UserSecurity } from '../user/entities/user.system.entity';
+import { AuthUser } from 'src/auth/interfaces/User';
+import { UserService } from 'src/user/user.service';
+import { User } from 'src/user/entities/user.entity';
 
 @Injectable()
 export class MenuService {
@@ -24,6 +28,7 @@ export class MenuService {
     @Inject(CACHE_MANAGER)
     private readonly cacheManager: Cache,
     private readonly userSecurityService: UserSecurityService,
+    private readonly userService: UserService,
   ) {}
 
   /**
@@ -233,12 +238,23 @@ export class MenuService {
   /**
    * Genera el menú dinámico para un usuario basado en su rol y permisos asignados.
    */
-  async getMenuForUser(userId: number): Promise<Menu[]> {
+  async getMenuForUser(userId: number,isUserSecurity: boolean): Promise<Menu[]> {
+    let user: Partial<UserSecurity> | Partial<User> | null;
+       
+       if (isUserSecurity) {
+         user = await this.userSecurityService.findOne(userId);
+       } else {
+         user = await this.userService.findOne(userId);
+       }
     // 1️⃣ Obtener al usuario con rol y permisosRoles
-    const user = await this.userSecurityService.findOne(userId);
+
 
     if (!user) {
       throw new NotFoundException(`Usuario con ID ${userId} no encontrado`);
+    }
+    
+    if(!user.role){
+     throw new NotFoundException(`no posee rol asignado`);
     }
 
     // 2️⃣ Obtener los submenuId permitidos por el rol

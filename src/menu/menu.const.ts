@@ -14,4 +14,11 @@ export enum ModuleItemsMenu {
     FilesModule = 'File',
     EmailModule = 'Email',
     CryptoModule = 'Crypto',
+    PatientModule = 'Patient',
+    MedicalCenterModule = 'MedicalCenter',
+    DoctorsModule = 'Doctors',
+    CommonPersonModule = 'CommonPerson',
+    MedicalHistoryModule = 'MedicalHistory',
+    RecipeModule = 'Recipe',
+    
 }
