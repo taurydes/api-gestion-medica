@@ -17,4 +17,5 @@ export enum ModuleItemsMenu {
     PatientModule = 'Patient',
     MedicalCenterModule = 'MedicalCenter',
     DoctorsModule = 'Doctors',
+    CommonPersonModule = 'CommonPerson',
 }

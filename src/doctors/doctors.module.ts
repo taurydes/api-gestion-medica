@@ -4,7 +4,7 @@ import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { Doctor } from './entities/doctor.entity';
 import { DoctorsController } from './doctors.controller';
 import { DoctorsService } from './doctors.service';
-import { CommonPerson } from 'src/user/entities/common-person.entity';
+import { CommonPerson } from 'src/common-person/entities/common-person.entity';
 import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity';
 
 @Module({

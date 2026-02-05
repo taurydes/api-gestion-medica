@@ -5,9 +5,9 @@ import {
   JoinColumn,
   ManyToOne,
   OneToOne,
-  PrimaryGeneratedColumn
+  PrimaryGeneratedColumn,
 } from 'typeorm';
-import { User } from './user.entity';
+import { User } from '../../user/entities/user.entity';
 
 // Si algún día mapeas parametro.documento_identidad:
 // import { IdentityDocument } from 'src/identity-document/entities/identity-document.entity';
@@ -68,7 +68,7 @@ export class CommonPerson {
   // RELATIONS
 
   @OneToOne(() => User, (user) => user.commonPerson)
-  @JoinColumn({ name: 'user_id' }) 
+  @JoinColumn({ name: 'user_id' })
   user: User;
 
   @ManyToOne(() => IdentityDocument, {
@@ -77,5 +77,4 @@ export class CommonPerson {
   })
   @JoinColumn({ name: 'letra', referencedColumnName: 'letter' })
   identityDocument: IdentityDocument;
-
 }

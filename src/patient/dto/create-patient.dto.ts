@@ -1,1 +1,93 @@
-export class CreatePatientDto {}
+import { Type } from 'class-transformer';
+import {
+  ValidateNested,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+} from 'class-validator';
+import { CreateCommonPersonDto } from 'src/common-person/dto/create-common-person.dto';
+import { ApiProperty } from '@nestjs/swagger';
+
+export class CreatePatientDto {
+  @ApiProperty({
+    type: CreateCommonPersonDto,
+    description: 'Datos de la persona común',
+  })
+  @ValidateNested()
+  @Type(() => CreateCommonPersonDto)
+  @IsNotEmpty()
+  commonPerson: CreateCommonPersonDto;
+
+  @ApiProperty({ description: 'Código del paciente', example: 'PAC-2025-001' })
+  @IsString()
+  @IsNotEmpty()
+  patientCode: string;
+
+  // Add other patient specific fields here as optional for now or required based on entity
+  @ApiProperty({ description: 'Estado civil', example: 'Soltero' })
+  @IsOptional()
+  @IsString()
+  maritalStatus?: string;
+
+  @ApiProperty({ description: 'Ocupación', example: 'Ingeniero' })
+  @IsOptional()
+  @IsString()
+  occupation?: string;
+
+  @ApiProperty({
+    description: 'Nombre de contacto de emergencia',
+    example: 'Maria Perez',
+  })
+  @IsOptional()
+  @IsString()
+  emergencyContactName?: string;
+
+  @ApiProperty({
+    description: 'Teléfono de contacto de emergencia',
+    example: '0414-1234567',
+  })
+  @IsOptional()
+  @IsString()
+  emergencyContactPhone?: string;
+
+  @ApiProperty({
+    description: 'Relación con contacto de emergencia',
+    example: 'Madre',
+  })
+  @IsOptional()
+  @IsString()
+  emergencyContactRelationship?: string;
+
+  @ApiProperty({ description: 'Tipo de sangre', example: 'O+' })
+  @IsOptional()
+  @IsString()
+  bloodType?: string;
+
+  @ApiProperty({ description: 'Alergias', example: 'Penicilina' })
+  @IsOptional()
+  @IsString()
+  allergies?: string;
+
+  @ApiProperty({ description: 'Enfermedades crónicas', example: 'Diabetes' })
+  @IsOptional()
+  @IsString()
+  chronicDiseases?: string;
+
+  @ApiProperty({ description: 'Medicamentos actuales', example: 'Metformina' })
+  @IsOptional()
+  @IsString()
+  currentMedications?: string;
+
+  @ApiProperty({
+    description: 'Compañía de seguros',
+    example: 'Seguros Caracas',
+  })
+  @IsOptional()
+  @IsString()
+  insuranceCompany?: string;
+
+  @ApiProperty({ description: 'Número de póliza', example: '12345678' })
+  @IsOptional()
+  @IsString()
+  insurancePolicyNumber?: string;
+}

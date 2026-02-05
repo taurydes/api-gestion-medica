@@ -1,6 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, OneToOne } from 'typeorm';
 import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity';
-import { CommonPerson } from 'src/user/entities/common-person.entity';
+import { CommonPerson } from 'src/common-person/entities/common-person.entity';
 
 @Entity({ schema: 'seguridad', name: 'doctors' })
 export class Doctor {

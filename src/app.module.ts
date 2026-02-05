@@ -26,6 +26,7 @@ import { PatientModule } from './patient/patient.module';
 import { SchemaInitService } from './database/schema-init.service';
 import { MedicalCenterModule } from './medical-center/medical-center.module';
 import { DoctorsModule } from './doctors/doctors.module';
+import { CommonPersonModule } from './common-person/common-person.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { DoctorsModule } from './doctors/doctors.module';
       load: [configuration],
       validationSchema,
     }),
+    CommonPersonModule,
     CacheModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

@@ -1,12 +1,14 @@
+import { CommonPerson } from 'src/common-person/entities/common-person.entity';
 import {
-    Column,
-    CreateDateColumn,
-    Entity,
-    JoinColumn,
-    ManyToOne,
-    PrimaryGeneratedColumn,
-    UpdateDateColumn
+  Column,
+  CreateDateColumn,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
 } from 'typeorm';
+
 /* import { MedicalHistory } from 'src/medical-history/entities/medical-history.entity'; // Si lo tienes
 import { Appointment } from 'src/appointment/entities/appointment.entity'; // Si lo tienes */
 
@@ -15,31 +17,51 @@ export class Patient {
   @PrimaryGeneratedColumn({ type: 'bigint' })
   id: number;
 
-/*   // RELACIÓN CON PERSONA (similar a UserSecurity)
+  // RELACIÓN CON PERSONA
   @Column({ name: 'common_person_id', type: 'bigint', unique: true })
-  commonPersonId: number; */
+  commonPersonId: number;
 
-/*   @ManyToOne(() => CommonPerson, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
+  @ManyToOne(() => CommonPerson, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   @JoinColumn({ name: 'common_person_id' })
-  commonPerson: CommonPerson; */
+  commonPerson: CommonPerson;
 
   // DATOS ESPECÍFICOS DEL PACIENTE
   @Column({ name: 'patient_code', type: 'varchar', length: 20, unique: true })
   patientCode: string; // Ej: "PAC-2025-001"
 
-  @Column({ name: 'marital_status', type: 'varchar', length: 20, nullable: true })
+  @Column({
+    name: 'marital_status',
+    type: 'varchar',
+    length: 20,
+    nullable: true,
+  })
   maritalStatus: string; // Soltero, Casado, Viudo, etc.
 
   @Column({ name: 'occupation', type: 'varchar', length: 100, nullable: true })
   occupation: string;
 
-  @Column({ name: 'emergency_contact_name', type: 'varchar', length: 100, nullable: true })
+  @Column({
+    name: 'emergency_contact_name',
+    type: 'varchar',
+    length: 100,
+    nullable: true,
+  })
   emergencyContactName: string;
 
-  @Column({ name: 'emergency_contact_phone', type: 'varchar', length: 20, nullable: true })
+  @Column({
+    name: 'emergency_contact_phone',
+    type: 'varchar',
+    length: 20,
+    nullable: true,
+  })
   emergencyContactPhone: string;
 
-  @Column({ name: 'emergency_contact_relationship', type: 'varchar', length: 50, nullable: true })
+  @Column({
+    name: 'emergency_contact_relationship',
+    type: 'varchar',
+    length: 50,
+    nullable: true,
+  })
   emergencyContactRelationship: string; // Padre, Hijo, Conyuge, etc.
 
   @Column({ name: 'blood_type', type: 'varchar', length: 5, nullable: true })
@@ -54,17 +76,27 @@ export class Patient {
   @Column({ name: 'current_medications', type: 'text', nullable: true })
   currentMedications: string;
 
-  @Column({ name: 'insurance_company', type: 'varchar', length: 100, nullable: true })
-    insuranceCompany: string;
+  @Column({
+    name: 'insurance_company',
+    type: 'varchar',
+    length: 100,
+    nullable: true,
+  })
+  insuranceCompany: string;
 
-  @Column({ name: 'insurance_policy_number', type: 'varchar', length: 50, nullable: true })
+  @Column({
+    name: 'insurance_policy_number',
+    type: 'varchar',
+    length: 50,
+    nullable: true,
+  })
   insurancePolicyNumber: string;
 
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
 
   // RELACIONES CON OTROS MÓDULOS
-/*   @OneToMany(() => MedicalHistory, (history) => history.patient)
+  /*   @OneToMany(() => MedicalHistory, (history) => history.patient)
   medicalHistories: MedicalHistory[];
 
   @OneToMany(() => Appointment, (appointment) => appointment.patient)

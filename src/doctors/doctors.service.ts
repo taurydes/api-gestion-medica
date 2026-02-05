@@ -13,7 +13,7 @@ import { CreateDoctorDto } from './dto/create-doctor.dto';
 import { UpdateDoctorDto } from './dto/update-doctor.dto';
 import { DoctorQueryDto } from './dto/doctor-query.dto';
 import { Doctor } from './entities/doctor.entity';
-import { CommonPerson } from 'src/user/entities/common-person.entity';
+import { CommonPerson } from 'src/common-person/entities/common-person.entity';
 import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity';
 
 @Injectable()

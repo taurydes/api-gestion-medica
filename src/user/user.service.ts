@@ -14,8 +14,8 @@ import { DataSource, Repository } from 'typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserQueryDto } from './dto/user-query.dto copy';
-import { CommonPerson } from './entities/common-person.entity';
 import { User } from './entities/user.entity';
+import { CommonPerson } from '../common-person/entities/common-person.entity';
 
 @Injectable()
 export class UserService {
@@ -182,10 +182,10 @@ export class UserService {
     const user = await this.repo.findOne({
       where: { id },
       relations: [
-          'role',
-          'role.permissionsRoles',
-          'role.permissionsRoles.permission',
-        ],
+        'role',
+        'role.permissionsRoles',
+        'role.permissionsRoles.permission',
+      ],
     });
 
     if (!user) {
