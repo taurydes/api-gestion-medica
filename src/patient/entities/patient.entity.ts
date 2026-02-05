@@ -4,10 +4,15 @@ import {
   CreateDateColumn,
   Entity,
   JoinColumn,
+  JoinTable,
+  ManyToMany,
   ManyToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { Allergy } from 'src/parameters/entities/allergy.entity';
+import { ChronicDisease } from 'src/parameters/entities/chronic-disease.entity';
+import { Medication } from 'src/parameters/entities/medication.entity';
 
 /* import { MedicalHistory } from 'src/medical-history/entities/medical-history.entity'; // Si lo tienes
 import { Appointment } from 'src/appointment/entities/appointment.entity'; // Si lo tienes */
@@ -67,14 +72,30 @@ export class Patient {
   @Column({ name: 'blood_type', type: 'varchar', length: 5, nullable: true })
   bloodType: string; // A+, O-, etc.
 
-  @Column({ name: 'allergies', type: 'text', nullable: true })
-  allergies: string;
+  // RELACIONES CON PARÁMETROS MÉDICOS
+  @ManyToMany(() => Allergy, { cascade: true })
+  @JoinTable({
+    name: 'patient_allergies',
+    joinColumn: { name: 'patient_id', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'allergy_id', referencedColumnName: 'id' },
+  })
+  allergies: Allergy[];
 
-  @Column({ name: 'chronic_diseases', type: 'text', nullable: true })
-  chronicDiseases: string; // Diabetes, Hipertensión, etc.
+  @ManyToMany(() => ChronicDisease, { cascade: true })
+  @JoinTable({
+    name: 'patient_chronic_diseases',
+    joinColumn: { name: 'patient_id', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'disease_id', referencedColumnName: 'id' },
+  })
+  chronicDiseases: ChronicDisease[];
 
-  @Column({ name: 'current_medications', type: 'text', nullable: true })
-  currentMedications: string;
+  @ManyToMany(() => Medication, { cascade: true })
+  @JoinTable({
+    name: 'patient_medications',
+    joinColumn: { name: 'patient_id', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'medication_id', referencedColumnName: 'id' },
+  })
+  medications: Medication[];
 
   @Column({
     name: 'insurance_company',

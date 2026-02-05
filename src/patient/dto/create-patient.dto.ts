@@ -4,10 +4,16 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsArray,
+  IsNumber,
 } from 'class-validator';
 import { CreateCommonPersonDto } from 'src/common-person/dto/create-common-person.dto';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
+/**
+ * DTO para crear un nuevo paciente
+ * El código de paciente es opcional y se genera automáticamente si no se proporciona
+ */
 export class CreatePatientDto {
   @ApiProperty({
     type: CreateCommonPersonDto,
@@ -18,13 +24,16 @@ export class CreatePatientDto {
   @IsNotEmpty()
   commonPerson: CreateCommonPersonDto;
 
-  @ApiProperty({ description: 'Código del paciente', example: 'PAC-2025-001' })
+  @ApiPropertyOptional({
+    description: 'Código del paciente (se genera automáticamente si no se proporciona)',
+    example: 'PAC-2026-00001',
+  })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  patientCode: string;
+  patientCode?: string;
 
   // Add other patient specific fields here as optional for now or required based on entity
-  @ApiProperty({ description: 'Estado civil', example: 'Soltero' })
+  @ApiPropertyOptional({ description: 'Estado civil', example: 'Soltero' })
   @IsOptional()
   @IsString()
   maritalStatus?: string;
@@ -63,20 +72,38 @@ export class CreatePatientDto {
   @IsString()
   bloodType?: string;
 
-  @ApiProperty({ description: 'Alergias', example: 'Penicilina' })
+  @ApiProperty({
+    description: 'IDs de alergias',
+    example: [1, 2],
+    type: [Number],
+    required: false,
+  })
   @IsOptional()
-  @IsString()
-  allergies?: string;
+  @IsArray()
+  @IsNumber({}, { each: true })
+  allergyIds?: number[];
 
-  @ApiProperty({ description: 'Enfermedades crónicas', example: 'Diabetes' })
+  @ApiProperty({
+    description: 'IDs de enfermedades crónicas',
+    example: [1],
+    type: [Number],
+    required: false,
+  })
   @IsOptional()
-  @IsString()
-  chronicDiseases?: string;
+  @IsArray()
+  @IsNumber({}, { each: true })
+  chronicDiseaseIds?: number[];
 
-  @ApiProperty({ description: 'Medicamentos actuales', example: 'Metformina' })
+  @ApiProperty({
+    description: 'IDs de medicamentos actuales',
+    example: [1, 2],
+    type: [Number],
+    required: false,
+  })
   @IsOptional()
-  @IsString()
-  currentMedications?: string;
+  @IsArray()
+  @IsNumber({}, { each: true })
+  medicationIds?: number[];
 
   @ApiProperty({
     description: 'Compañía de seguros',

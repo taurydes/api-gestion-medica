@@ -1,12 +1,23 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsNumber, IsOptional, IsBoolean, MaxLength } from 'class-validator';
+import {
+  IsString,
+  IsNumber,
+  IsOptional,
+  IsBoolean,
+  MaxLength,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
+import { CreateCommonPersonDto } from 'src/common-person/dto/create-common-person.dto';
 
 export class CreateDoctorDto {
-  @ApiProperty({ description: 'ID de la persona común asociada al doctor' })
-  @IsNumber()
-  @Type(() => Number)
-  commonPersonId: number;
+  @ApiProperty({
+    type: CreateCommonPersonDto,
+    description: 'Datos de la persona común del doctor',
+  })
+  @ValidateNested()
+  @Type(() => CreateCommonPersonDto)
+  commonPerson: CreateCommonPersonDto;
 
   @ApiPropertyOptional({ description: 'ID del centro médico donde trabaja' })
   @IsOptional()

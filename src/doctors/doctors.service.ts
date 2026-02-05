@@ -51,18 +51,34 @@ export class DoctorsService {
    */
   async create(dto: CreateDoctorDto): Promise<Doctor> {
     try {
-      // Validar que la persona común exista
-      const person = await this.commonPersonRepository.findOneBy({
-        id: dto.commonPersonId,
-      });
+      let commonPerson;
 
-      if (!person) {
-        throw new BadRequestException(
-          `La persona común con ID ${dto.commonPersonId} no existe.`,
-        );
+      // 1. Buscar si ya existe CommonPerson por número de documento
+      if (dto.commonPerson.documentNumber) {
+        const where: any = {
+          documentNumber: dto.commonPerson.documentNumber,
+        };
+
+        if (dto.commonPerson.letter) {
+          where.letter = dto.commonPerson.letter;
+        }
+
+        const existingPerson = await this.commonPersonRepository.findOne({
+          where,
+        });
+
+        if (existingPerson) {
+          commonPerson = existingPerson;
+        }
       }
 
-      // Validar que el centro médico exista (si se proporciona)
+      // 2. Si no existe, crear nuevo CommonPerson
+      if (!commonPerson) {
+        const newPerson = this.commonPersonRepository.create(dto.commonPerson);
+        commonPerson = await this.commonPersonRepository.save(newPerson);
+      }
+
+      // 3. Validar que el centro médico exista (si se proporciona)
       if (dto.medicalCenterId) {
         const center = await this.medicalCenterRepository.findOneBy({
           id: dto.medicalCenterId,
@@ -75,7 +91,7 @@ export class DoctorsService {
         }
       }
 
-      // Validar que no exista otro doctor con el mismo número de licencia
+      // 4. Validar que no exista otro doctor con el mismo número de licencia
       const existingDoctor = await this.doctorRepository.findOne({
         where: { licenseNumber: dto.licenseNumber },
       });
@@ -86,7 +102,12 @@ export class DoctorsService {
         );
       }
 
-      const newDoctor = this.doctorRepository.create(dto);
+      // 5. Crear doctor asociado al CommonPerson
+      const newDoctor = this.doctorRepository.create({
+        ...dto,
+        commonPersonId: commonPerson.id,
+        commonPerson,
+      });
       const doctor = await this.doctorRepository.save(newDoctor);
 
       // Limpiar cache global
@@ -95,7 +116,9 @@ export class DoctorsService {
 
       return doctor;
     } catch (error) {
-      throw new BadRequestException(`Error al crear el doctor: ${error.message}`);
+      throw new BadRequestException(
+        `Error al crear el doctor: ${error.message}`,
+      );
     }
   }
 
@@ -180,7 +203,9 @@ export class DoctorsService {
 
       return doctor;
     } catch (error) {
-      throw new NotFoundException(`Error al obtener el doctor: ${error.message}`);
+      throw new NotFoundException(
+        `Error al obtener el doctor: ${error.message}`,
+      );
     }
   }
 
@@ -245,7 +270,9 @@ export class DoctorsService {
       await this.cacheManager.del('doctor:all');
       await this.clearQueryCache();
     } catch (error) {
-      throw new NotFoundException(`Error al eliminar el doctor: ${error.message}`);
+      throw new NotFoundException(
+        `Error al eliminar el doctor: ${error.message}`,
+      );
     }
   }
 }

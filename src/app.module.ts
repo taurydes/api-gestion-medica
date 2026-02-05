@@ -27,6 +27,8 @@ import { SchemaInitService } from './database/schema-init.service';
 import { MedicalCenterModule } from './medical-center/medical-center.module';
 import { DoctorsModule } from './doctors/doctors.module';
 import { CommonPersonModule } from './common-person/common-person.module';
+import { MedicalHistoryModule } from './medical-history/medical-history.module';
+import { RecipeModule } from './recipe/recipe.module';
 
 @Module({
   imports: [
@@ -88,6 +90,8 @@ import { CommonPersonModule } from './common-person/common-person.module';
     PatientModule,
     MedicalCenterModule,
     DoctorsModule,
+    MedicalHistoryModule,
+    RecipeModule,
   ],
   controllers: [],
   providers: [

@@ -6,6 +6,7 @@ import { DoctorsController } from './doctors.controller';
 import { DoctorsService } from './doctors.service';
 import { CommonPerson } from 'src/common-person/entities/common-person.entity';
 import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity';
+import { CommonPersonModule } from 'src/common-person/common-person.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity
       [Doctor, CommonPerson, MedicalCenter],
       DatabaseConnectionName.DB_MAIN,
     ),
+    CommonPersonModule,
   ],
   controllers: [DoctorsController],
   providers: [DoctorsService],
