@@ -11,13 +11,14 @@ import { Type } from 'class-transformer';
 import { CreateCommonPersonDto } from 'src/common-person/dto/create-common-person.dto';
 
 export class CreateDoctorDto {
-  @ApiProperty({
+  @ApiPropertyOptional({
     type: CreateCommonPersonDto,
     description: 'Datos de la persona común del doctor',
   })
+  @IsOptional()
   @ValidateNested()
   @Type(() => CreateCommonPersonDto)
-  commonPerson: CreateCommonPersonDto;
+  commonPerson?: CreateCommonPersonDto;
 
   @ApiPropertyOptional({ description: 'ID del centro médico donde trabaja' })
   @IsOptional()

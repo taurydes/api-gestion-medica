@@ -14,7 +14,7 @@ import { User } from '../../user/entities/user.entity';
 
 @Entity({ schema: 'selfManagement', name: 'persona_comun' })
 export class CommonPerson {
-  @PrimaryGeneratedColumn({ type: 'bigint' })
+  @PrimaryGeneratedColumn('increment', { type: 'bigint' })
   id: number;
 
   @Column({ name: 'letra', type: 'varchar', length: 1, nullable: true })
@@ -48,8 +48,8 @@ export class CommonPerson {
   @Column({ name: 'estatus', type: 'boolean', default: true })
   isActive: boolean;
 
-  @Column({ name: 'user_id', type: 'bigint', default: () => '1' })
-  userId: number;
+  @Column({ name: 'user_id', type: 'bigint', nullable: true })
+  userId?: number;
 
   @Column({
     name: 'created_at',
@@ -69,7 +69,7 @@ export class CommonPerson {
 
   @OneToOne(() => User, (user) => user.commonPerson)
   @JoinColumn({ name: 'user_id' })
-  user: User;
+  user?: User;
 
   @ManyToOne(() => IdentityDocument, {
     onDelete: 'NO ACTION',

@@ -1,6 +1,5 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, OneToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { Role } from 'src/role/entities/role.entity';
-import { CommonPerson } from '../../common-person/entities/common-person.entity';
 
 @Entity({ schema: 'seguridad', name: 'users' })
 export class UserSecurity {

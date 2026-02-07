@@ -12,11 +12,20 @@ import { UserController } from './user.controller';
 import { UserService } from './user.service';
 
 import { CommonPerson } from 'src/common-person/entities/common-person.entity';
+import { Doctor } from 'src/doctors/entities/doctor.entity';
+import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature(
-      [User, UserSecurity, IdentityDocument, CommonPerson],
+      [
+        User,
+        UserSecurity,
+        IdentityDocument,
+        CommonPerson,
+        Doctor,
+        MedicalCenter,
+      ],
       DatabaseConnectionName.DB_MAIN,
     ),
     forwardRef(() => RoleModule),
