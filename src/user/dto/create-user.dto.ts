@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsBoolean,
@@ -8,8 +8,10 @@ import {
   IsOptional,
   IsString,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
 import { CreateCommonPersonDto } from './create-common-person.dto';
+import { CreateDoctorNestedDto } from 'src/doctors/dto/create-doctor-nested.dto';
 
 export class CreateUserDto {
   @ApiProperty({
@@ -45,7 +47,7 @@ export class CreateUserDto {
 
   @ApiProperty({
     description: 'Indica si es el primer inicio de sesión',
-    example: false,
+    example: true,
     required: false,
   })
   @IsOptional()
@@ -68,4 +70,13 @@ export class CreateUserDto {
   @Type(() => CreateCommonPersonDto)
   @IsNotEmpty({ message: 'La información de la persona es obligatoria' })
   commonPerson: CreateCommonPersonDto;
+
+  @ApiPropertyOptional({
+    description: 'Datos del doctor (si el usuario es un médico)',
+    type: CreateDoctorNestedDto,
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CreateDoctorNestedDto)
+  doctor?: CreateDoctorNestedDto;
 }

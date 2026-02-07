@@ -8,7 +8,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
-import { Repository } from 'typeorm';
+import { FindOptions, FindOptionsWhere, Repository } from 'typeorm';
 import { CreateDoctorDto } from './dto/create-doctor.dto';
 import { UpdateDoctorDto } from './dto/update-doctor.dto';
 import { DoctorQueryDto } from './dto/doctor-query.dto';
@@ -54,17 +54,23 @@ export class DoctorsService {
       let commonPerson;
 
       // 1. Buscar si ya existe CommonPerson por número de documento
+      if (!dto.commonPerson) {
+        throw new BadRequestException(
+          'La informacin de la persona es requerida para este endpoint.',
+        );
+      }
+
       if (dto.commonPerson.documentNumber) {
-        const where: any = {
+        const whereConditions: FindOptionsWhere<CommonPerson> = {
           documentNumber: dto.commonPerson.documentNumber,
         };
 
         if (dto.commonPerson.letter) {
-          where.letter = dto.commonPerson.letter;
+          whereConditions.letter = dto.commonPerson.letter;
         }
 
         const existingPerson = await this.commonPersonRepository.findOne({
-          where,
+          where: whereConditions,
         });
 
         if (existingPerson) {

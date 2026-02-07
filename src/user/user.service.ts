@@ -16,6 +16,8 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { UserQueryDto } from './dto/user-query.dto copy';
 import { User } from './entities/user.entity';
 import { CommonPerson } from '../common-person/entities/common-person.entity';
+import { Doctor } from 'src/doctors/entities/doctor.entity';
+import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity';
 
 @Injectable()
 export class UserService {
@@ -79,29 +81,80 @@ export class UserService {
   // ============================================================
 
   async create(dto: CreateUserDto): Promise<Omit<User, 'password'>> {
-    try {
-      const { commonPerson: _commonPerson, ...data } = dto;
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
+    try {
+      const { commonPerson: commonPersonDto, doctor: doctorDto, ...data } = dto;
+
+      // 1. Validar usuario existente (email / nombre)
       await this.validateUserData(dto);
 
+      // 2. Resolver CommonPerson (Buscar o Crear)
+      let commonPerson: CommonPerson | null = null;
+      if (commonPersonDto.documentNumber) {
+        commonPerson = await this.commonPersonrepo.findOne({
+          where: { documentNumber: commonPersonDto.documentNumber },
+        });
+      }
+
+      if (!commonPerson) {
+        // Validación adicional si vamos a crear (que no exista por letra+documento si aplicara)
+        // pero arriba ya buscamos por documento.
+        commonPerson = queryRunner.manager.create(
+          CommonPerson,
+          commonPersonDto,
+        );
+        commonPerson = await queryRunner.manager.save(commonPerson);
+      }
+
+      // 3. Crear Usuario
       const hashedPassword = await bcrypt.hash(data.password, 10);
-
-      const queryRunner = this.dataSource.createQueryRunner();
-      await queryRunner.connect();
-      await queryRunner.startTransaction();
-
       const user = queryRunner.manager.create(User, {
         ...data,
         password: hashedPassword,
+        commonPerson: commonPerson, // Asignar relación
       });
       await queryRunner.manager.save(user);
 
-      const commonPerson = queryRunner.manager.create(CommonPerson, {
-        ..._commonPerson,
-        userId: user.id,
-      });
-
+      // Vincular CommonPerson con el Usuario (si no tenía usuario o actualizarlo)
+      // Nota: Si commonPerson ya tenía usuario, esto lo sobrescribe.
+      // Si se requiere validación de que commonPerson no tenga usuario, agregarla antes.
+      commonPerson.userId = user.id;
       await queryRunner.manager.save(commonPerson);
+
+      // 4. Crear Doctor (si aplica)
+      if (doctorDto) {
+        // Validar Medical Center
+        if (doctorDto.medicalCenterId) {
+          const centerExists = await queryRunner.manager
+            .getRepository(MedicalCenter)
+            .findOneBy({ id: doctorDto.medicalCenterId });
+          if (!centerExists) {
+            throw new BadRequestException(
+              `El centro médico con ID ${doctorDto.medicalCenterId} no existe.`,
+            );
+          }
+        }
+
+        // Validar Licencia Duplicada
+        const doctorExists = await queryRunner.manager
+          .getRepository(Doctor)
+          .findOneBy({ licenseNumber: doctorDto.licenseNumber });
+        if (doctorExists) {
+          throw new BadRequestException(
+            'Ya existe un doctor con ese número de licencia.',
+          );
+        }
+
+        const doctor = queryRunner.manager.create(Doctor, {
+          ...doctorDto,
+          commonPerson: commonPerson,
+          medicalCenterId: doctorDto.medicalCenterId,
+        });
+        await queryRunner.manager.save(doctor);
+      }
 
       await queryRunner.commitTransaction();
       await queryRunner.release();
@@ -113,6 +166,8 @@ export class UserService {
 
       return rest;
     } catch (error) {
+      await queryRunner.rollbackTransaction();
+      await queryRunner.release(); // Ensure release on error
       throw new BadRequestException(
         `Error al crear el usuario: ${error.message}`,
       );
