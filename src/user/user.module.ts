@@ -14,6 +14,7 @@ import { UserService } from './user.service';
 import { CommonPerson } from 'src/common-person/entities/common-person.entity';
 import { Doctor } from 'src/doctors/entities/doctor.entity';
 import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity';
+import { Specialty } from 'src/parameters/entities/specialty.entity';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity
         CommonPerson,
         Doctor,
         MedicalCenter,
+        Specialty,
       ],
       DatabaseConnectionName.DB_MAIN,
     ),

@@ -9,7 +9,7 @@ import {
 import { Role } from 'src/role/entities/role.entity';
 import { CommonPerson } from '../../common-person/entities/common-person.entity';
 
-@Entity({ schema: 'selfManagement', name: 'users' })
+@Entity({ schema: 'public', name: 'users' })
 export class User {
   @PrimaryGeneratedColumn({ type: 'bigint' })
   id: number;

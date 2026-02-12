@@ -4,8 +4,10 @@ import {
   Column,
   ManyToOne,
   JoinColumn,
+  OneToMany,
 } from 'typeorm';
 import { Municipality } from './municipality.entity';
+import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity';
 
 /**
  * Parroquia → Parish
@@ -40,4 +42,7 @@ export class Parish {
   })
   @JoinColumn({ name: 'municipio_id' })
   municipality: Municipality;
+
+  @OneToMany(() => MedicalCenter, (center) => center.parish)
+  medicalCenters: MedicalCenter[];
 }

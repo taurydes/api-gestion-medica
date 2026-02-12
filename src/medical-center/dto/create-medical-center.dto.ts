@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsEmail, IsOptional, IsBoolean, MaxLength } from 'class-validator';
+import { IsString, IsEmail, IsOptional, IsBoolean, MaxLength, IsNumber } from 'class-validator';
 
 export class CreateMedicalCenterDto {
   @ApiProperty({ description: 'Nombre del centro médico' })
@@ -18,7 +18,7 @@ export class CreateMedicalCenterDto {
   @MaxLength(50)
   phone?: string;
 
-  @ApiPropertyOptional({ description: 'Correo electrónico del centro' })
+  @ApiPropertyOptional({ description: 'Correo electrónico del centro',example:'centromedico@gmail.com'})
   @IsOptional()
   @IsEmail()
   @MaxLength(255)
@@ -28,4 +28,9 @@ export class CreateMedicalCenterDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional({ description: 'Parroquia ID', example: 1 })
+  @IsOptional()
+  @IsNumber()
+  parishId?: number;
 }
