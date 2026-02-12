@@ -13,12 +13,16 @@ import { CreateMedicalCenterDto } from './dto/create-medical-center.dto';
 import { UpdateMedicalCenterDto } from './dto/update-medical-center.dto';
 import { MedicalCenterQueryDto } from './dto/medical-center-query.dto';
 import { MedicalCenter } from './entities/medical-center.entity';
+import { Doctor } from 'src/doctors/entities/doctor.entity';
 
 @Injectable()
 export class MedicalCenterService {
   constructor(
     @InjectRepository(MedicalCenter, DatabaseConnectionName.DB_MAIN)
     private readonly medicalCenterRepository: Repository<MedicalCenter>,
+
+    @InjectRepository(Doctor, DatabaseConnectionName.DB_MAIN)
+    private readonly doctorRepository: Repository<Doctor>,
 
     @Inject(CACHE_MANAGER)
     private readonly cacheManager: Cache,
@@ -48,7 +52,9 @@ export class MedicalCenterService {
       });
 
       if (existingCenter) {
-        throw new BadRequestException('Ya existe un centro médico con ese nombre.');
+        throw new BadRequestException(
+          'Ya existe un centro médico con ese nombre.',
+        );
       }
 
       const newCenter = this.medicalCenterRepository.create(dto);
@@ -83,6 +89,8 @@ export class MedicalCenterService {
     const qb = this.medicalCenterRepository
       .createQueryBuilder('mc')
       .leftJoinAndSelect('mc.doctors', 'doctors')
+      .leftJoinAndSelect('doctors.commonPerson', 'commonPerson')
+      .leftJoinAndSelect('doctors.specialty', 'specialty')
       .where('mc.deletedAt IS NULL');
 
     // Filtros
@@ -133,7 +141,9 @@ export class MedicalCenterService {
       });
 
       if (!center) {
-        throw new NotFoundException(`Centro médico con ID ${id} no encontrado.`);
+        throw new NotFoundException(
+          `Centro médico con ID ${id} no encontrado.`,
+        );
       }
 
       await this.cacheManager.set(cacheKey, center, 600);
@@ -149,12 +159,17 @@ export class MedicalCenterService {
   /**
    * Actualizar centro médico
    */
-  async update(id: number, dto: UpdateMedicalCenterDto): Promise<MedicalCenter> {
+  async update(
+    id: number,
+    dto: UpdateMedicalCenterDto,
+  ): Promise<MedicalCenter> {
     try {
       const center = await this.medicalCenterRepository.findOneBy({ id });
 
       if (!center) {
-        throw new NotFoundException(`Centro médico con ID ${id} no encontrado.`);
+        throw new NotFoundException(
+          `Centro médico con ID ${id} no encontrado.`,
+        );
       }
 
       await this.medicalCenterRepository.update(id, dto);
@@ -184,7 +199,9 @@ export class MedicalCenterService {
     try {
       const center = await this.medicalCenterRepository.findOneBy({ id });
       if (!center) {
-        throw new NotFoundException(`Centro médico con ID ${id} no encontrado.`);
+        throw new NotFoundException(
+          `Centro médico con ID ${id} no encontrado.`,
+        );
       }
 
       center.deletedAt = new Date();
@@ -198,5 +215,99 @@ export class MedicalCenterService {
         `Error al eliminar el centro médico: ${error.message}`,
       );
     }
+  }
+
+  /**
+   * Asignar un doctor a un centro médico
+   */
+  async assignDoctor(
+    medicalCenterId: number,
+    doctorId: number,
+  ): Promise<MedicalCenter> {
+    const center = await this.medicalCenterRepository.findOne({
+      where: { id: medicalCenterId },
+      relations: ['doctors'],
+    });
+
+    if (!center) {
+      throw new NotFoundException(
+        `Centro médico con ID ${medicalCenterId} no encontrado.`,
+      );
+    }
+
+    const doctor = await this.doctorRepository.findOneBy({ id: doctorId });
+
+    if (!doctor) {
+      throw new NotFoundException(`Doctor con ID ${doctorId} no encontrado.`);
+    }
+
+    // Cargar los centros médicos actuales del doctor
+    const currentDoctor = await this.doctorRepository.findOne({
+      where: { id: doctorId },
+      relations: ['medicalCenters'],
+    });
+
+    if (!currentDoctor) {
+      throw new NotFoundException(`Doctor con ID ${doctorId} no encontrado.`);
+    }
+
+    const isAssigned = currentDoctor.medicalCenters.some(
+      (mc) => mc.id === Number(medicalCenterId),
+    );
+
+    if (isAssigned) {
+      throw new BadRequestException(
+        'El doctor ya está asignado a este centro médico.',
+      );
+    }
+
+    currentDoctor.medicalCenters.push(center);
+    await this.doctorRepository.save(currentDoctor);
+
+    // Limpiar caches
+    await this.cacheManager.del(`medicalCenter:${medicalCenterId}`);
+    await this.cacheManager.del('medicalCenter:all');
+    await this.clearQueryCache();
+
+    return center;
+  }
+
+  /**
+   * Remover un doctor de un centro médico
+   */
+  async removeDoctor(
+    medicalCenterId: number,
+    doctorId: number,
+  ): Promise<MedicalCenter> {
+    const center = await this.medicalCenterRepository.findOne({
+      where: { id: medicalCenterId },
+      relations: ['doctors'],
+    });
+
+    if (!center) {
+      throw new NotFoundException(
+        `Centro médico con ID ${medicalCenterId} no encontrado.`,
+      );
+    }
+
+    // Verificar si está asignado
+    const doctorIndex = center.doctors.findIndex(
+      (d) => d.id === Number(doctorId),
+    );
+    if (doctorIndex === -1) {
+      throw new BadRequestException(
+        'El doctor no está asignado a este centro médico.',
+      );
+    }
+
+    center.doctors.splice(doctorIndex, 1);
+    await this.medicalCenterRepository.save(center);
+
+    // Limpiar caches
+    await this.cacheManager.del(`medicalCenter:${medicalCenterId}`);
+    await this.cacheManager.del('medicalCenter:all');
+    await this.clearQueryCache();
+
+    return center;
   }
 }

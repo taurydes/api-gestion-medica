@@ -30,7 +30,9 @@ export class MedicalCenterController {
     description: 'Registra un nuevo centro médico en el sistema.',
   })
   @Post()
-    @Permission(`${ModuleItemsMenu.MedicalCenterModule}.${PermissionActionsMenu.CREATE}`)
+  @Permission(
+    `${ModuleItemsMenu.MedicalCenterModule}.${PermissionActionsMenu.CREATE}`,
+  )
   create(@Body() dto: CreateMedicalCenterDto) {
     return this.medicalCenterService.create(dto);
   }
@@ -40,7 +42,9 @@ export class MedicalCenterController {
     description: 'Retorna todos los centros médicos con paginación y filtros.',
   })
   @Get()
-  @Permission(`${ModuleItemsMenu.MedicalCenterModule}.${PermissionActionsMenu.VIEW}`)
+  @Permission(
+    `${ModuleItemsMenu.MedicalCenterModule}.${PermissionActionsMenu.VIEW}`,
+  )
   findAll(@Query() query: MedicalCenterQueryDto) {
     return this.medicalCenterService.findAll(query);
   }
@@ -50,7 +54,9 @@ export class MedicalCenterController {
     description: 'Devuelve el detalle de un centro médico específico.',
   })
   @Get(':id')
-  @Permission(`${ModuleItemsMenu.MedicalCenterModule}.${PermissionActionsMenu.VIEW}`)
+  @Permission(
+    `${ModuleItemsMenu.MedicalCenterModule}.${PermissionActionsMenu.VIEW}`,
+  )
   findOne(@Param('id') id: string) {
     return this.medicalCenterService.findOne(+id);
   }
@@ -60,7 +66,9 @@ export class MedicalCenterController {
     description: 'Modifica información de un centro médico existente.',
   })
   @Patch(':id')
-  @Permission(`${ModuleItemsMenu.MedicalCenterModule}.${PermissionActionsMenu.UPDATE}`)
+  @Permission(
+    `${ModuleItemsMenu.MedicalCenterModule}.${PermissionActionsMenu.UPDATE}`,
+  )
   update(@Param('id') id: string, @Body() dto: UpdateMedicalCenterDto) {
     return this.medicalCenterService.update(+id, dto);
   }
@@ -70,8 +78,33 @@ export class MedicalCenterController {
     description: 'Elimina lógicamente un centro médico por ID.',
   })
   @Delete(':id')
-  @Permission(`${ModuleItemsMenu.MedicalCenterModule}.${PermissionActionsMenu.DELETE}`)
+  @Permission(
+    `${ModuleItemsMenu.MedicalCenterModule}.${PermissionActionsMenu.DELETE}`,
+  )
   remove(@Param('id') id: string) {
     return this.medicalCenterService.remove(+id);
+  }
+  @ApiOperation({
+    summary: 'Asignar doctor a centro médico',
+    description: 'Asigna un doctor existente a un centro médico.',
+  })
+  @Post(':id/doctors/:doctorId')
+  @Permission(
+    `${ModuleItemsMenu.MedicalCenterModule}.${PermissionActionsMenu.UPDATE}`,
+  )
+  assignDoctor(@Param('id') id: string, @Param('doctorId') doctorId: string) {
+    return this.medicalCenterService.assignDoctor(+id, +doctorId);
+  }
+
+  @ApiOperation({
+    summary: 'Remover doctor de centro médico',
+    description: 'Elimina la asignación de un doctor a un centro médico.',
+  })
+  @Delete(':id/doctors/:doctorId')
+  @Permission(
+    `${ModuleItemsMenu.MedicalCenterModule}.${PermissionActionsMenu.UPDATE}`,
+  )
+  removeDoctor(@Param('id') id: string, @Param('doctorId') doctorId: string) {
+    return this.medicalCenterService.removeDoctor(+id, +doctorId);
   }
 }

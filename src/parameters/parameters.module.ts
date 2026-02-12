@@ -71,6 +71,10 @@ import { SpecialtyService } from './services/specialty.service';
     ChronicDiseaseController,
     MedicationController,
     SpecialtyController,
+    AllergyController,
+    ChronicDiseaseController,
+    MedicationController,
+    SpecialtyController,
   ],
 
   providers: [

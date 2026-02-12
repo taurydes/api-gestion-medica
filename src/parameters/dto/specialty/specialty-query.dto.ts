@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsBooleanString, IsOptional, IsString } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { QueryPaginationDto } from 'src/common/dto/query-pagination.dto';
 
@@ -21,6 +21,6 @@ export class SpecialtyQueryDto extends QueryPaginationDto {
   })
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
-  @IsBoolean()
+  @IsBooleanString()
   isActive?: boolean;
 }

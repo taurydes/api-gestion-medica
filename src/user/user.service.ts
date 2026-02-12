@@ -18,6 +18,7 @@ import { User } from './entities/user.entity';
 import { CommonPerson } from '../common-person/entities/common-person.entity';
 import { Doctor } from 'src/doctors/entities/doctor.entity';
 import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity';
+import { Specialty } from 'src/parameters/entities/specialty.entity';
 
 @Injectable()
 export class UserService {
@@ -126,16 +127,32 @@ export class UserService {
 
       // 4. Crear Doctor (si aplica)
       if (doctorDto) {
-        // Validar Medical Center
+        // Validar Especialidad
+        if (doctorDto.specialtyId) {
+          const specialtyExists = await queryRunner.manager
+            .getRepository(Specialty)
+            .findOneBy({ id: doctorDto.specialtyId });
+
+          if (!specialtyExists) {
+            throw new BadRequestException(
+              `La especialidad con ID ${doctorDto.specialtyId} no existe.`,
+            );
+          }
+        }
+
+        let medicalCenters: MedicalCenter[] = [];
+        // Validar Medical Center (si se envía en el DTO)
         if (doctorDto.medicalCenterId) {
-          const centerExists = await queryRunner.manager
+          const center = await queryRunner.manager
             .getRepository(MedicalCenter)
             .findOneBy({ id: doctorDto.medicalCenterId });
-          if (!centerExists) {
+
+          if (!center) {
             throw new BadRequestException(
               `El centro médico con ID ${doctorDto.medicalCenterId} no existe.`,
             );
           }
+          medicalCenters.push(center);
         }
 
         // Validar Licencia Duplicada
@@ -151,7 +168,7 @@ export class UserService {
         const doctor = queryRunner.manager.create(Doctor, {
           ...doctorDto,
           commonPerson: commonPerson,
-          medicalCenterId: doctorDto.medicalCenterId,
+          medicalCenters: medicalCenters,
         });
         await queryRunner.manager.save(doctor);
       }

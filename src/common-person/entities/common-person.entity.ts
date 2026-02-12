@@ -12,7 +12,7 @@ import { User } from '../../user/entities/user.entity';
 // Si algún día mapeas parametro.documento_identidad:
 // import { IdentityDocument } from 'src/identity-document/entities/identity-document.entity';
 
-@Entity({ schema: 'selfManagement', name: 'persona_comun' })
+@Entity({ schema: 'public', name: 'persona_comun' })
 export class CommonPerson {
   @PrimaryGeneratedColumn('increment', { type: 'bigint' })
   id: number;

@@ -15,6 +15,7 @@ import { DoctorQueryDto } from './dto/doctor-query.dto';
 import { Doctor } from './entities/doctor.entity';
 import { CommonPerson } from 'src/common-person/entities/common-person.entity';
 import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity';
+import { Specialty } from 'src/parameters/entities/specialty.entity';
 
 @Injectable()
 export class DoctorsService {
@@ -25,8 +26,8 @@ export class DoctorsService {
     @InjectRepository(CommonPerson, DatabaseConnectionName.DB_MAIN)
     private readonly commonPersonRepository: Repository<CommonPerson>,
 
-    @InjectRepository(MedicalCenter, DatabaseConnectionName.DB_MAIN)
-    private readonly medicalCenterRepository: Repository<MedicalCenter>,
+    @InjectRepository(Specialty, DatabaseConnectionName.DB_MAIN)
+    private readonly specialtyRepository: Repository<Specialty>,
 
     @Inject(CACHE_MANAGER)
     private readonly cacheManager: Cache,
@@ -52,11 +53,20 @@ export class DoctorsService {
   async create(dto: CreateDoctorDto): Promise<Doctor> {
     try {
       let commonPerson;
+      const specialty = await this.specialtyRepository.findOne({
+        where: { id: dto.specialtyId },
+      });
+
+      if (!specialty) {
+        throw new BadRequestException(
+          'La especialidad no existe.',
+        );
+      }
 
       // 1. Buscar si ya existe CommonPerson por número de documento
       if (!dto.commonPerson) {
         throw new BadRequestException(
-          'La informacin de la persona es requerida para este endpoint.',
+          'La información de la persona es requerida para este endpoint.',
         );
       }
 
@@ -85,17 +95,7 @@ export class DoctorsService {
       }
 
       // 3. Validar que el centro médico exista (si se proporciona)
-      if (dto.medicalCenterId) {
-        const center = await this.medicalCenterRepository.findOneBy({
-          id: dto.medicalCenterId,
-        });
-
-        if (!center) {
-          throw new BadRequestException(
-            `El centro médico con ID ${dto.medicalCenterId} no existe.`,
-          );
-        }
-      }
+      // LEAGACY: medicalCenterId removed in favor of ManyToMany in MedicalCenter
 
       // 4. Validar que no exista otro doctor con el mismo número de licencia
       const existingDoctor = await this.doctorRepository.findOne({
@@ -145,7 +145,7 @@ export class DoctorsService {
     const qb = this.doctorRepository
       .createQueryBuilder('doctor')
       .leftJoinAndSelect('doctor.commonPerson', 'person')
-      .leftJoinAndSelect('doctor.medicalCenter', 'center')
+      .leftJoinAndSelect('doctor.medicalCenters', 'centers')
       .where('doctor.deletedAt IS NULL');
 
     // Filtros
@@ -157,7 +157,7 @@ export class DoctorsService {
     }
 
     if (medicalCenterId) {
-      qb.andWhere('doctor.medicalCenterId = :medicalCenterId', {
+      qb.innerJoin('doctor.medicalCenters', 'mc', 'mc.id = :medicalCenterId', {
         medicalCenterId,
       });
     }
@@ -198,7 +198,7 @@ export class DoctorsService {
 
       const doctor = await this.doctorRepository.findOne({
         where: { id },
-        relations: ['commonPerson', 'medicalCenter'],
+        relations: ['commonPerson', 'medicalCenters'],
       });
 
       if (!doctor) {
@@ -227,17 +227,7 @@ export class DoctorsService {
       }
 
       // Validar centro médico si se proporciona
-      if (dto.medicalCenterId) {
-        const center = await this.medicalCenterRepository.findOneBy({
-          id: dto.medicalCenterId,
-        });
-
-        if (!center) {
-          throw new BadRequestException(
-            `El centro médico con ID ${dto.medicalCenterId} no existe.`,
-          );
-        }
-      }
+      // LEGACY: medicalCenterId removed
 
       await this.doctorRepository.update(id, dto);
       const updated = await this.doctorRepository.findOneBy({ id });
