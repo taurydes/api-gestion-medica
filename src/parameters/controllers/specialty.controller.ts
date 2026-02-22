@@ -20,7 +20,7 @@ import { SpecialtyQueryDto } from '../dto/specialty/specialty-query.dto';
  * Endpoints CRUD con documentación Swagger
  */
 @ApiTags('Parámetros - Especialidades Médicas')
-@Controller('parameters/specialties')
+@Controller('specialties')
 export class SpecialtyController {
   constructor(private readonly specialtyService: SpecialtyService) {}
 

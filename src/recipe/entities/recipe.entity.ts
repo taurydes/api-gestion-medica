@@ -103,4 +103,18 @@ export class Recipe {
 
   @Column({ name: 'updated_by', type: 'bigint', nullable: true })
   updatedBy: number | null;
+
+  // ========== RELACIÓN CON CITA MÉDICA ==========
+
+  @Column({ name: 'medical_appointment_id', type: 'bigint', nullable: true })
+  medicalAppointmentId: number | null;
+
+  // Relación con cita médica (opcional - usa string para evitar importación circular)
+  @ManyToOne('MedicalAppointment', 'recipes', {
+    onDelete: 'SET NULL',
+    onUpdate: 'CASCADE',
+    nullable: true,
+  })
+  @JoinColumn({ name: 'medical_appointment_id' })
+  medicalAppointment: any;
 }

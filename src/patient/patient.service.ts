@@ -142,7 +142,10 @@ export class PatientService {
 
       // 4️⃣ Cargar alergias si se proporcionaron
       let allergies: Allergy[] = [];
-      if (createPatientDto.allergyIds && createPatientDto.allergyIds.length > 0) {
+      if (
+        createPatientDto.allergyIds &&
+        createPatientDto.allergyIds.length > 0
+      ) {
         allergies = await this.allergyRepository.findByIds(
           createPatientDto.allergyIds,
         );
@@ -164,7 +167,9 @@ export class PatientService {
           createPatientDto.chronicDiseaseIds,
         );
 
-        if (chronicDiseases.length !== createPatientDto.chronicDiseaseIds.length) {
+        if (
+          chronicDiseases.length !== createPatientDto.chronicDiseaseIds.length
+        ) {
           throw new BadRequestException(
             'Una o más enfermedades crónicas proporcionadas no existen.',
           );
@@ -328,9 +333,7 @@ export class PatientService {
       });
 
       if (!patient) {
-        throw new NotFoundException(
-          `Paciente con ID ${id} no encontrado.`,
-        );
+        throw new NotFoundException(`Paciente con ID ${id} no encontrado.`);
       }
 
       // Guardar en cache por 10 min
@@ -356,7 +359,6 @@ export class PatientService {
     letter?: string,
   ): Promise<Patient | null> {
     const cacheKey = `patient:doc:${letter || ''}${documentNumber}`;
-
     try {
       const cached = await this.cacheManager.get<Patient>(cacheKey);
       if (cached) return cached;
@@ -368,7 +370,9 @@ export class PatientService {
         .leftJoinAndSelect('patient.chronicDiseases', 'chronicDiseases')
         .leftJoinAndSelect('patient.medications', 'medications')
         .where('patient.deletedAt IS NULL')
-        .andWhere('commonPerson.documentNumber = :documentNumber', { documentNumber });
+        .andWhere('commonPerson.documentNumber = :documentNumber', {
+          documentNumber,
+        });
 
       if (letter) {
         qb.andWhere('commonPerson.letter = :letter', { letter });
@@ -376,9 +380,13 @@ export class PatientService {
 
       const patient = await qb.getOne();
 
-      if (patient) {
-        await this.cacheManager.set(cacheKey, patient, 600);
+      if (!patient) {
+        throw new NotFoundException(
+          `Paciente con documento ${documentNumber} no encontrado`,
+        );
       }
+
+      await this.cacheManager.set(cacheKey, patient, 600);
 
       return patient;
     } catch (error) {
@@ -403,13 +411,16 @@ export class PatientService {
     try {
       const patient = await this.patientRepository.findOne({
         where: { id },
-        relations: ['commonPerson', 'allergies', 'chronicDiseases', 'medications'],
+        relations: [
+          'commonPerson',
+          'allergies',
+          'chronicDiseases',
+          'medications',
+        ],
       });
 
       if (!patient) {
-        throw new NotFoundException(
-          `Paciente con ID ${id} no encontrado.`,
-        );
+        throw new NotFoundException(`Paciente con ID ${id} no encontrado.`);
       }
 
       // Actualizar CommonPerson si se proporciona
@@ -443,7 +454,9 @@ export class PatientService {
           chronicDiseases = await this.chronicDiseaseRepository.findByIds(
             updatePatientDto.chronicDiseaseIds,
           );
-          if (chronicDiseases.length !== updatePatientDto.chronicDiseaseIds.length) {
+          if (
+            chronicDiseases.length !== updatePatientDto.chronicDiseaseIds.length
+          ) {
             throw new BadRequestException(
               'Una o más enfermedades crónicas proporcionadas no existen.',
             );
@@ -492,7 +505,10 @@ export class PatientService {
 
       return this.findOne(updatedPatient.id);
     } catch (error) {
-      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
       throw new BadRequestException(
@@ -510,9 +526,7 @@ export class PatientService {
       const patient = await this.findOne(id);
 
       if (!patient) {
-        throw new NotFoundException(
-          `Paciente con ID ${id} no encontrado.`,
-        );
+        throw new NotFoundException(`Paciente con ID ${id} no encontrado.`);
       }
 
       // Soft delete: establecer deletedAt

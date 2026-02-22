@@ -8,7 +8,7 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
-  OneToMany,
+  OneToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
@@ -61,7 +61,12 @@ export class MedicalHistory {
   @Column({ name: 'consultation_date', type: 'timestamp' })
   consultationDate: Date;
 
-  @Column({ name: 'consultation_number', type: 'varchar', length: 50, unique: true })
+  @Column({
+    name: 'consultation_number',
+    type: 'varchar',
+    length: 50,
+    unique: true,
+  })
   consultationNumber: string; // Número único de consulta (ej: CONS-2026-00001)
 
   @Column({ name: 'reason_for_visit', type: 'text' })
@@ -75,25 +80,54 @@ export class MedicalHistory {
 
   // ========== SIGNOS VITALES ==========
 
-  @Column({ name: 'blood_pressure', type: 'varchar', length: 20, nullable: true })
+  @Column({
+    name: 'blood_pressure',
+    type: 'varchar',
+    length: 20,
+    nullable: true,
+  })
   bloodPressure: string | null; // Presión arterial (ej: "120/80")
 
   @Column({ name: 'heart_rate', type: 'int', nullable: true })
   heartRate: number | null; // Frecuencia cardíaca (ppm)
 
-  @Column({ name: 'temperature', type: 'decimal', precision: 4, scale: 1, nullable: true })
+  @Column({
+    name: 'temperature',
+    type: 'decimal',
+    precision: 4,
+    scale: 1,
+    nullable: true,
+  })
   temperature: number | null; // Temperatura corporal (°C)
 
-  @Column({ name: 'weight', type: 'decimal', precision: 5, scale: 2, nullable: true })
+  @Column({
+    name: 'weight',
+    type: 'decimal',
+    precision: 5,
+    scale: 2,
+    nullable: true,
+  })
   weight: number | null; // Peso (kg)
 
-  @Column({ name: 'height', type: 'decimal', precision: 5, scale: 2, nullable: true })
+  @Column({
+    name: 'height',
+    type: 'decimal',
+    precision: 5,
+    scale: 2,
+    nullable: true,
+  })
   height: number | null; // Altura (cm)
 
   @Column({ name: 'respiratory_rate', type: 'int', nullable: true })
   respiratoryRate: number | null; // Frecuencia respiratoria
 
-  @Column({ name: 'oxygen_saturation', type: 'decimal', precision: 5, scale: 2, nullable: true })
+  @Column({
+    name: 'oxygen_saturation',
+    type: 'decimal',
+    precision: 5,
+    scale: 2,
+    nullable: true,
+  })
   oxygenSaturation: number | null; // Saturación de oxígeno (%)
 
   // ========== DIAGNÓSTICO Y TRATAMIENTO ==========
@@ -101,7 +135,12 @@ export class MedicalHistory {
   @Column({ name: 'diagnosis', type: 'text', nullable: true })
   diagnosis: string | null; // Diagnóstico del médico
 
-  @Column({ name: 'diagnosis_code', type: 'varchar', length: 20, nullable: true })
+  @Column({
+    name: 'diagnosis_code',
+    type: 'varchar',
+    length: 20,
+    nullable: true,
+  })
   diagnosisCode: string | null; // Código CIE-10 del diagnóstico
 
   @Column({ name: 'treatment_plan', type: 'text', nullable: true })
@@ -145,4 +184,20 @@ export class MedicalHistory {
 
   @Column({ name: 'updated_by', type: 'bigint', nullable: true })
   updatedBy: number | null;
+
+  // ========== RELACIÓN CON CITA MÉDICA ==========
+
+  @Column({ name: 'medical_appointment_id', type: 'bigint', nullable: true })
+  medicalAppointmentId: number | null;
+
+  // Relación inversa con MedicalAppointment (1:1 opcional)
+  // Se usa 'any' para evitar importación circular; la relación se define
+  // en MedicalAppointment con OneToOne(() => MedicalHistory)
+  @OneToOne('MedicalAppointment', 'medicalHistory', {
+    onDelete: 'SET NULL',
+    onUpdate: 'CASCADE',
+    nullable: true,
+  })
+  @JoinColumn({ name: 'medical_appointment_id' })
+  medicalAppointment: any;
 }
