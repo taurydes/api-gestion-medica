@@ -4,8 +4,10 @@ import {
   Column,
   ManyToMany,
   ManyToOne,
+  OneToMany,
   JoinColumn,
 } from 'typeorm';
+import { Department } from 'src/departments/entities/department.entity';
 import { Doctor } from 'src/doctors/entities/doctor.entity';
 import { Parish } from 'src/parameters/entities/parish.entity';
 
@@ -56,4 +58,8 @@ export class MedicalCenter {
   @ManyToOne(() => Parish, (parish) => parish.medicalCenters)
   @JoinColumn({ name: 'parroquia_id' })
   parish: Parish;
+
+  // Relación con departamentos (1:N)
+  @OneToMany(() => Department, (dept) => dept.medicalCenter)
+  departments: Department[];
 }

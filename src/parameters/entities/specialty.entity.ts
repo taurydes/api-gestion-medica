@@ -2,9 +2,12 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  JoinColumn,
+  ManyToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { Department } from 'src/departments/entities/department.entity';
 
 /**
  * Entidad Specialty (Especialidad médica)
@@ -39,4 +42,16 @@ export class Specialty {
 
   @Column({ name: 'deleted_at', type: 'timestamp', nullable: true })
   deletedAt: Date | null;
+
+  @Column({ name: 'department_id', type: 'bigint', nullable: true })
+  departmentId: number | null;
+
+  // Relación con departamento (opcional)
+  @ManyToOne(() => Department, (dept) => dept.specialties, {
+    onDelete: 'SET NULL',
+    onUpdate: 'CASCADE',
+    nullable: true,
+  })
+  @JoinColumn({ name: 'department_id' })
+  department: Department;
 }

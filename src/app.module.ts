@@ -29,6 +29,8 @@ import { DoctorsModule } from './doctors/doctors.module';
 import { CommonPersonModule } from './common-person/common-person.module';
 import { MedicalHistoryModule } from './medical-history/medical-history.module';
 import { RecipeModule } from './recipe/recipe.module';
+import { DepartmentsModule } from './departments/departments.module';
+import { MedicalAppointmentsModule } from './medical-appointments/medical-appointments.module';
 
 @Module({
   imports: [
@@ -38,7 +40,6 @@ import { RecipeModule } from './recipe/recipe.module';
       load: [configuration],
       validationSchema,
     }),
-    CommonPersonModule,
     CacheModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -74,8 +75,9 @@ import { RecipeModule } from './recipe/recipe.module';
       },
     ]),
     getMainConnection(), // Conexión principal a la base de datos
-    UserModule,
     AuthModule,
+    UserModule,
+    CommonPersonModule,
     RoleModule,
     PermissionModule,
     LogsModule,
@@ -92,6 +94,8 @@ import { RecipeModule } from './recipe/recipe.module';
     DoctorsModule,
     MedicalHistoryModule,
     RecipeModule,
+    DepartmentsModule,
+    MedicalAppointmentsModule,
   ],
   controllers: [],
   providers: [

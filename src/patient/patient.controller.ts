@@ -13,7 +13,12 @@ import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { PatientQueryDto } from './dto/patient-query.dto';
 import { PatientService } from './patient.service';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Permission } from 'src/auth/decorators/permission.decorator';
 import { ModuleItemsMenu } from 'src/menu/menu.const';
@@ -36,17 +41,23 @@ export class PatientController {
    */
   @ApiOperation({
     summary: 'Crear paciente',
-    description: 'Crea un nuevo paciente en el sistema. Si el documento ya existe como persona común, se asocia automáticamente.',
+    description:
+      'Crea un nuevo paciente en el sistema. Si el documento ya existe como persona común, se asocia automáticamente.',
   })
   @ApiResponse({ status: 201, description: 'Paciente creado exitosamente' })
-  @ApiResponse({ status: 400, description: 'Datos inválidos o paciente ya registrado' })
+  @ApiResponse({
+    status: 400,
+    description: 'Datos inválidos o paciente ya registrado',
+  })
   @Post()
-  @Permission(`${ModuleItemsMenu.PatientModule}.${PermissionActionsMenu.CREATE}`)
-  create(
+  @Permission(
+    `${ModuleItemsMenu.PatientModule}.${PermissionActionsMenu.CREATE}`,
+  )
+  async create(
     @Body() createPatientDto: CreatePatientDto,
     @GetUser('id') userId: number,
   ) {
-    return this.patientService.create(createPatientDto, userId);
+    return await this.patientService.create(createPatientDto, userId);
   }
 
   /**
@@ -54,13 +65,30 @@ export class PatientController {
    */
   @ApiOperation({
     summary: 'Listar pacientes',
-    description: 'Obtiene una lista paginada de pacientes con filtros opcionales.',
+    description:
+      'Obtiene una lista paginada de pacientes con filtros opcionales.',
   })
   @ApiResponse({ status: 200, description: 'Lista de pacientes' })
-  @Get()  
+  @Get()
   @Permission(`${ModuleItemsMenu.PatientModule}.${PermissionActionsMenu.VIEW}`)
-  findAll(@Query() query: PatientQueryDto) {
-    return this.patientService.findAll(query);
+  async findAll(@Query() query: PatientQueryDto) {
+    return await this.patientService.findAll(query);
+  }
+
+  /**
+   * Buscar paciente por número de documento y letra
+   */
+  @ApiOperation({ summary: 'Buscar paciente por documento y letra' })
+  @Get('by-document')
+  @Permission(`${ModuleItemsMenu.PatientModule}.${PermissionActionsMenu.VIEW}`)
+  async findByDocument(
+    @Query('documentNumber') documentNumber: string,
+    @Query('letter') letter: string,
+  ) {
+    return await this.patientService.findByDocumentNumber(
+      documentNumber,
+      letter,
+    );
   }
 
   /**
@@ -74,26 +102,8 @@ export class PatientController {
   @ApiResponse({ status: 404, description: 'Paciente no encontrado' })
   @Get(':id')
   @Permission(`${ModuleItemsMenu.PatientModule}.${PermissionActionsMenu.VIEW}`)
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.patientService.findOne(id);
-  }
-
-  /**
-   * Buscar paciente por número de documento
-   */
-  @ApiOperation({
-    summary: 'Buscar paciente por documento',
-    description: 'Busca un paciente por su número de documento de identidad.',
-  })
-  @ApiResponse({ status: 200, description: 'Paciente encontrado' })
-  @ApiResponse({ status: 404, description: 'Paciente no encontrado' })
-  @Get('document/:documentNumber')
-  @Permission(`${ModuleItemsMenu.PatientModule}.${PermissionActionsMenu.VIEW}`)
-  findByDocument(
-    @Param('documentNumber') documentNumber: string,
-    @Query('letter') letter?: string,
-  ) {
-    return this.patientService.findByDocumentNumber(documentNumber, letter);
+  async findOne(@Param('id', ParseIntPipe) id: number) {
+    return await this.patientService.findOne(id);
   }
 
   /**
@@ -103,17 +113,22 @@ export class PatientController {
     summary: 'Actualizar paciente',
     description: 'Actualiza la información de un paciente existente.',
   })
-  @ApiResponse({ status: 200, description: 'Paciente actualizado exitosamente' })
+  @ApiResponse({
+    status: 200,
+    description: 'Paciente actualizado exitosamente',
+  })
   @ApiResponse({ status: 404, description: 'Paciente no encontrado' })
   @ApiResponse({ status: 400, description: 'Datos inválidos' })
   @Patch(':id')
-  @Permission(`${ModuleItemsMenu.PatientModule}.${PermissionActionsMenu.UPDATE}`)
-  update(
+  @Permission(
+    `${ModuleItemsMenu.PatientModule}.${PermissionActionsMenu.UPDATE}`,
+  )
+  async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updatePatientDto: UpdatePatientDto,
     @GetUser('id') userId: number,
   ) {
-    return this.patientService.update(id, updatePatientDto, userId);
+    return await this.patientService.update(id, updatePatientDto, userId);
   }
 
   /**
@@ -126,8 +141,10 @@ export class PatientController {
   @ApiResponse({ status: 200, description: 'Paciente eliminado exitosamente' })
   @ApiResponse({ status: 404, description: 'Paciente no encontrado' })
   @Delete(':id')
-  @Permission(`${ModuleItemsMenu.PatientModule}.${PermissionActionsMenu.DELETE}`)
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.patientService.remove(id);
+  @Permission(
+    `${ModuleItemsMenu.PatientModule}.${PermissionActionsMenu.DELETE}`,
+  )
+  async remove(@Param('id', ParseIntPipe) id: number) {
+    return await this.patientService.remove(id);
   }
 }
