@@ -9,7 +9,7 @@ import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { Cache } from 'cache-manager';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -127,32 +127,35 @@ export class UserService {
 
       // 4. Crear Doctor (si aplica)
       if (doctorDto) {
-        // Validar Especialidad
-        if (doctorDto.specialtyId) {
-          const specialtyExists = await queryRunner.manager
+        // Validar Especialidades
+        let specialties: Specialty[] = [];
+        if (doctorDto.specialtyIds && doctorDto.specialtyIds.length > 0) {
+          specialties = await queryRunner.manager
             .getRepository(Specialty)
-            .findOneBy({ id: doctorDto.specialtyId });
+            .findBy({ id: In(doctorDto.specialtyIds) });
 
-          if (!specialtyExists) {
+          if (specialties.length !== doctorDto.specialtyIds.length) {
             throw new BadRequestException(
-              `La especialidad con ID ${doctorDto.specialtyId} no existe.`,
+              `Una o más especialidades no existen.`,
             );
           }
         }
 
         let medicalCenters: MedicalCenter[] = [];
-        // Validar Medical Center (si se envía en el DTO)
-        if (doctorDto.medicalCenterId) {
-          const center = await queryRunner.manager
+        // Validar Medical Centers (si se envían en el DTO)
+        if (
+          doctorDto.medicalCenterIds &&
+          doctorDto.medicalCenterIds.length > 0
+        ) {
+          medicalCenters = await queryRunner.manager
             .getRepository(MedicalCenter)
-            .findOneBy({ id: doctorDto.medicalCenterId });
+            .findBy({ id: In(doctorDto.medicalCenterIds) });
 
-          if (!center) {
+          if (medicalCenters.length !== doctorDto.medicalCenterIds.length) {
             throw new BadRequestException(
-              `El centro médico con ID ${doctorDto.medicalCenterId} no existe.`,
+              `Uno o más centros médicos no existen.`,
             );
           }
-          medicalCenters.push(center);
         }
 
         // Validar Licencia Duplicada
@@ -169,6 +172,7 @@ export class UserService {
           ...doctorDto,
           commonPerson: commonPerson,
           medicalCenters: medicalCenters,
+          specialties: specialties,
         });
         await queryRunner.manager.save(doctor);
       }

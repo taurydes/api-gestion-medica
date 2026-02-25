@@ -8,7 +8,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
-import { FindOptions, FindOptionsWhere, Repository } from 'typeorm';
+import { FindOptions, FindOptionsWhere, In, Repository } from 'typeorm';
 import { CreateDoctorDto } from './dto/create-doctor.dto';
 import { UpdateDoctorDto } from './dto/update-doctor.dto';
 import { DoctorQueryDto } from './dto/doctor-query.dto';
@@ -28,6 +28,9 @@ export class DoctorsService {
 
     @InjectRepository(Specialty, DatabaseConnectionName.DB_MAIN)
     private readonly specialtyRepository: Repository<Specialty>,
+
+    @InjectRepository(MedicalCenter, DatabaseConnectionName.DB_MAIN)
+    private readonly medicalCenterRepository: Repository<MedicalCenter>,
 
     @Inject(CACHE_MANAGER)
     private readonly cacheManager: Cache,
@@ -52,15 +55,18 @@ export class DoctorsService {
    */
   async create(dto: CreateDoctorDto): Promise<Doctor> {
     try {
-      let commonPerson;
-      const specialty = await this.specialtyRepository.findOne({
-        where: { id: dto.specialtyId },
-      });
-
-      if (!specialty) {
-        throw new BadRequestException('La especialidad no existe.');
+      // 1. Validar Especialidades
+      let specialties: Specialty[] = [];
+      if (dto.specialtyIds && dto.specialtyIds.length > 0) {
+        specialties = await this.specialtyRepository.findBy({
+          id: In(dto.specialtyIds),
+        });
+        if (specialties.length !== dto.specialtyIds.length) {
+          throw new BadRequestException('Una o más especialidades no existen.');
+        }
       }
 
+      let commonPerson;
       // 1. Buscar si ya existe CommonPerson por número de documento
       if (!dto.commonPerson) {
         throw new BadRequestException(
@@ -92,8 +98,19 @@ export class DoctorsService {
         commonPerson = await this.commonPersonRepository.save(newPerson);
       }
 
-      // 3. Validar que el centro médico exista (si se proporciona)
-      // LEAGACY: medicalCenterId removed in favor of ManyToMany in MedicalCenter
+      // 3. Validar que los centros médicos existan (si se proporcionan)
+      let medicalCenters: MedicalCenter[] = [];
+      if (dto.medicalCenterIds && dto.medicalCenterIds.length > 0) {
+        medicalCenters = await this.medicalCenterRepository.findBy({
+          id: In(dto.medicalCenterIds),
+        });
+
+        if (medicalCenters.length !== dto.medicalCenterIds.length) {
+          throw new BadRequestException(
+            'Uno o más centros médicos no existen.',
+          );
+        }
+      }
 
       // 4. Validar que no exista otro doctor con el mismo número de licencia
       const existingDoctor = await this.doctorRepository.findOne({
@@ -106,11 +123,13 @@ export class DoctorsService {
         );
       }
 
-      // 5. Crear doctor asociado al CommonPerson
+      // 5. Crear doctor asociado al CommonPerson y Centros Médicos
       const newDoctor = this.doctorRepository.create({
         ...dto,
         commonPersonId: commonPerson.id,
         commonPerson,
+        medicalCenters,
+        specialties,
       });
       const doctor = await this.doctorRepository.save(newDoctor);
 
@@ -138,6 +157,7 @@ export class DoctorsService {
       medicalCenterId,
       isActive,
       departmentId,
+      documentNumber,
     } = query;
 
     const cacheKey = `doctor:query:${JSON.stringify(query)}`;
@@ -152,13 +172,13 @@ export class DoctorsService {
       .createQueryBuilder('doctor')
       .leftJoinAndSelect('doctor.commonPerson', 'person')
       .leftJoinAndSelect('doctor.medicalCenters', 'centers')
-      .leftJoinAndSelect('doctor.specialty', 'specialty')
+      .leftJoinAndSelect('doctor.specialties', 'specialties')
       .where('doctor.deletedAt IS NULL');
 
     // Filtros
     if (search) {
       qb.andWhere(
-        '(specialty.name ILIKE :search OR doctor.licenseNumber ILIKE :search OR person.firstName ILIKE :search OR person.lastName ILIKE :search)',
+        '(specialties.name ILIKE :search OR doctor.licenseNumber ILIKE :search OR person.firstName ILIKE :search OR person.lastName ILIKE :search)',
         { search: `%${search}%` },
       );
     }
@@ -170,13 +190,19 @@ export class DoctorsService {
     }
 
     if (departmentId) {
-      qb.innerJoin('specialty.departments', 'dept', 'dept.id = :departmentId', {
+      qb.innerJoin('doctor.departments', 'dept', 'dept.id = :departmentId', {
         departmentId,
       });
     }
 
     if (isActive !== undefined) {
       qb.andWhere('doctor.isActive = :isActive', { isActive });
+    }
+
+    if (documentNumber) {
+      qb.andWhere('person.documentNumber = :documentNumber', {
+        documentNumber,
+      });
     }
 
     qb.orderBy('doctor.id', order);
@@ -211,7 +237,7 @@ export class DoctorsService {
 
       const doctor = await this.doctorRepository.findOne({
         where: { id },
-        relations: ['commonPerson', 'medicalCenters'],
+        relations: ['commonPerson', 'medicalCenters', 'specialties'],
       });
 
       if (!doctor) {
@@ -233,21 +259,41 @@ export class DoctorsService {
    */
   async update(id: number, dto: UpdateDoctorDto): Promise<Doctor> {
     try {
-      const doctor = await this.doctorRepository.findOneBy({ id });
+      const doctor = await this.doctorRepository.findOne({
+        where: { id },
+        relations: ['commonPerson', 'medicalCenters', 'specialties'],
+      });
 
       if (!doctor) {
         throw new NotFoundException(`Doctor con ID ${id} no encontrado.`);
       }
 
-      // Validar centro médico si se proporciona
-      // LEGACY: medicalCenterId removed
-
-      await this.doctorRepository.update(id, dto);
-      const updated = await this.doctorRepository.findOneBy({ id });
-
-      if (!updated) {
-        throw new NotFoundException('Error al actualizar el doctor.');
+      // 1. Sincronizar Centros Médicos y Especialidades
+      if (dto.medicalCenterIds) {
+        const centers = await this.medicalCenterRepository.findBy({
+          id: In(dto.medicalCenterIds),
+        });
+        doctor.medicalCenters = centers;
       }
+
+      if (dto.specialtyIds) {
+        const specialties = await this.specialtyRepository.findBy({
+          id: In(dto.specialtyIds),
+        });
+        doctor.specialties = specialties;
+      }
+      // 2. Actualizar CommonPerson si se proporciona
+      if (dto.commonPerson && doctor.commonPerson) {
+        Object.assign(doctor.commonPerson, dto.commonPerson);
+        await this.commonPersonRepository.save(doctor.commonPerson);
+      }
+
+      // 3. Actualizar campos directos del Doctor
+      const { medicalCenterIds, specialtyIds, commonPerson, ...doctorData } =
+        dto;
+      Object.assign(doctor, doctorData);
+
+      const updated = await this.doctorRepository.save(doctor);
 
       // Limpiar caches
       await this.cacheManager.del(`doctor:${id}`);
