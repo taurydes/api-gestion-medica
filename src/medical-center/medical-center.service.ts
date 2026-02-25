@@ -94,7 +94,7 @@ export class MedicalCenterService {
       .createQueryBuilder('mc')
       .leftJoinAndSelect('mc.doctors', 'doctors')
       .leftJoinAndSelect('doctors.commonPerson', 'commonPerson')
-      .leftJoinAndSelect('doctors.specialty', 'specialty')
+      .leftJoinAndSelect('doctors.specialties', 'specialties')
       .where('mc.deletedAt IS NULL');
 
     // Filtros
@@ -141,7 +141,7 @@ export class MedicalCenterService {
 
       const center = await this.medicalCenterRepository.findOne({
         where: { id },
-        relations: ['doctors', 'doctors.commonPerson', 'doctors.specialty'],
+        relations: ['doctors', 'doctors.commonPerson', 'doctors.specialties'],
       });
 
       if (!center) {

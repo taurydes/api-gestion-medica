@@ -20,14 +20,20 @@ export class CreateDoctorDto {
   @Type(() => CreateCommonPersonDto)
   commonPerson?: CreateCommonPersonDto;
 
-  @ApiProperty({ description: 'ID de la especialidad médica' })
-  @IsNumber()
-  specialtyId: number;
+  @ApiProperty({
+    type: [Number],
+    description: 'IDs de las especialidades médicas',
+  })
+  @IsNumber({}, { each: true })
+  specialtyIds: number[];
 
-  @ApiProperty({ description: 'ID del centro médico', required: false })
-  @IsOptional() 
-  @IsNumber()
-  medicalCenterId?: number;
+  @ApiPropertyOptional({
+    type: [Number],
+    description: 'IDs de los centros médicos',
+  })
+  @IsOptional()
+  @IsNumber({}, { each: true })
+  medicalCenterIds?: number[];
 
   @ApiProperty({ description: 'Número de licencia o matrícula profesional' })
   @IsString()

@@ -29,9 +29,6 @@ export class Doctor {
   @Column({ name: 'common_person_id', type: 'bigint' })
   commonPersonId: number;
 
-  @Column({ name: 'specialty_id', type: 'bigint', nullable: true })
-  specialtyId: number | null;
-
   @Column({
     name: 'license_number',
     type: 'varchar',
@@ -85,10 +82,20 @@ export class Doctor {
   })
   medicalCenters: MedicalCenter[];
 
-  // Relación con especialidad
-  @ManyToOne(() => Specialty, { onDelete: 'SET NULL', onUpdate: 'CASCADE' })
-  @JoinColumn({ name: 'specialty_id' })
-  specialty: Specialty;
+  // Relación con especialidades (M:N)
+  @ManyToMany(() => Specialty, { cascade: true })
+  @JoinTable({
+    name: 'doctors_specialties',
+    joinColumn: {
+      name: 'doctor_id',
+      referencedColumnName: 'id',
+    },
+    inverseJoinColumn: {
+      name: 'specialty_id',
+      referencedColumnName: 'id',
+    },
+  })
+  specialties: Specialty[];
 
   // Relación con departamentos (M:N)
   @ManyToMany(() => Department, (dept) => dept.doctors)
