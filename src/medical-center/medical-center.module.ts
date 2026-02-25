@@ -5,11 +5,12 @@ import { MedicalCenter } from './entities/medical-center.entity';
 import { Doctor } from 'src/doctors/entities/doctor.entity';
 import { MedicalCenterController } from './medical-center.controller';
 import { MedicalCenterService } from './medical-center.service';
+import { Department } from 'src/departments/entities/department.entity';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature(
-      [MedicalCenter, Doctor],
+      [MedicalCenter, Doctor,Department],
       DatabaseConnectionName.DB_MAIN,
     ),
   ],

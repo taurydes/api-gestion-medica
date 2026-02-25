@@ -44,4 +44,13 @@ export class CreateDepartmentDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'IDs de las especialidades asociadas al departamento',
+    example: [1, 2],
+    type: [Number],
+  })
+  @IsOptional()
+  @IsNumber({}, { each: true })
+  specialtyIds?: number[];
 }

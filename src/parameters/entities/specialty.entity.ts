@@ -2,8 +2,7 @@ import {
   Column,
   CreateDateColumn,
   Entity,
-  JoinColumn,
-  ManyToOne,
+  ManyToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
@@ -43,15 +42,7 @@ export class Specialty {
   @Column({ name: 'deleted_at', type: 'timestamp', nullable: true })
   deletedAt: Date | null;
 
-  @Column({ name: 'department_id', type: 'bigint', nullable: true })
-  departmentId: number | null;
-
-  // Relación con departamento (opcional)
-  @ManyToOne(() => Department, (dept) => dept.specialties, {
-    onDelete: 'SET NULL',
-    onUpdate: 'CASCADE',
-    nullable: true,
-  })
-  @JoinColumn({ name: 'department_id' })
-  department: Department;
+  // Relación con departamentos (M:N)
+  @ManyToMany(() => Department, (dept) => dept.specialties)
+  departments: Department[];
 }

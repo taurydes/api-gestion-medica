@@ -8,11 +8,12 @@ import { CommonPerson } from 'src/common-person/entities/common-person.entity';
 import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity';
 import { CommonPersonModule } from 'src/common-person/common-person.module';
 import { Specialty } from 'src/parameters/entities/specialty.entity';
+import { Department } from 'src/departments/entities/department.entity';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature(
-      [Doctor, CommonPerson, MedicalCenter, Specialty],
+      [Doctor, CommonPerson, MedicalCenter, Specialty,Department],
       DatabaseConnectionName.DB_MAIN,
     ),
     CommonPersonModule,

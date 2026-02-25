@@ -5,11 +5,13 @@ import {
   CreateDateColumn,
   Entity,
   JoinColumn,
+  JoinTable,
+  ManyToMany,
   ManyToOne,
-  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { Doctor } from 'src/doctors/entities/doctor.entity';
 
 /**
  * Entidad Department (Departamento médico)
@@ -62,6 +64,14 @@ export class Department {
   @JoinColumn({ name: 'medical_center_id' })
   medicalCenter: MedicalCenter;
 
-  @OneToMany(() => Specialty, (specialty) => specialty.department)
+  @ManyToMany(() => Specialty, (specialty) => specialty.departments)
+  @JoinTable({
+    name: 'department_specialties',
+    joinColumn: { name: 'department_id', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'specialty_id', referencedColumnName: 'id' },
+  })
   specialties: Specialty[];
+
+  @ManyToMany(() => Doctor, (doctor) => doctor.departments)
+  doctors: Doctor[];
 }

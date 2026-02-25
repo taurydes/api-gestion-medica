@@ -86,4 +86,15 @@ export class CreateCommonPersonDto {
   @IsBoolean({ message: 'isActive debe ser un valor booleano' })
   isActive?: boolean;
 
+  @ApiProperty({
+    description: 'Número de teléfono. Opcional.',
+    example: '+584121234567',
+    required: false,
+  })
+  @IsOptional()
+  @IsString({ message: 'El número de teléfono debe ser una cadena de texto' })
+  @MaxLength(20, {
+    message: 'El número de teléfono no puede superar los 20 caracteres',
+  })
+  phoneNumber?: string | null;
 }

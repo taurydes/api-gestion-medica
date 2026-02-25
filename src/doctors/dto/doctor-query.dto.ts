@@ -15,6 +15,12 @@ export class DoctorQueryDto extends QueryPaginationDto {
   @IsNumber()
   medicalCenterId?: number;
 
+  @ApiPropertyOptional({ description: 'Filtrar por departamento', type: Number })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  departmentId?: number;
+
   @ApiPropertyOptional({ description: 'Filtrar doctores activos', type: Boolean })
   @IsOptional()
   @Type(() => Boolean)

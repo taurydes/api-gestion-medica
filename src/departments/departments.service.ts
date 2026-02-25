@@ -8,9 +8,10 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Department } from './entities/department.entity';
 import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity';
+import { Specialty } from 'src/parameters/entities/specialty.entity';
 import { CreateDepartmentDto } from './dto/create-department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
 import { DepartmentQueryDto } from './dto/department-query.dto';
@@ -23,6 +24,9 @@ export class DepartmentsService {
 
     @InjectRepository(MedicalCenter, DatabaseConnectionName.DB_MAIN)
     private readonly medicalCenterRepository: Repository<MedicalCenter>,
+
+    @InjectRepository(Specialty, DatabaseConnectionName.DB_MAIN)
+    private readonly specialtyRepository: Repository<Specialty>,
 
     @Inject(CACHE_MANAGER)
     private readonly cacheManager: Cache,
@@ -46,6 +50,8 @@ export class DepartmentsService {
    */
   async create(dto: CreateDepartmentDto, userId?: number): Promise<Department> {
     try {
+      const { specialtyIds, ...data } = dto;
+
       // Validar que el centro médico exista
       const center = await this.medicalCenterRepository.findOne({
         where: { id: dto.medicalCenterId },
@@ -56,8 +62,17 @@ export class DepartmentsService {
         );
       }
 
+      // Resolver especialidades si se proporcionan
+      let specialties: Specialty[] = [];
+      if (specialtyIds && specialtyIds.length > 0) {
+        specialties = await this.specialtyRepository.findBy({
+          id: In(specialtyIds),
+        });
+      }
+
       const department = this.departmentRepository.create({
-        ...dto,
+        ...data,
+        specialties,
         createdBy: userId ?? null,
       });
       const saved = await this.departmentRepository.save(department);
@@ -164,26 +179,40 @@ export class DepartmentsService {
     userId?: number,
   ): Promise<Department> {
     try {
+      const { specialtyIds, ...data } = dto;
+
       const department = await this.departmentRepository.findOne({
         where: { id },
+        relations: ['specialties'],
       });
 
       if (!department) {
         throw new NotFoundException(`Departamento con ID ${id} no encontrado.`);
       }
 
-      if (dto.medicalCenterId) {
+      if (data.medicalCenterId) {
         const center = await this.medicalCenterRepository.findOne({
-          where: { id: dto.medicalCenterId },
+          where: { id: data.medicalCenterId },
         });
         if (!center) {
           throw new NotFoundException(
-            `Centro médico con ID ${dto.medicalCenterId} no encontrado.`,
+            `Centro médico con ID ${data.medicalCenterId} no encontrado.`,
           );
         }
       }
 
-      Object.assign(department, { ...dto, updatedBy: userId ?? null });
+      // Actualizar especialidades si se proporcionan
+      if (specialtyIds) {
+        if (specialtyIds.length > 0) {
+          department.specialties = await this.specialtyRepository.findBy({
+            id: In(specialtyIds),
+          });
+        } else {
+          department.specialties = [];
+        }
+      }
+
+      Object.assign(department, { ...data, updatedBy: userId ?? null });
       await this.departmentRepository.save(department);
 
       await this.cacheManager.del(`department:${id}`);

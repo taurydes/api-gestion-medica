@@ -58,9 +58,7 @@ export class DoctorsService {
       });
 
       if (!specialty) {
-        throw new BadRequestException(
-          'La especialidad no existe.',
-        );
+        throw new BadRequestException('La especialidad no existe.');
       }
 
       // 1. Buscar si ya existe CommonPerson por número de documento
@@ -132,7 +130,15 @@ export class DoctorsService {
    * Listar doctores con filtros + paginación + cache
    */
   async findAll(query: DoctorQueryDto) {
-    const { page, limit, order, search, medicalCenterId, isActive } = query;
+    const {
+      page,
+      limit,
+      order,
+      search,
+      medicalCenterId,
+      isActive,
+      departmentId,
+    } = query;
 
     const cacheKey = `doctor:query:${JSON.stringify(query)}`;
     const listKey = 'doctor:query:keys';
@@ -146,12 +152,13 @@ export class DoctorsService {
       .createQueryBuilder('doctor')
       .leftJoinAndSelect('doctor.commonPerson', 'person')
       .leftJoinAndSelect('doctor.medicalCenters', 'centers')
+      .leftJoinAndSelect('doctor.specialty', 'specialty')
       .where('doctor.deletedAt IS NULL');
 
     // Filtros
     if (search) {
       qb.andWhere(
-        '(doctor.specialty ILIKE :search OR doctor.licenseNumber ILIKE :search)',
+        '(specialty.name ILIKE :search OR doctor.licenseNumber ILIKE :search OR person.firstName ILIKE :search OR person.lastName ILIKE :search)',
         { search: `%${search}%` },
       );
     }
@@ -159,6 +166,12 @@ export class DoctorsService {
     if (medicalCenterId) {
       qb.innerJoin('doctor.medicalCenters', 'mc', 'mc.id = :medicalCenterId', {
         medicalCenterId,
+      });
+    }
+
+    if (departmentId) {
+      qb.innerJoin('specialty.departments', 'dept', 'dept.id = :departmentId', {
+        departmentId,
       });
     }
 
