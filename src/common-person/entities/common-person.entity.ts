@@ -45,6 +45,9 @@ export class CommonPerson {
   })
   secondLastName: string | null;
 
+  @Column({ name: 'telefono', type: 'varchar', length: 20, nullable: true })
+  phoneNumber: string | null;
+
   @Column({ name: 'estatus', type: 'boolean', default: true })
   isActive: boolean;
 

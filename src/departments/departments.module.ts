@@ -6,11 +6,12 @@ import { DepartmentsController } from './departments.controller';
 import { DepartmentsService } from './departments.service';
 import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity';
 import { Specialty } from 'src/parameters/entities/specialty.entity';
+import { Doctor } from 'src/doctors/entities/doctor.entity';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature(
-      [Department, MedicalCenter, Specialty],
+      [Department, MedicalCenter, Specialty,Doctor],
       DatabaseConnectionName.DB_MAIN,
     ),
   ],

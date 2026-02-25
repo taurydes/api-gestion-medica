@@ -11,6 +11,7 @@ import {
 import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity';
 import { CommonPerson } from 'src/common-person/entities/common-person.entity';
 import { Specialty } from 'src/parameters/entities/specialty.entity';
+import { Department } from 'src/departments/entities/department.entity';
 
 /**
  * Entidad Doctor (Médico)
@@ -88,4 +89,19 @@ export class Doctor {
   @ManyToOne(() => Specialty, { onDelete: 'SET NULL', onUpdate: 'CASCADE' })
   @JoinColumn({ name: 'specialty_id' })
   specialty: Specialty;
+
+  // Relación con departamentos (M:N)
+  @ManyToMany(() => Department, (dept) => dept.doctors)
+  @JoinTable({
+    name: 'departments_doctors',
+    joinColumn: {
+      name: 'doctor_id',
+      referencedColumnName: 'id',
+    },
+    inverseJoinColumn: {
+      name: 'department_id',
+      referencedColumnName: 'id',
+    },
+  })
+  departments: Department[];
 }

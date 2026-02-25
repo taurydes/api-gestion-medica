@@ -51,6 +51,31 @@ export class MedicalCenter {
   @Column({ name: 'deleted_at', type: 'timestamp', nullable: true })
   deletedAt: Date | null;
 
+  // Infrastructure fields
+  @Column({ name: 'num_beds', type: 'int', default: 0 })
+  numBeds: number;
+
+  @Column({ name: 'num_operating_rooms', type: 'int', default: 0 })
+  numOperatingRooms: number;
+
+  @Column({ name: 'has_emergency', type: 'boolean', default: false })
+  hasEmergency: boolean;
+
+  @Column({ name: 'has_hospitalization', type: 'boolean', default: false })
+  hasHospitalization: boolean;
+
+  @Column({ name: 'has_intensive_care', type: 'boolean', default: false })
+  hasIntensiveCare: boolean;
+
+  @Column({ name: 'has_parking', type: 'boolean', default: false })
+  hasParking: boolean;
+
+  @Column({ name: 'has_pharmacy', type: 'boolean', default: false })
+  hasPharmacy: boolean;
+
+  @Column({ name: 'has_laboratory', type: 'boolean', default: false })
+  hasLaboratory: boolean;
+
   // Relación con doctores (M:N)
   @ManyToMany(() => Doctor, (doctor) => doctor.medicalCenters)
   doctors: Doctor[];

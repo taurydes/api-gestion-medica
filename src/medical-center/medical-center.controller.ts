@@ -88,19 +88,27 @@ export class MedicalCenterController {
     summary: 'Asignar doctor a centro médico',
     description: 'Asigna un doctor existente a un centro médico.',
   })
-  @Post(':id/doctors/:doctorId')
+  @Post(':id/assign-doctor/:doctorId')
   @Permission(
     `${ModuleItemsMenu.MedicalCenterModule}.${PermissionActionsMenu.UPDATE}`,
   )
-  assignDoctor(@Param('id') id: string, @Param('doctorId') doctorId: string) {
-    return this.medicalCenterService.assignDoctor(+id, +doctorId);
+  assignDoctor(
+    @Param('id') id: string,
+    @Param('doctorId') doctorId: string,
+    @Query('departmentId') departmentId?: string,
+  ) {
+    return this.medicalCenterService.assignDoctor(
+      +id,
+      +doctorId,
+      departmentId ? +departmentId : undefined,
+    );
   }
 
   @ApiOperation({
     summary: 'Remover doctor de centro médico',
     description: 'Elimina la asignación de un doctor a un centro médico.',
   })
-  @Delete(':id/doctors/:doctorId')
+  @Delete(':id/remove-doctor/:doctorId')
   @Permission(
     `${ModuleItemsMenu.MedicalCenterModule}.${PermissionActionsMenu.UPDATE}`,
   )
