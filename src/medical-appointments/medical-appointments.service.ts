@@ -249,7 +249,7 @@ export class MedicalAppointmentsService {
       .leftJoinAndSelect('patient.medications', 'medications')
       .leftJoinAndSelect('apt.doctor', 'doctor')
       .leftJoinAndSelect('doctor.commonPerson', 'doctorPerson')
-      .leftJoinAndSelect('doctor.specialty', 'doctorSpecialty')
+      .leftJoinAndSelect('doctor.specialties', 'doctorSpecialty')
       .leftJoinAndSelect('apt.specialty', 'specialty')
       .leftJoinAndSelect('apt.medicalCenter', 'medicalCenter')
       .leftJoinAndSelect('apt.department', 'department')
