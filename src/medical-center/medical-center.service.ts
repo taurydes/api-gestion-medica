@@ -243,7 +243,7 @@ export class MedicalCenterService {
     // Cargar el doctor con sus relaciones actuales
     const currentDoctor = await this.doctorRepository.findOne({
       where: { id: doctorId },
-      relations: ['medicalCenters', 'departments'],
+      relations: ['medicalCenters', 'departments', 'departments.doctors'],
     });
 
     if (!currentDoctor) {
