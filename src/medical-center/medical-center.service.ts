@@ -8,13 +8,13 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
+import { Department } from 'src/departments/entities/department.entity';
+import { Doctor } from 'src/doctors/entities/doctor.entity';
 import { Repository } from 'typeorm';
 import { CreateMedicalCenterDto } from './dto/create-medical-center.dto';
-import { UpdateMedicalCenterDto } from './dto/update-medical-center.dto';
 import { MedicalCenterQueryDto } from './dto/medical-center-query.dto';
+import { UpdateMedicalCenterDto } from './dto/update-medical-center.dto';
 import { MedicalCenter } from './entities/medical-center.entity';
-import { Doctor } from 'src/doctors/entities/doctor.entity';
-import { Department } from 'src/departments/entities/department.entity';
 
 @Injectable()
 export class MedicalCenterService {
@@ -141,7 +141,12 @@ export class MedicalCenterService {
 
       const center = await this.medicalCenterRepository.findOne({
         where: { id },
-        relations: ['doctors', 'doctors.commonPerson', 'doctors.specialties'],
+        relations: [
+          'doctors',
+          'doctors.commonPerson',
+          'doctors.specialties',
+          'departments',
+        ],
       });
 
       if (!center) {

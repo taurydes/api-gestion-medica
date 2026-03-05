@@ -20,7 +20,7 @@ import { MedicationQueryDto } from '../dto/medication/medication-query.dto';
 
 @ApiTags('Medications')
 @ApiBearerAuth()
-@Throttle({ short: {} })
+@Throttle({ long: {} })
 @Controller('medications')
 export class MedicationController {
   constructor(private readonly medicationService: MedicationService) {}

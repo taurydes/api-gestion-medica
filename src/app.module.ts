@@ -58,7 +58,7 @@ import { MedicalAppointmentsModule } from './medical-appointments/medical-appoin
         //los segundos son en milisegundos
         name: 'short',
         ttl: 1000, // 1 segundo
-        limit: 3, // 3 peticiones por 1000 milisegundos
+        limit: 100, // 3 peticiones por 1000 milisegundos
         blockDuration: 30000, // Bloquea por 30 segundos si se excede el límite
       },
       {
