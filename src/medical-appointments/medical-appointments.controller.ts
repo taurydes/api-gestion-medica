@@ -21,7 +21,9 @@ import { MedicalAppointmentsService } from './medical-appointments.service';
 import { CreateMedicalAppointmentDto } from './dto/create-medical-appointment.dto';
 import { UpdateMedicalAppointmentDto } from './dto/update-medical-appointment.dto';
 import { QueryMedicalAppointmentDto } from './dto/query-medical-appointment.dto';
+import { CompleteConsultationDto } from './dto/complete-consultation.dto';
 import { Permission } from 'src/auth/decorators/permission.decorator';
+import { GetUser } from 'src/auth/decorators/get-user.decorator';
 import { ModuleItemsMenu } from 'src/menu/menu.const';
 import { PermissionActionsMenu } from 'src/permission/permission.const';
 
@@ -184,6 +186,23 @@ export class MedicalAppointmentsController {
   )
   complete(@Param('id') id: string) {
     return this.appointmentsService.complete(+id);
+  }
+
+  @ApiOperation({
+    summary: 'Finalizar consulta médica completa',
+    description:
+      'Registra el historial médico, recetas y marca la cita como completada en un solo paso.',
+  })
+  @Patch(':id/finish-consultation')
+  @Permission(
+    `${ModuleItemsMenu.MedicalAppointmentsModule}.${PermissionActionsMenu.UPDATE}`,
+  )
+  finishConsultation(
+    @Param('id') id: string,
+    @Body() dto: CompleteConsultationDto,
+    @GetUser('id') userId: number,
+  ) {
+    return this.appointmentsService.finishConsultation(+id, dto, userId);
   }
 
   @ApiOperation({

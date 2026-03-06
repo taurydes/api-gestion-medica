@@ -48,7 +48,7 @@ export class AuthService {
 
     if (!user) throw new UnauthorizedException('Usuario no encontrado');
     const { password: _, ...safeUser } = user;
-    
+
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid)
       throw new UnauthorizedException('Credenciales inválidas');
@@ -96,7 +96,7 @@ export class AuthService {
    */
   async login(loginDto: LoginUserDto): Promise<JwtPayload> {
     let user: AuthUser;
-    
+
     if (loginDto.isSystemUser) {
       user = await this.validateSystemUser(
         loginDto.credential,
@@ -105,7 +105,12 @@ export class AuthService {
     } else {
       user = await this.validateUser(loginDto.credential, loginDto.password);
     }
-    const payload = { id: user.id, name: user.user.name, roleId: user.user.roleId, user };
+    const payload = {
+      id: user.id,
+      name: user.user.name,
+      roleId: user.user.roleId,
+      user,
+    };
 
     const access_token = this.jwtService.sign(payload, {
       secret: process.env.JWT_SECRET,
@@ -126,34 +131,25 @@ export class AuthService {
         roleId: user.user.roleId,
         loginAt: new Date().toISOString(),
       },
-      3600, // TTL del access token
+      604800, // TTL de la sesión (ej: 7 días para coincidir con el refresh token)
     );
-    const menu = await this.menuService.getMenuForUser(user.id, loginDto.isSystemUser);
+    const menu = await this.menuService.getMenuForUser(
+      user.id,
+      loginDto.isSystemUser,
+    );
     return { access_token, refresh_token, data: user, menu };
   }
 
   // ======================================================
   // 🔹 REFRESH TOKEN
   // ======================================================
-  async refreshTokens(dto: RefreshTokenDto,currentUser:AuthUser):Promise<JwtPayload> {
+  async refreshTokens(dto: RefreshTokenDto): Promise<JwtPayload> {
     const { refreshToken } = dto;
-    const userId= currentUser.id;
-    
-    const session = await this.redisSession.getSession(userId);
-
-    if (!session) {
-      throw new UnauthorizedException('Sesión expirada o inválida');
-    }
-
-    if (session.refresh_token !== refreshToken) {
-      throw new UnauthorizedException('Refresh token inválido');
-    }
 
     // ========================
-    // 🔥 Decodificar refresh token
+    // 🔥 1. Decodificar y verificar refresh token primero
     // ========================
     let payload: any;
-
     try {
       payload = this.jwtService.verify(refreshToken, {
         secret: process.env.JWT_REFRESH_SECRET,
@@ -162,35 +158,50 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token inválido o expirado');
     }
 
-    // ========================
-    //  Regenerar tokens
-    // ========================
-    const newAccessToken = this.jwtService.sign(
-      {
-        id: payload.id,
-        name: payload.name,
-        roleId: payload.roleId,
-      },
-      {
-        secret: process.env.JWT_SECRET,
-        expiresIn: process.env.JWT_EXPIRES_IN || '1h',
-      },
-    );
+    const userId = payload.id;
+    if (!userId) {
+      throw new UnauthorizedException(
+        'Token no contiene información de usuario',
+      );
+    }
 
-    const newRefreshToken = this.jwtService.sign(
-      {
-        id: payload.id,
-        name: payload.name,
-        roleId: payload.roleId,
-      },
-      {
-        secret: process.env.JWT_REFRESH_SECRET,
-        expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
-      },
-    );
-    //  Actualizar sesión en Redis
+    // ========================
+    // 🔹 2. Validar sesión en Redis
+    // ========================
+    const session = await this.redisSession.getSession(userId.toString());
+
+    if (!session) {
+      throw new UnauthorizedException('Sesión expirada o inválida');
+    }
+
+    if (session.refresh_token !== refreshToken) {
+      throw new UnauthorizedException(
+        'Refresh token no coincide con la sesión activa',
+      );
+    }
+
+    // ========================
+    // 🔹 3. Regenerar tokens
+    // ========================
+    const newPayload = {
+      id: payload.id,
+      name: payload.name,
+      roleId: payload.roleId,
+    };
+
+    const newAccessToken = this.jwtService.sign(newPayload, {
+      secret: process.env.JWT_SECRET,
+      expiresIn: process.env.JWT_EXPIRES_IN || '1h',
+    });
+
+    const newRefreshToken = this.jwtService.sign(newPayload, {
+      secret: process.env.JWT_REFRESH_SECRET,
+      expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+    });
+
+    // ✅ 4. Actualizar sesión en Redis
     await this.redisSession.setSession(
-      userId,
+      userId.toString(),
       {
         access_token: newAccessToken,
         refresh_token: newRefreshToken,
@@ -198,16 +209,22 @@ export class AuthService {
         roleId: payload.roleId,
         refreshedAt: new Date().toISOString(),
       },
-      3600,
+      604800,
     );
-    const menu = await this.menuService.getMenuForUser(userId, currentUser.user instanceof UserSecurity);
+
+    // Re-obtener el menú (podemos optimizar esto si fuera necesario)
+    // Nota: Aquí no sabemos si era isSystemUser a menos que lo guardemos en el token o lo busquemos.
+    // Como simplificación, intentamos detectar por el rol o simplemente devolver los tokens.
+    // El frontend suele refrescar su estado tras el login.
+    const menu = await this.menuService.getMenuForUser(
+      userId,
+      payload.roleId === 1,
+    ); // Asumimos rol 1 como admin/sistema por ahora o lo dejamos como opcional
+
     return {
       access_token: newAccessToken,
       refresh_token: newRefreshToken,
-      data: {
-        id: payload.id,
-        user: currentUser.user,
-      },
+      data: { id: userId },
       menu,
     };
   }

@@ -77,8 +77,18 @@ export class CreateRecipeDto {
     type: [CreateRecipeItemDto],
   })
   @IsArray()
-  @ArrayMinSize(1, { message: 'Debe incluir al menos un medicamento en la receta' })
+  @ArrayMinSize(1, {
+    message: 'Debe incluir al menos un medicamento en la receta',
+  })
   @ValidateNested({ each: true })
   @Type(() => CreateRecipeItemDto)
   items: CreateRecipeItemDto[];
+
+  @ApiPropertyOptional({
+    description: 'ID de la cita médica asociada',
+    example: 1,
+  })
+  @IsOptional()
+  @IsNumber()
+  medicalAppointmentId?: number;
 }

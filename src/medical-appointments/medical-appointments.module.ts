@@ -13,6 +13,8 @@ import { Department } from 'src/departments/entities/department.entity';
 import { Allergy } from 'src/parameters/entities/allergy.entity';
 import { ChronicDisease } from 'src/parameters/entities/chronic-disease.entity';
 import { Medication } from 'src/parameters/entities/medication.entity';
+import { MedicalHistoryModule } from 'src/medical-history/medical-history.module';
+import { RecipeModule } from 'src/recipe/recipe.module';
 
 @Module({
   imports: [
@@ -31,6 +33,8 @@ import { Medication } from 'src/parameters/entities/medication.entity';
       ],
       DatabaseConnectionName.DB_MAIN,
     ),
+    MedicalHistoryModule,
+    RecipeModule,
   ],
   controllers: [MedicalAppointmentsController],
   providers: [MedicalAppointmentsService],

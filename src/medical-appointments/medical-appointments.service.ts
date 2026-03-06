@@ -26,6 +26,9 @@ import { QueryMedicalAppointmentDto } from './dto/query-medical-appointment.dto'
 import { Allergy } from 'src/parameters/entities/allergy.entity';
 import { ChronicDisease } from 'src/parameters/entities/chronic-disease.entity';
 import { Medication } from 'src/parameters/entities/medication.entity';
+import { MedicalHistoryService } from 'src/medical-history/medical-history.service';
+import { RecipeService } from 'src/recipe/recipe.service';
+import { CompleteConsultationDto } from './dto/complete-consultation.dto';
 
 @Injectable()
 export class MedicalAppointmentsService {
@@ -62,6 +65,9 @@ export class MedicalAppointmentsService {
 
     @Inject(CACHE_MANAGER)
     private readonly cacheManager: Cache,
+
+    private readonly historyService: MedicalHistoryService,
+    private readonly recipeService: RecipeService,
   ) {}
 
   // ─── Cache helpers ─────────────────────────────────────────────────────────
@@ -255,6 +261,8 @@ export class MedicalAppointmentsService {
       .leftJoinAndSelect('apt.department', 'department')
       .leftJoinAndSelect('apt.medicalHistory', 'medicalHistory')
       .leftJoinAndSelect('apt.recipes', 'recipes')
+      .leftJoinAndSelect('recipes.items', 'recipeItems')
+      .leftJoinAndSelect('recipeItems.medication', 'itemMedication')
       .where('apt.id = :id', { id })
       .andWhere('apt.deletedAt IS NULL')
       .getOne();
@@ -618,6 +626,68 @@ export class MedicalAppointmentsService {
 
     await this.appointmentRepository.save(apt);
 
+    await this.cacheManager.del(`appointment:${id}`);
+    await this.cacheManager.del('appointment:all');
+    await this.clearQueryCache();
+
+    return this.loadFullAppointment(id);
+  }
+
+  /**
+   * Finalizar consulta médica completa
+   * 1. Crea el historial médico vinculado a la cita
+   * 2. Crea la receta médica vinculada al historial (opcional)
+   * 3. Marca la cita como completada
+   */
+  async finishConsultation(
+    id: number,
+    dto: CompleteConsultationDto,
+    userId?: number,
+  ): Promise<MedicalAppointment> {
+    const apt = await this.appointmentRepository.findOne({
+      where: { id, deletedAt: IsNull() },
+    });
+
+    if (!apt) {
+      throw new NotFoundException(`Cita médica con ID ${id} no encontrada.`);
+    }
+
+    if (apt.status === AppointmentStatus.COMPLETED) {
+      throw new BadRequestException('La cita ya está completada.');
+    }
+
+    // 1️⃣ Crear Historial Médico
+    const historyDto = {
+      ...dto.medicalHistory,
+      medicalAppointmentId: id,
+      patientId: apt.patientId,
+      doctorId: apt.doctorId,
+      medicalCenterId: apt.medicalCenterId ?? undefined,
+      specialtyId: apt.specialtyId ?? undefined,
+    };
+
+    const history = await this.historyService.create(historyDto, userId);
+
+    // 2️⃣ Crear Receta si se proporciona
+    if (dto.recipe) {
+      const recipeDto = {
+        ...dto.recipe,
+        medicalHistoryId: history.id,
+        medicalAppointmentId: id,
+        patientId: apt.patientId,
+        doctorId: apt.doctorId,
+      };
+      await this.recipeService.create(recipeDto as any, userId);
+    }
+
+    // 3️⃣ Marcar cita como completada
+    apt.status = AppointmentStatus.COMPLETED;
+    if (dto.observations) apt.observations = dto.observations;
+    apt.updatedBy = userId ?? null;
+
+    await this.appointmentRepository.save(apt);
+
+    // Limpiar caches
     await this.cacheManager.del(`appointment:${id}`);
     await this.cacheManager.del('appointment:all');
     await this.clearQueryCache();
