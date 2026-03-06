@@ -134,4 +134,12 @@ export class CreateMedicalHistoryDto {
   @IsOptional()
   @IsNumber()
   oxygenSaturation?: number;
+
+  @ApiPropertyOptional({
+    description: 'ID de la cita médica asociada',
+    example: 1,
+  })
+  @IsOptional()
+  @IsNumber()
+  medicalAppointmentId?: number;
 }

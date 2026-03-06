@@ -80,9 +80,10 @@ export class AuthController {
     };
   }
 
-@Post('refresh')
-async refresh(@Body() dto: RefreshTokenDto, @GetUser() currentUser: AuthUser, @Res() res: Response) {
-  const tokens = await this.authService.refreshTokens(dto, currentUser);
-  return res.json(tokens);
-}
+  @Public()
+  @Post('refresh')
+  async refresh(@Body() dto: RefreshTokenDto, @Res() res: Response) {
+    const tokens = await this.authService.refreshTokens(dto);
+    return res.json(tokens);
+  }
 }
