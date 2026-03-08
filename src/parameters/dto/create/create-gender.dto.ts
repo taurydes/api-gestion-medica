@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsBoolean, IsNotEmpty, IsNumber, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 
 export class CreateGenderDto {
   @ApiProperty({
@@ -31,10 +31,10 @@ export class CreateGenderDto {
   isActive?: boolean;
 
   @ApiProperty({
-    description: 'ID of the user creating this record',
-    example: 10,
+    description: 'ID of the user creating this record (UUID)',
+    example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
   })
   @IsNotEmpty({ message: 'userId is required' })
-  @IsNumber({}, { message: 'userId must be a number' })
-  userId: number;
+  @IsUUID('4', { message: 'userId must be a valid UUID' })
+  userId: string;
 }

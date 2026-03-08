@@ -8,8 +8,8 @@ import {
 
 @Entity({ schema: 'parametro', name: 'chronic_diseases' })
 export class ChronicDisease {
-  @PrimaryGeneratedColumn({ type: 'bigint' })
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
   @Column({ type: 'varchar', length: 100, unique: true })
   name: string;

@@ -5,7 +5,7 @@ import {
   IsOptional,
   IsString,
   IsArray,
-  IsNumber,
+  IsUUID,
 } from 'class-validator';
 import { CreateCommonPersonDto } from 'src/common-person/dto/create-common-person.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -73,37 +73,37 @@ export class CreatePatientDto {
   bloodType?: string;
 
   @ApiProperty({
-    description: 'IDs de alergias',
-    example: [1, 2],
-    type: [Number],
+    description: 'IDs de alergias (UUID)',
+    example: ['a1b2c3d4-e5f6-7890-abcd-ef1234567890'],
+    type: [String],
     required: false,
   })
   @IsOptional()
   @IsArray()
-  @IsNumber({}, { each: true })
-  allergyIds?: number[];
+  @IsUUID('4', { each: true })
+  allergyIds?: string[];
 
   @ApiProperty({
-    description: 'IDs de enfermedades crónicas',
-    example: [1],
-    type: [Number],
+    description: 'IDs de enfermedades crónicas (UUID)',
+    example: ['a1b2c3d4-e5f6-7890-abcd-ef1234567890'],
+    type: [String],
     required: false,
   })
   @IsOptional()
   @IsArray()
-  @IsNumber({}, { each: true })
-  chronicDiseaseIds?: number[];
+  @IsUUID('4', { each: true })
+  chronicDiseaseIds?: string[];
 
   @ApiProperty({
-    description: 'IDs de medicamentos actuales',
-    example: [1, 2],
-    type: [Number],
+    description: 'IDs de medicamentos actuales (UUID)',
+    example: ['a1b2c3d4-e5f6-7890-abcd-ef1234567890'],
+    type: [String],
     required: false,
   })
   @IsOptional()
   @IsArray()
-  @IsNumber({}, { each: true })
-  medicationIds?: number[];
+  @IsUUID('4', { each: true })
+  medicationIds?: string[];
 
   @ApiProperty({
     description: 'Compañía de seguros',

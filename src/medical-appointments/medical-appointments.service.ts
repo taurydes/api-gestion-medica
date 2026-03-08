@@ -110,7 +110,7 @@ export class MedicalAppointmentsService {
    */
   private async resolvePatient(
     dto: CreateMedicalAppointmentDto,
-    userId?: number,
+    userId?: string,
   ): Promise<Patient> {
     // Si se proporcionó patientId, buscar directamente
     if (dto.patientId) {
@@ -209,10 +209,10 @@ export class MedicalAppointmentsService {
    * Verifica que no haya citas solapadas para el mismo médico
    */
   private async checkDoubleBooking(
-    doctorId: number,
+    doctorId: string,
     appointmentDate: Date,
     durationMinutes: number,
-    excludeId?: number,
+    excludeId?: string,
   ): Promise<void> {
     const endTime = new Date(
       appointmentDate.getTime() + durationMinutes * 60 * 1000,
@@ -245,7 +245,7 @@ export class MedicalAppointmentsService {
 
   // ─── Cargar relaciones completas ───────────────────────────────────────────
 
-  private async loadFullAppointment(id: number): Promise<MedicalAppointment> {
+  private async loadFullAppointment(id: string): Promise<MedicalAppointment> {
     const apt = await this.appointmentRepository
       .createQueryBuilder('apt')
       .leftJoinAndSelect('apt.patient', 'patient')
@@ -284,7 +284,7 @@ export class MedicalAppointmentsService {
    */
   async create(
     dto: CreateMedicalAppointmentDto,
-    userId?: number,
+    userId?: string,
   ): Promise<MedicalAppointment> {
     try {
       const appointmentDate = new Date(dto.appointmentDate);
@@ -492,7 +492,7 @@ export class MedicalAppointmentsService {
   /**
    * Obtener una cita por ID con todas sus relaciones
    */
-  async findOne(id: number): Promise<MedicalAppointment> {
+  async findOne(id: string): Promise<MedicalAppointment> {
     const cacheKey = `appointment:${id}`;
     const cached = await this.cacheManager.get<MedicalAppointment>(cacheKey);
     if (cached) return cached;
@@ -506,9 +506,9 @@ export class MedicalAppointmentsService {
    * Actualizar una cita médica
    */
   async update(
-    id: number,
+    id: string,
     dto: UpdateMedicalAppointmentDto,
-    userId?: number,
+    userId?: string,
   ): Promise<MedicalAppointment> {
     const apt = await this.appointmentRepository.findOne({ where: { id } });
 
@@ -568,9 +568,9 @@ export class MedicalAppointmentsService {
    * Cancelar una cita
    */
   async cancel(
-    id: number,
+    id: string,
     cancellationReason: string,
-    userId?: number,
+    userId?: string,
   ): Promise<MedicalAppointment> {
     const apt = await this.appointmentRepository.findOne({ where: { id } });
 
@@ -604,7 +604,7 @@ export class MedicalAppointmentsService {
   /**
    * Completar una cita
    */
-  async complete(id: number, userId?: number): Promise<MedicalAppointment> {
+  async complete(id: string, userId?: string): Promise<MedicalAppointment> {
     const apt = await this.appointmentRepository.findOne({ where: { id } });
 
     if (!apt) {
@@ -640,9 +640,9 @@ export class MedicalAppointmentsService {
    * 3. Marca la cita como completada
    */
   async finishConsultation(
-    id: number,
+    id: string,
     dto: CompleteConsultationDto,
-    userId?: number,
+    userId?: string,
   ): Promise<MedicalAppointment> {
     const apt = await this.appointmentRepository.findOne({
       where: { id, deletedAt: IsNull() },
@@ -698,7 +698,7 @@ export class MedicalAppointmentsService {
   /**
    * Soft-delete de una cita
    */
-  async remove(id: number, userId?: number): Promise<void> {
+  async remove(id: string, userId?: string): Promise<void> {
     const apt = await this.appointmentRepository.findOne({ where: { id } });
 
     if (!apt) {
@@ -721,7 +721,7 @@ export class MedicalAppointmentsService {
    * Obtener historial de citas de un paciente
    */
   async getPatientHistory(
-    patientId: number,
+    patientId: string,
     query: QueryMedicalAppointmentDto,
   ) {
     const { page, limit, order, status, dateFrom, dateTo } = query;
@@ -777,7 +777,7 @@ export class MedicalAppointmentsService {
   /**
    * Obtener agenda de citas de un médico por rango de fechas
    */
-  async getDoctorSchedule(doctorId: number, query: QueryMedicalAppointmentDto) {
+  async getDoctorSchedule(doctorId: string, query: QueryMedicalAppointmentDto) {
     const { page, limit, order, status, dateFrom, dateTo } = query;
 
     const doctor = await this.doctorRepository.findOne({
@@ -827,7 +827,7 @@ export class MedicalAppointmentsService {
    * Retorna los horarios ya ocupados para una fecha dada
    */
   async checkAvailability(
-    doctorId: number,
+    doctorId: string,
     date: string,
   ): Promise<{
     occupiedSlots: { start: Date; end: Date; appointmentNumber: string }[];

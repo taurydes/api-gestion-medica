@@ -55,13 +55,12 @@ export class PaginationLogDto extends QueryPaginationDto {
 
   @ApiProperty({
     required: false,
-    example: 102,
-    description: 'ID de usuario asociado',
+    example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+    description: 'ID de usuario asociado (UUID)',
   })
   @IsOptional()
-  @IsInt()
-  @Type(() => Number)
-  userId?: number;
+  @IsUUID()
+  userId?: string;
 
   @ApiProperty({
     required: false,

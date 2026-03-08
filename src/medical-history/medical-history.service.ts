@@ -92,7 +92,7 @@ export class MedicalHistoryService {
    */
   async create(
     dto: CreateMedicalHistoryDto,
-    userId?: number,
+    userId?: string,
   ): Promise<MedicalHistory> {
     try {
       // 1️⃣ Verificar que el paciente exista
@@ -281,7 +281,7 @@ export class MedicalHistoryService {
    * @param id - ID del historial médico
    * @returns Historial médico encontrado con todas sus relaciones
    */
-  async findOne(id: number): Promise<MedicalHistory> {
+  async findOne(id: string): Promise<MedicalHistory> {
     const cacheKey = `medical-history:${id}`;
 
     try {
@@ -324,7 +324,7 @@ export class MedicalHistoryService {
    * @param patientId - ID del paciente
    * @returns Lista de historiales médicos del paciente
    */
-  async findByPatient(patientId: number): Promise<MedicalHistory[]> {
+  async findByPatient(patientId: string): Promise<MedicalHistory[]> {
     const cacheKey = `medical-history:patient:${patientId}`;
 
     try {
@@ -360,9 +360,9 @@ export class MedicalHistoryService {
    * @returns Historial médico actualizado
    */
   async update(
-    id: number,
+    id: string,
     dto: UpdateMedicalHistoryDto,
-    userId?: number,
+    userId?: string,
   ): Promise<MedicalHistory> {
     try {
       const history = await this.medicalHistoryRepository.findOne({
@@ -439,7 +439,7 @@ export class MedicalHistoryService {
    */
   async createMedicalReview(
     dto: CreateMedicalReviewDto,
-    userId?: number,
+    userId?: string,
   ): Promise<MedicalHistory> {
     try {
       const history = await this.medicalHistoryRepository.findOne({
@@ -494,7 +494,7 @@ export class MedicalHistoryService {
    * @param userId - ID del usuario que cancela
    * @returns Historial médico actualizado
    */
-  async cancelConsultation(id: number, userId?: number): Promise<MedicalHistory> {
+  async cancelConsultation(id: string, userId?: string): Promise<MedicalHistory> {
     try {
       const history = await this.medicalHistoryRepository.findOne({
         where: { id },
@@ -539,7 +539,7 @@ export class MedicalHistoryService {
    * Eliminar un historial médico (soft delete)
    * @param id - ID del historial médico a eliminar
    */
-  async remove(id: number): Promise<void> {
+  async remove(id: string): Promise<void> {
     try {
       const history = await this.findOne(id);
 

@@ -18,20 +18,20 @@ import {
  */
 @Entity({ schema: 'public', name: 'recipe_items' })
 export class RecipeItem {
-  @PrimaryGeneratedColumn({ type: 'bigint' })
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
   // ========== RELACIONES ==========
 
-  @Column({ name: 'recipe_id', type: 'bigint' })
-  recipeId: number;
+  @Column({ name: 'recipe_id', type: 'uuid' })
+  recipeId: string;
 
   @ManyToOne(() => Recipe, (recipe) => recipe.items, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   @JoinColumn({ name: 'recipe_id' })
   recipe: Recipe;
 
-  @Column({ name: 'medication_id', type: 'bigint', nullable: true })
-  medicationId: number | null;
+  @Column({ name: 'medication_id', type: 'uuid', nullable: true })
+  medicationId: string | null;
 
   @ManyToOne(() => Medication, { onDelete: 'SET NULL', onUpdate: 'CASCADE' })
   @JoinColumn({ name: 'medication_id' })

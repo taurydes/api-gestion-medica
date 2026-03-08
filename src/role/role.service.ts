@@ -125,7 +125,7 @@ export class RoleService {
   /**
    * Obtener rol por ID
    */
-  async findOne(id: number): Promise<Role> {
+  async findOne(id: string): Promise<Role> {
     const cacheKey = `role:${id}`;
 
     try {
@@ -156,7 +156,7 @@ export class RoleService {
   /**
    * Actualizar rol
    */
-  async update(id: number, updateRoleDto: UpdateRoleDto): Promise<Role> {
+  async update(id: string, updateRoleDto: UpdateRoleDto): Promise<Role> {
     try {
       const role = await this.findOne(id);
 
@@ -179,7 +179,7 @@ export class RoleService {
   /**
    * Eliminar rol
    */
-  async remove(id: number): Promise<void> {
+  async remove(id: string): Promise<void> {
     try {
       const role = await this.findOne(id);
 

@@ -5,9 +5,9 @@ import {
   IsEnum,
   IsInt,
   IsNotEmpty,
-  IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   Min,
   ValidateIf,
 } from 'class-validator';
@@ -22,13 +22,12 @@ export class CreateMedicalAppointmentDto {
 
   @ApiPropertyOptional({
     description:
-      'ID del paciente ya registrado. Si no se proporciona, se usará documentNumber para buscar o crear.',
-    example: 5,
+      'ID del paciente ya registrado (UUID). Si no se proporciona, se usará documentNumber para buscar o crear.',
+    example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
   })
   @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  patientId?: number;
+  @IsUUID()
+  patientId?: string;
 
   @ApiPropertyOptional({
     description:
@@ -63,40 +62,36 @@ export class CreateMedicalAppointmentDto {
   // ─── Datos de la cita ─────────────────────────────────────────────────────
 
   @ApiProperty({
-    description: 'ID del médico asignado a la cita',
-    example: 1,
+    description: 'ID del médico asignado a la cita (UUID)',
+    example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
   })
   @IsNotEmpty({ message: 'El ID del médico es requerido.' })
-  @Type(() => Number)
-  @IsInt()
-  doctorId: number;
+  @IsUUID()
+  doctorId: string;
 
   @ApiPropertyOptional({
-    description: 'ID de la especialidad médica',
-    example: 2,
+    description: 'ID de la especialidad médica (UUID)',
+    example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
   })
   @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  specialtyId?: number;
+  @IsUUID()
+  specialtyId?: string;
 
   @ApiPropertyOptional({
-    description: 'ID del centro médico',
-    example: 1,
+    description: 'ID del centro médico (UUID)',
+    example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
   })
   @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  medicalCenterId?: number;
+  @IsUUID()
+  medicalCenterId?: string;
 
   @ApiPropertyOptional({
-    description: 'ID del departamento médico',
-    example: 1,
+    description: 'ID del departamento médico (UUID)',
+    example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
   })
   @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  departmentId?: number;
+  @IsUUID()
+  departmentId?: string;
 
   @ApiProperty({
     description: 'Fecha y hora de la cita (ISO 8601)',

@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsBoolean, IsNumber } from 'class-validator';
+import { IsOptional, IsString, IsBoolean, IsUUID } from 'class-validator';
 import { QueryPaginationDto } from 'src/common/dto/query-pagination.dto';
 import { Type } from 'class-transformer';
 
@@ -12,22 +12,20 @@ export class DoctorQueryDto extends QueryPaginationDto {
   search?: string;
 
   @ApiPropertyOptional({
-    description: 'Filtrar por centro médico',
-    type: Number,
+    description: 'Filtrar por centro médico (UUID)',
+    type: String,
   })
   @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  medicalCenterId?: number;
+  @IsUUID()
+  medicalCenterId?: string;
 
   @ApiPropertyOptional({
-    description: 'Filtrar por departamento',
-    type: Number,
+    description: 'Filtrar por departamento (UUID)',
+    type: String,
   })
   @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  departmentId?: number;
+  @IsUUID()
+  departmentId?: string;
 
   @ApiPropertyOptional({
     description: 'Filtrar doctores activos',

@@ -98,7 +98,7 @@ export class FilesService {
   async saveVideoBase64(
     fileName: string,
     base64: string,
-    clienteId: number,
+    clienteId: string,
   ): Promise<string> {
     try {
       const clientDir = path.join(process.cwd(), this.uploadsDir, `client-${clienteId}`);
@@ -197,7 +197,7 @@ export class FilesService {
    * @summary Descargar video publicitario por ID
    * @description Devuelve un stream del archivo físico.
    */
-  async downloadVideo(id: number, res: any) {
+  async downloadVideo(id: string, res: any) {
     const video = await this.videoRepository.findOne({ where: { id } });
     if (!video) throw new NotFoundException('Video no encontrado');
 

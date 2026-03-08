@@ -2,8 +2,8 @@ import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity({ schema: 'parametro', name: 'video_publicidad' })
 export class VideoPublicity {
-  @PrimaryGeneratedColumn('increment', { type: 'bigint' })
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
   @Column()
   nombre: string;
@@ -23,11 +23,11 @@ export class VideoPublicity {
   @Column({ name: 'estatus', type: 'boolean', default: true })
   estatus: boolean;
 
-  @Column({ name: 'cliente_id', type: 'bigint' })
-  clienteId: number;
+  @Column({ name: 'cliente_id', type: 'uuid' })
+  clienteId: string;
 
-  @Column({ name: 'empresa_id', type: 'bigint' })
-  empresaId: number;
+  @Column({ name: 'empresa_id', type: 'uuid' })
+  empresaId: string;
 
   @Column({ name: 'created_at', type: 'timestamp', default: () => 'now()' })
   createdAt: Date;

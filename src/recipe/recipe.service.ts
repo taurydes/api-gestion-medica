@@ -89,7 +89,7 @@ export class RecipeService {
    * @param userId - ID del usuario que crea el registro (opcional)
    * @returns Receta creada con sus ítems
    */
-  async create(dto: CreateRecipeDto, userId?: number): Promise<Recipe> {
+  async create(dto: CreateRecipeDto, userId?: string): Promise<Recipe> {
     try {
       // 1️⃣ Verificar que el historial médico exista
       const medicalHistory = await this.medicalHistoryRepository.findOne({
@@ -272,7 +272,7 @@ export class RecipeService {
    * @param id - ID de la receta
    * @returns Receta encontrada con todas sus relaciones
    */
-  async findOne(id: number): Promise<Recipe> {
+  async findOne(id: string): Promise<Recipe> {
     const cacheKey = `recipe:${id}`;
 
     try {
@@ -321,7 +321,7 @@ export class RecipeService {
    * @param patientId - ID del paciente
    * @returns Lista de recetas del paciente
    */
-  async findByPatient(patientId: number): Promise<Recipe[]> {
+  async findByPatient(patientId: string): Promise<Recipe[]> {
     const cacheKey = `recipe:patient:${patientId}`;
 
     try {
@@ -354,7 +354,7 @@ export class RecipeService {
    * @param medicalHistoryId - ID del historial médico
    * @returns Lista de recetas del historial
    */
-  async findByMedicalHistory(medicalHistoryId: number): Promise<Recipe[]> {
+  async findByMedicalHistory(medicalHistoryId: string): Promise<Recipe[]> {
     const cacheKey = `recipe:medical-history:${medicalHistoryId}`;
 
     try {
@@ -385,9 +385,9 @@ export class RecipeService {
    * @returns Receta actualizada
    */
   async update(
-    id: number,
+    id: string,
     dto: UpdateRecipeDto,
-    userId?: number,
+    userId?: string,
   ): Promise<Recipe> {
     try {
       const recipe = await this.recipeRepository.findOne({
@@ -458,7 +458,7 @@ export class RecipeService {
    * @param userId - ID del usuario que marca como dispensada
    * @returns Receta actualizada
    */
-  async markAsDispensed(id: number, userId?: number): Promise<Recipe> {
+  async markAsDispensed(id: string, userId?: string): Promise<Recipe> {
     try {
       const recipe = await this.recipeRepository.findOne({
         where: { id },
@@ -505,7 +505,7 @@ export class RecipeService {
    * @param userId - ID del usuario que cancela
    * @returns Receta actualizada
    */
-  async cancel(id: number, userId?: number): Promise<Recipe> {
+  async cancel(id: string, userId?: string): Promise<Recipe> {
     try {
       const recipe = await this.recipeRepository.findOne({
         where: { id },
@@ -551,7 +551,7 @@ export class RecipeService {
    * Eliminar una receta médica (soft delete)
    * @param id - ID de la receta a eliminar
    */
-  async remove(id: number): Promise<void> {
+  async remove(id: string): Promise<void> {
     try {
       const recipe = await this.findOne(id);
 

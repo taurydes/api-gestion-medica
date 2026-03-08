@@ -18,8 +18,8 @@ import { Department } from 'src/departments/entities/department.entity';
  */
 @Entity({ schema: 'parametro', name: 'specialties' })
 export class Specialty {
-  @PrimaryGeneratedColumn({ type: 'bigint' })
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
   @Column({ type: 'varchar', length: 100, unique: true })
   name: string;

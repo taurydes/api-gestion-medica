@@ -48,7 +48,7 @@ export class DepartmentsService {
   /**
    * Crear un nuevo departamento
    */
-  async create(dto: CreateDepartmentDto, userId?: number): Promise<Department> {
+  async create(dto: CreateDepartmentDto, userId?: string): Promise<Department> {
     try {
       const { specialtyIds, ...data } = dto;
 
@@ -144,7 +144,7 @@ export class DepartmentsService {
   /**
    * Obtener un departamento por ID
    */
-  async findOne(id: number): Promise<Department> {
+  async findOne(id: string): Promise<Department> {
     const cacheKey = `department:${id}`;
 
     try {
@@ -174,9 +174,9 @@ export class DepartmentsService {
    * Actualizar un departamento
    */
   async update(
-    id: number,
+    id: string,
     dto: UpdateDepartmentDto,
-    userId?: number,
+    userId?: string,
   ): Promise<Department> {
     try {
       const { specialtyIds, ...data } = dto;
@@ -235,7 +235,7 @@ export class DepartmentsService {
   /**
    * Eliminar un departamento (soft delete)
    */
-  async remove(id: number): Promise<void> {
+  async remove(id: string): Promise<void> {
     try {
       const department = await this.departmentRepository.findOne({
         where: { id },

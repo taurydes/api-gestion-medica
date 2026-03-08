@@ -43,20 +43,20 @@ export class AllergyController {
   @Get(':id')
   @Permission(`${ModuleItemsMenu.ParametersModule}.${PermissionActionsMenu.VIEW}`)
   findOne(@Param('id') id: string) {
-    return this.allergyService.findOne(+id);
+    return this.allergyService.findOne(id);
   }
 
   @ApiOperation({ summary: 'Actualizar alergia' })
   @Patch(':id')
   @Permission(`${ModuleItemsMenu.ParametersModule}.${PermissionActionsMenu.UPDATE}`)
   update(@Param('id') id: string, @Body() updateAllergyDto: UpdateAllergyDto) {
-    return this.allergyService.update(+id, updateAllergyDto);
+    return this.allergyService.update(id, updateAllergyDto);
   }
 
   @ApiOperation({ summary: 'Eliminar alergia' })
   @Delete(':id')
   @Permission(`${ModuleItemsMenu.ParametersModule}.${PermissionActionsMenu.DELETE}`)
   remove(@Param('id') id: string) {
-    return this.allergyService.remove(+id);
+    return this.allergyService.remove(id);
   }
 }

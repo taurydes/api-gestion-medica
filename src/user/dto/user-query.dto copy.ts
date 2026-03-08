@@ -9,9 +9,9 @@ export class UserQueryDto extends QueryPaginationDto {
   @IsString()
   search?: string;
 
-  @ApiPropertyOptional({ description: 'Filtrar por rol', type: Number })
+  @ApiPropertyOptional({ description: 'Filtrar por rol', type: String })
   @IsOptional()
-  roleId?: number;
+  roleId?: string;
 
   @ApiPropertyOptional({ description: 'Filtrar usuarios activos', type: Boolean })
   @IsOptional()

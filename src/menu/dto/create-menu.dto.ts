@@ -1,9 +1,9 @@
 import {
     IsBoolean,
-    IsNumber,
     IsOptional,
-    IsPositive,
+    IsNumber,
     IsString,
+    IsUUID,
     MaxLength,
 } from 'class-validator';
 
@@ -18,9 +18,8 @@ export class CreateMenuDto {
   slug?: string;
 
   @IsOptional()
-  @IsNumber()
-  @IsPositive()
-  parentId?: number;
+  @IsUUID()
+  parentId?: string;
 
   @IsOptional()
   @IsString()
@@ -50,6 +49,6 @@ export class CreateMenuDto {
   can?: string;
 
   @IsOptional()
-  @IsNumber()
-  userId?: number; 
+  @IsUUID()
+  userId?: string; 
 }

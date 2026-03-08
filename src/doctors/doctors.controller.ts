@@ -52,7 +52,7 @@ export class DoctorsController {
   @Get(':id')
   @Permission(`${ModuleItemsMenu.DoctorsModule}.${PermissionActionsMenu.VIEW}`)
   findOne(@Param('id') id: string) {
-    return this.doctorsService.findOne(+id);
+    return this.doctorsService.findOne(id);
   }
 
   @ApiOperation({
@@ -62,7 +62,7 @@ export class DoctorsController {
   @Patch(':id')
   @Permission(`${ModuleItemsMenu.DoctorsModule}.${PermissionActionsMenu.UPDATE}`)
   update(@Param('id') id: string, @Body() dto: UpdateDoctorDto) {
-    return this.doctorsService.update(+id, dto);
+    return this.doctorsService.update(id, dto);
   }
 
   @ApiOperation({
@@ -72,6 +72,6 @@ export class DoctorsController {
   @Delete(':id')
   @Permission(`${ModuleItemsMenu.DoctorsModule}.${PermissionActionsMenu.DELETE}`)
   remove(@Param('id') id: string) {
-    return this.doctorsService.remove(+id);
+    return this.doctorsService.remove(id);
   }
 }

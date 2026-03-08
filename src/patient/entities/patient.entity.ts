@@ -19,12 +19,12 @@ import { Appointment } from 'src/appointment/entities/appointment.entity'; // Si
 
 @Entity({ schema: 'public', name: 'patients' })
 export class Patient {
-  @PrimaryGeneratedColumn({ type: 'bigint' })
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
   // RELACIÓN CON PERSONA
-  @Column({ name: 'common_person_id', type: 'bigint', unique: true })
-  commonPersonId: number;
+  @Column({ name: 'common_person_id', type: 'uuid', unique: true })
+  commonPersonId: string;
 
   @ManyToOne(() => CommonPerson, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   @JoinColumn({ name: 'common_person_id' })
@@ -133,9 +133,9 @@ export class Patient {
   @Column({ name: 'deleted_at', type: 'timestamp', nullable: true })
   deletedAt: Date | null;
 
-  @Column({ name: 'created_by', type: 'bigint', nullable: true })
-  createdBy: number; // ID del usuario que creó el registro
+  @Column({ name: 'created_by', type: 'uuid', nullable: true })
+  createdBy: string; // ID del usuario que creó el registro
 
-  @Column({ name: 'updated_by', type: 'bigint', nullable: true })
-  updatedBy: number; // ID del usuario que actualizó
+  @Column({ name: 'updated_by', type: 'uuid', nullable: true })
+  updatedBy: string; // ID del usuario que actualizó
 }

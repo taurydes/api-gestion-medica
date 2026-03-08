@@ -14,8 +14,8 @@ import { User } from '../../user/entities/user.entity';
 
 @Entity({ schema: 'public', name: 'persona_comun' })
 export class CommonPerson {
-  @PrimaryGeneratedColumn('increment', { type: 'bigint' })
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
   @Column({ name: 'letra', type: 'varchar', length: 1, nullable: true })
   letter: string | null;
@@ -51,8 +51,8 @@ export class CommonPerson {
   @Column({ name: 'estatus', type: 'boolean', default: true })
   isActive: boolean;
 
-  @Column({ name: 'user_id', type: 'bigint', nullable: true })
-  userId?: number;
+  @Column({ name: 'user_id', type: 'uuid', nullable: true })
+  userId?: string;
 
   @Column({
     name: 'created_at',

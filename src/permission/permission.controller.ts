@@ -4,7 +4,6 @@ import {
   Delete,
   Get,
   Param,
-  ParseIntPipe,
   Patch,
   Post,
 } from '@nestjs/common';
@@ -61,7 +60,7 @@ export class PermissionController {
   @ApiResponse({ status: 404, description: 'Permiso no encontrado.' })
   @Permission(`${ModuleItemsMenu.PermissionModule}.${PermissionActionsMenu.VIEW}`)
   findOne(@Param('id') id: string) {
-    return this.permissionService.findOne(+id);
+    return this.permissionService.findOne(id);
   }
 
   @Patch(':id')
@@ -78,7 +77,7 @@ export class PermissionController {
     @Param('id') id: string,
     @Body() updatePermissionDto: UpdatePermissionDto,
   ) {
-    return this.permissionService.update(+id, updatePermissionDto);
+    return this.permissionService.update(id, updatePermissionDto);
   }
 
   @Delete(':id')
@@ -88,7 +87,7 @@ export class PermissionController {
   @ApiResponse({ status: 404, description: 'Permiso no encontrado.' })
   @Permission(`${ModuleItemsMenu.PermissionModule}.${PermissionActionsMenu.DELETE}`)
   remove(@Param('id') id: string) {
-    return this.permissionService.remove(+id);
+    return this.permissionService.remove(id);
   }
 
   @Post('assign-to-role')
@@ -113,7 +112,7 @@ export class PermissionController {
   @Permission(
     `${ModuleItemsMenu.PermissionModule}.${PermissionActionsMenu.ASSIGN}`,
   )
-  assignAllToRole(@Param('roleId', ParseIntPipe) roleId: number) {
+  assignAllToRole(@Param('roleId') roleId: string) {
     return this.permissionService.assignAllPermissionsToRole(roleId);
   }
 }

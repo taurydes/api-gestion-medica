@@ -1,6 +1,6 @@
 
 import { ApiProperty } from '@nestjs/swagger';
-import { IsBoolean, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class CreateCivilStatusDto {
   @ApiProperty({
@@ -22,10 +22,10 @@ export class CreateCivilStatusDto {
   isActive?: boolean;
 
   @ApiProperty({
-    description: 'ID of the user creating this record',
-    example: 10,
+    description: 'ID of the user creating this record (UUID)',
+    example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
   })
-  @IsNumber({}, { message: 'userId must be a number' })
+  @IsUUID('4', { message: 'userId must be a valid UUID' })
   @IsNotEmpty({ message: 'userId is required' })
-  userId: number;
+  userId: string;
 }

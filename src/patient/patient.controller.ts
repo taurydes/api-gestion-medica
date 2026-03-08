@@ -4,7 +4,6 @@ import {
   Delete,
   Get,
   Param,
-  ParseIntPipe,
   Patch,
   Post,
   Query,
@@ -55,7 +54,7 @@ export class PatientController {
   )
   async create(
     @Body() createPatientDto: CreatePatientDto,
-    @GetUser('id') userId: number,
+    @GetUser('id') userId: string,
   ) {
     return await this.patientService.create(createPatientDto, userId);
   }
@@ -102,7 +101,7 @@ export class PatientController {
   @ApiResponse({ status: 404, description: 'Paciente no encontrado' })
   @Get(':id')
   @Permission(`${ModuleItemsMenu.PatientModule}.${PermissionActionsMenu.VIEW}`)
-  async findOne(@Param('id', ParseIntPipe) id: number) {
+  async findOne(@Param('id') id: string) {
     return await this.patientService.findOne(id);
   }
 
@@ -124,9 +123,9 @@ export class PatientController {
     `${ModuleItemsMenu.PatientModule}.${PermissionActionsMenu.UPDATE}`,
   )
   async update(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id') id: string,
     @Body() updatePatientDto: UpdatePatientDto,
-    @GetUser('id') userId: number,
+    @GetUser('id') userId: string,
   ) {
     return await this.patientService.update(id, updatePatientDto, userId);
   }
@@ -144,7 +143,7 @@ export class PatientController {
   @Permission(
     `${ModuleItemsMenu.PatientModule}.${PermissionActionsMenu.DELETE}`,
   )
-  async remove(@Param('id', ParseIntPipe) id: number) {
+  async remove(@Param('id') id: string) {
     return await this.patientService.remove(id);
   }
 }

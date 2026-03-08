@@ -248,7 +248,7 @@ export class UserService {
   // 🟢 Obtener usuario por ID
   // ============================================================
 
-  async findOne(id: number): Promise<Omit<User, 'password'> | null> {
+  async findOne(id: string): Promise<Omit<User, 'password'> | null> {
     const cacheKey = `user:${id}`;
     const cached =
       await this.cacheManager.get<Omit<User, 'password'>>(cacheKey);
@@ -280,7 +280,7 @@ export class UserService {
   // ============================================================
 
   async update(
-    id: number,
+    id: string,
     dto: UpdateUserDto,
   ): Promise<Omit<User, 'password'> | null> {
     try {
@@ -319,7 +319,7 @@ export class UserService {
   // ============================================================
   // 🟢 Eliminar usuario (soft delete en transacción)
   // ============================================================
-  async remove(id: number): Promise<void> {
+  async remove(id: string): Promise<void> {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();

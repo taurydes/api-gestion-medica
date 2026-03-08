@@ -11,23 +11,23 @@ import {
 
 @Entity({ schema: 'seguridad', name: 'permisos_menus' })
 export class PermissionMenu {
-  @PrimaryGeneratedColumn({ type: 'bigint' })
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
-  @Column({ name: 'permiso_id', type: 'bigint' })
-  permissionId: number;
+  @Column({ name: 'permiso_id', type: 'uuid' })
+  permissionId: string;
 
-  @Column({ name: 'menu_id', type: 'bigint' })
-  menuId: number;
+  @Column({ name: 'menu_id', type: 'uuid' })
+  menuId: string;
 
-  @Column({ name: 'submenu_id', type: 'bigint' })
-  submenuId: number;
+  @Column({ name: 'submenu_id', type: 'uuid' })
+  submenuId: string;
 
-  @Column({ name: 'rol_id', type: 'bigint' })
-  roleId: number;
+  @Column({ name: 'rol_id', type: 'uuid' })
+  roleId: string;
 
-  @Column({ name: 'user_id', type: 'bigint' })
-  userId: number;
+  @Column({ name: 'user_id', type: 'uuid' })
+  userId: string;
 
   @Column({ name: 'activo', type: 'boolean', default: true })
   isActive: boolean;

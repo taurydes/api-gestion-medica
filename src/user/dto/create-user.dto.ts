@@ -4,9 +4,9 @@ import {
   IsBoolean,
   IsEmail,
   IsNotEmpty,
-  IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   MinLength,
   ValidateNested,
 } from 'class-validator';
@@ -39,11 +39,11 @@ export class CreateUserDto {
   password: string;
 
   @ApiProperty({
-    description: 'ID del rol',
-    example: 1,
+    description: 'ID del rol (UUID)',
+    example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
   })
-  @IsNumber({}, { message: 'El ID del rol debe ser un número' })
-  roleId: number;
+  @IsUUID('4', { message: 'El ID del rol debe ser un UUID válido' })
+  roleId: string;
 
   @ApiProperty({
     description: 'Indica si es el primer inicio de sesión',

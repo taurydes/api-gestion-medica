@@ -40,7 +40,7 @@ export class StateService {
   /**
    * @summary Get a state by ID
    */
-  async findOne(id: number): Promise<State> {
+  async findOne(id: string): Promise<State> {
     const entity = await this.repo.findOne({
       where: { id },
     });
@@ -53,7 +53,7 @@ export class StateService {
   /**
    * @summary Get a state with its municipalities
    */
-  async findWithMunicipalities(id: number): Promise<State> {
+  async findWithMunicipalities(id: string): Promise<State> {
     const entity = await this.repo.findOne({
       where: { id },
       relations: ['municipalities'],

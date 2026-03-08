@@ -4,6 +4,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsNumber,
+  IsUUID,
   IsString,
   IsArray,
   ValidateNested,
@@ -17,28 +18,28 @@ import { CreateRecipeItemDto } from './create-recipe-item.dto';
  */
 export class CreateRecipeDto {
   @ApiProperty({
-    description: 'ID del historial médico asociado',
-    example: 1,
+    description: 'ID del historial médico asociado (UUID)',
+    example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
   })
-  @IsNumber()
+  @IsUUID()
   @IsNotEmpty({ message: 'El ID del historial médico es requerido' })
-  medicalHistoryId: number;
+  medicalHistoryId: string;
 
   @ApiProperty({
-    description: 'ID del paciente',
-    example: 1,
+    description: 'ID del paciente (UUID)',
+    example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
   })
-  @IsNumber()
+  @IsUUID()
   @IsNotEmpty({ message: 'El ID del paciente es requerido' })
-  patientId: number;
+  patientId: string;
 
   @ApiProperty({
-    description: 'ID del doctor que emite la receta',
-    example: 1,
+    description: 'ID del doctor que emite la receta (UUID)',
+    example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
   })
-  @IsNumber()
+  @IsUUID()
   @IsNotEmpty({ message: 'El ID del doctor es requerido' })
-  doctorId: number;
+  doctorId: string;
 
   @ApiPropertyOptional({
     description: 'Fecha de vencimiento de la receta (YYYY-MM-DD)',
@@ -85,10 +86,10 @@ export class CreateRecipeDto {
   items: CreateRecipeItemDto[];
 
   @ApiPropertyOptional({
-    description: 'ID de la cita médica asociada',
-    example: 1,
+    description: 'ID de la cita médica asociada (UUID)',
+    example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
   })
   @IsOptional()
-  @IsNumber()
-  medicalAppointmentId?: number;
+  @IsUUID()
+  medicalAppointmentId?: string;
 }

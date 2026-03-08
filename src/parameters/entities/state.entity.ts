@@ -12,8 +12,8 @@ import { Municipality } from './municipality.entity';
  */
 @Entity({ schema: 'parametro', name: 'estado' })
 export class State {
-  @PrimaryGeneratedColumn('increment', { type: 'bigint' })
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
   @Column({ name: 'descripcion', type: 'varchar', length: 255, nullable: true })
   description: string | null;

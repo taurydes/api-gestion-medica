@@ -62,7 +62,7 @@ export class GenderService {
   /**
    * @summary Find gender by ID
    */
-  async findOne(id: number): Promise<Gender> {
+  async findOne(id: string): Promise<Gender> {
     const entity = await this.repo.findOne({ where: { id } });
 
     if (!entity) throw new NotFoundException('Gender not found');
@@ -73,7 +73,7 @@ export class GenderService {
   /**
    * @summary Update gender
    */
-  async update(id: number, dto: UpdateGenderDto): Promise<Gender> {
+  async update(id: string, dto: UpdateGenderDto): Promise<Gender> {
     const entity = await this.findOne(id);
     Object.assign(entity, dto, { updatedAt: new Date() });
     return this.repo.save(entity);
@@ -82,7 +82,7 @@ export class GenderService {
   /**
    * @summary Soft delete gender
    */
-  async remove(id: number): Promise<void> {
+  async remove(id: string): Promise<void> {
     const entity = await this.findOne(id);
     entity.deletedAt = new Date();
     await this.repo.save(entity);

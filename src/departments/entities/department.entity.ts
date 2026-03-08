@@ -23,8 +23,8 @@ import { Doctor } from 'src/doctors/entities/doctor.entity';
  */
 @Entity({ schema: 'parametro', name: 'departments' })
 export class Department {
-  @PrimaryGeneratedColumn({ type: 'bigint' })
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
   @Column({ type: 'varchar', length: 150 })
   name: string;
@@ -32,8 +32,8 @@ export class Department {
   @Column({ type: 'text', nullable: true })
   description: string | null;
 
-  @Column({ name: 'medical_center_id', type: 'bigint' })
-  medicalCenterId: number;
+  @Column({ name: 'medical_center_id', type: 'uuid' })
+  medicalCenterId: string;
 
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
@@ -49,11 +49,11 @@ export class Department {
   @Column({ name: 'deleted_at', type: 'timestamp', nullable: true })
   deletedAt: Date | null;
 
-  @Column({ name: 'created_by', type: 'bigint', nullable: true })
-  createdBy: number | null;
+  @Column({ name: 'created_by', type: 'uuid', nullable: true })
+  createdBy: string | null;
 
-  @Column({ name: 'updated_by', type: 'bigint', nullable: true })
-  updatedBy: number | null;
+  @Column({ name: 'updated_by', type: 'uuid', nullable: true })
+  updatedBy: string | null;
 
   // ========== RELACIONES ==========
 

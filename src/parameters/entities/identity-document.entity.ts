@@ -8,8 +8,8 @@ import { CommonPerson } from 'src/common-person/entities/common-person.entity';
 
 @Entity({ schema: 'parametro', name: 'documento_identidad' })
 export class IdentityDocument {
-  @PrimaryGeneratedColumn({ type: 'bigint' })
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
   @Column({
     name: 'letra',
@@ -26,8 +26,8 @@ export class IdentityDocument {
   @Column({ name: 'estatus', type: 'boolean', default: true })
   isActive: boolean;
 
-  @Column({ name: 'user_id', type: 'bigint' })
-  userId: number;
+  @Column({ name: 'user_id', type: 'uuid' })
+  userId: string;
 
   @Column({
     name: 'created_at',

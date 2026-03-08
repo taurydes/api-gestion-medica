@@ -29,8 +29,8 @@ export class ErrorLog {
   httpMethod: string;
 
   @Index()
-  @Column({ name: 'user_id', type: 'bigint', nullable: true })
-  userId: number;
+  @Column({ name: 'user_id', type: 'uuid', nullable: true })
+  userId: string;
 
   @Column({ name: 'correlation_id', type: 'uuid', nullable: true })
   correlationId: string;

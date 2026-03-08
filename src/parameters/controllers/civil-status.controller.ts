@@ -35,6 +35,6 @@ export class CivilStatusController {
   @ApiOperation({ summary: 'Get civil status by ID' })
   @ApiParam({ name: 'id', example: 1 })
   findOne(@Param('id') id: string) {
-    return this.service.findOne(+id);
+    return this.service.findOne(id);
   }
 }

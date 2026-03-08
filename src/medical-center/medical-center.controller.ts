@@ -58,7 +58,7 @@ export class MedicalCenterController {
     `${ModuleItemsMenu.MedicalCenterModule}.${PermissionActionsMenu.VIEW}`,
   )
   findOne(@Param('id') id: string) {
-    return this.medicalCenterService.findOne(+id);
+    return this.medicalCenterService.findOne(id);
   }
 
   @ApiOperation({
@@ -70,7 +70,7 @@ export class MedicalCenterController {
     `${ModuleItemsMenu.MedicalCenterModule}.${PermissionActionsMenu.UPDATE}`,
   )
   update(@Param('id') id: string, @Body() dto: UpdateMedicalCenterDto) {
-    return this.medicalCenterService.update(+id, dto);
+    return this.medicalCenterService.update(id, dto);
   }
 
   @ApiOperation({
@@ -82,7 +82,7 @@ export class MedicalCenterController {
     `${ModuleItemsMenu.MedicalCenterModule}.${PermissionActionsMenu.DELETE}`,
   )
   remove(@Param('id') id: string) {
-    return this.medicalCenterService.remove(+id);
+    return this.medicalCenterService.remove(id);
   }
   @ApiOperation({
     summary: 'Asignar doctor a centro médico',
@@ -98,9 +98,9 @@ export class MedicalCenterController {
     @Query('departmentId') departmentId?: string,
   ) {
     return this.medicalCenterService.assignDoctor(
-      +id,
-      +doctorId,
-      departmentId ? +departmentId : undefined,
+      id,
+      doctorId,
+      departmentId || undefined,
     );
   }
 
@@ -113,6 +113,6 @@ export class MedicalCenterController {
     `${ModuleItemsMenu.MedicalCenterModule}.${PermissionActionsMenu.UPDATE}`,
   )
   removeDoctor(@Param('id') id: string, @Param('doctorId') doctorId: string) {
-    return this.medicalCenterService.removeDoctor(+id, +doctorId);
+    return this.medicalCenterService.removeDoctor(id, doctorId);
   }
 }

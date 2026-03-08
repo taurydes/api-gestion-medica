@@ -154,7 +154,7 @@ export class SpecialtyService {
    * @param id - ID de la especialidad
    * @returns Especialidad encontrada
    */
-  async findOne(id: number): Promise<Specialty> {
+  async findOne(id: string): Promise<Specialty> {
     const cacheKey = `specialty:${id}`;
 
     try {
@@ -191,7 +191,7 @@ export class SpecialtyService {
    * @returns Especialidad actualizada
    */
   async update(
-    id: number,
+    id: string,
     updateSpecialtyDto: UpdateSpecialtyDto,
   ): Promise<Specialty> {
     try {
@@ -259,7 +259,7 @@ export class SpecialtyService {
    * Eliminar una especialidad (soft delete)
    * @param id - ID de la especialidad a eliminar
    */
-  async remove(id: number): Promise<void> {
+  async remove(id: string): Promise<void> {
     try {
       const specialty = await this.findOne(id);
 

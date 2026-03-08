@@ -67,7 +67,7 @@ export class CivilStatusService {
   /**
    * @summary Find civil status by ID
    */
-  async findOne(id: number): Promise<CivilStatus> {
+  async findOne(id: string): Promise<CivilStatus> {
     const entity = await this.repo.findOne({ where: { id } });
     if (!entity) throw new NotFoundException('Civil status not found');
     return entity;
@@ -76,7 +76,7 @@ export class CivilStatusService {
   /**
    * @summary Update civil status by ID
    */
-  async update(id: number, dto: UpdateCivilStatusDto): Promise<CivilStatus> {
+  async update(id: string, dto: UpdateCivilStatusDto): Promise<CivilStatus> {
     const entity = await this.findOne(id);
     Object.assign(entity, dto, { updatedAt: new Date() });
     return await this.repo.save(entity);
@@ -85,7 +85,7 @@ export class CivilStatusService {
   /**
    * @summary Soft delete civil status
    */
-  async remove(id: number): Promise<void> {
+  async remove(id: string): Promise<void> {
     const entity = await this.findOne(id);
     entity.deletedAt = new Date();
     await this.repo.save(entity);

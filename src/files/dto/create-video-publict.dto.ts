@@ -3,7 +3,7 @@ import {
   IsNotEmpty,
   IsString,
   IsNumber,
-  IsNumberString,
+  IsUUID,
 } from 'class-validator';
 
 export class CreateVideoBase64Dto {
@@ -23,13 +23,13 @@ export class CreateVideoBase64Dto {
   @IsNumber()
   tamano?: number;
 
-  @ApiProperty({ example: 5 })
-  @IsNumberString()
-  clienteId: number;
+  @ApiProperty({ example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890' })
+  @IsUUID()
+  clienteId: string;
 
-  @ApiProperty({ example: 1 })
-  @IsNumberString()
-  empresaId: number;
+  @ApiProperty({ example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890' })
+  @IsUUID()
+  empresaId: string;
 
   @ApiProperty({ example: 'video.mp4' })
   @IsString()
@@ -54,13 +54,13 @@ export class CreateVideoMultipartDto {
   @ApiProperty({ example: 'Publicidad para cliente X', required: false })
   descripcion?: string;
 
-  @ApiProperty({ example: 5 })
-  @IsNumberString()
-  clienteId: number;
+  @ApiProperty({ example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890' })
+  @IsUUID()
+  clienteId: string;
 
-  @ApiProperty({ example: 1 })
-  @IsNumberString()
-  empresaId: number;
+  @ApiProperty({ example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890' })
+  @IsUUID()
+  empresaId: string;
 
   @ApiProperty({ type: 'string', format: 'binary' })
   file: any;

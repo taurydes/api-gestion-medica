@@ -43,20 +43,20 @@ export class ChronicDiseaseController {
   @Get(':id')
   @Permission(`${ModuleItemsMenu.ParametersModule}.${PermissionActionsMenu.VIEW}`)
   findOne(@Param('id') id: string) {
-    return this.chronicDiseaseService.findOne(+id);
+    return this.chronicDiseaseService.findOne(id);
   }
 
   @ApiOperation({ summary: 'Actualizar enfermedad crónica' })
   @Patch(':id')
   @Permission(`${ModuleItemsMenu.ParametersModule}.${PermissionActionsMenu.UPDATE}`)
   update(@Param('id') id: string, @Body() updateDto: UpdateChronicDiseaseDto) {
-    return this.chronicDiseaseService.update(+id, updateDto);
+    return this.chronicDiseaseService.update(id, updateDto);
   }
 
   @ApiOperation({ summary: 'Eliminar enfermedad crónica' })
   @Delete(':id')
   @Permission(`${ModuleItemsMenu.ParametersModule}.${PermissionActionsMenu.DELETE}`)
   remove(@Param('id') id: string) {
-    return this.chronicDiseaseService.remove(+id);
+    return this.chronicDiseaseService.remove(id);
   }
 }

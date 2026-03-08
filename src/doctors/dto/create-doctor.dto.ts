@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsString,
-  IsNumber,
+  IsUUID,
   IsOptional,
   IsBoolean,
   MaxLength,
@@ -21,19 +21,19 @@ export class CreateDoctorDto {
   commonPerson?: CreateCommonPersonDto;
 
   @ApiProperty({
-    type: [Number],
-    description: 'IDs de las especialidades médicas',
+    type: [String],
+    description: 'IDs de las especialidades médicas (UUID)',
   })
-  @IsNumber({}, { each: true })
-  specialtyIds: number[];
+  @IsUUID('4', { each: true })
+  specialtyIds: string[];
 
   @ApiPropertyOptional({
-    type: [Number],
-    description: 'IDs de los centros médicos',
+    type: [String],
+    description: 'IDs de los centros médicos (UUID)',
   })
   @IsOptional()
-  @IsNumber({}, { each: true })
-  medicalCenterIds?: number[];
+  @IsUUID('4', { each: true })
+  medicalCenterIds?: string[];
 
   @ApiProperty({ description: 'Número de licencia o matrícula profesional' })
   @IsString()

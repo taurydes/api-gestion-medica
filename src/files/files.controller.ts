@@ -114,7 +114,7 @@ export class FilesController {
   })
   @Get('video/:id')
   @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.VIEW}`)
-  async downloadVideo(@Param('id') id: number, @Res() res) {
+  async downloadVideo(@Param('id') id: string, @Res() res) {
     return this.filesService.downloadVideo(id, res);
   }
 }

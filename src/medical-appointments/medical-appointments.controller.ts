@@ -58,7 +58,7 @@ export class MedicalAppointmentsController {
     @Query('doctorId') doctorId: string,
     @Query('date') date: string,
   ) {
-    return this.appointmentsService.checkAvailability(+doctorId, date);
+    return this.appointmentsService.checkAvailability(doctorId, date);
   }
 
   @ApiOperation({
@@ -74,7 +74,7 @@ export class MedicalAppointmentsController {
     @Param('patientId') patientId: string,
     @Query() query: QueryMedicalAppointmentDto,
   ) {
-    return this.appointmentsService.getPatientHistory(+patientId, query);
+    return this.appointmentsService.getPatientHistory(patientId, query);
   }
 
   @ApiOperation({
@@ -90,7 +90,7 @@ export class MedicalAppointmentsController {
     @Param('doctorId') doctorId: string,
     @Query() query: QueryMedicalAppointmentDto,
   ) {
-    return this.appointmentsService.getDoctorSchedule(+doctorId, query);
+    return this.appointmentsService.getDoctorSchedule(doctorId, query);
   }
 
   // ─── Standard CRUD ──────────────────────────────────────────────────────────
@@ -131,7 +131,7 @@ export class MedicalAppointmentsController {
     `${ModuleItemsMenu.MedicalAppointmentsModule}.${PermissionActionsMenu.VIEW}`,
   )
   findOne(@Param('id') id: string) {
-    return this.appointmentsService.findOne(+id);
+    return this.appointmentsService.findOne(id);
   }
 
   @ApiOperation({
@@ -144,7 +144,7 @@ export class MedicalAppointmentsController {
     `${ModuleItemsMenu.MedicalAppointmentsModule}.${PermissionActionsMenu.UPDATE}`,
   )
   update(@Param('id') id: string, @Body() dto: UpdateMedicalAppointmentDto) {
-    return this.appointmentsService.update(+id, dto);
+    return this.appointmentsService.update(id, dto);
   }
 
   @ApiOperation({
@@ -172,7 +172,7 @@ export class MedicalAppointmentsController {
     @Param('id') id: string,
     @Body('cancellationReason') cancellationReason: string,
   ) {
-    return this.appointmentsService.cancel(+id, cancellationReason);
+    return this.appointmentsService.cancel(id, cancellationReason);
   }
 
   @ApiOperation({
@@ -185,7 +185,7 @@ export class MedicalAppointmentsController {
     `${ModuleItemsMenu.MedicalAppointmentsModule}.${PermissionActionsMenu.UPDATE}`,
   )
   complete(@Param('id') id: string) {
-    return this.appointmentsService.complete(+id);
+    return this.appointmentsService.complete(id);
   }
 
   @ApiOperation({
@@ -200,9 +200,9 @@ export class MedicalAppointmentsController {
   finishConsultation(
     @Param('id') id: string,
     @Body() dto: CompleteConsultationDto,
-    @GetUser('id') userId: number,
+    @GetUser('id') userId: string,
   ) {
-    return this.appointmentsService.finishConsultation(+id, dto, userId);
+    return this.appointmentsService.finishConsultation(id, dto, userId);
   }
 
   @ApiOperation({
@@ -214,6 +214,6 @@ export class MedicalAppointmentsController {
     `${ModuleItemsMenu.MedicalAppointmentsModule}.${PermissionActionsMenu.DELETE}`,
   )
   remove(@Param('id') id: string) {
-    return this.appointmentsService.remove(+id);
+    return this.appointmentsService.remove(id);
   }
 }

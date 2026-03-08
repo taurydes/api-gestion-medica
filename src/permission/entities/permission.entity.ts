@@ -10,8 +10,8 @@ import { PermissionMenu } from './permission-menu.entity';
 
 @Entity({ schema: 'seguridad', name: 'permisos' })
 export class Permission {
-  @PrimaryGeneratedColumn({ type: 'bigint' })
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
   @Column({ name: 'nombre', type: 'varchar', length: 255 })
   name: string;
@@ -19,8 +19,8 @@ export class Permission {
   @Column({ name: 'nombre_mostrar', type: 'varchar', length: 255 })
   displayName: string;
 
-  @Column({ name: 'user_id', type: 'bigint' })
-  userId: number;
+  @Column({ name: 'user_id', type: 'uuid' })
+  userId: string;
 
   @Column({ name: 'activo', type: 'boolean', default: true })
   isActive: boolean;

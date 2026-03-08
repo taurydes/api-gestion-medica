@@ -4,7 +4,6 @@ import {
   Delete,
   Get,
   Param,
-  ParseIntPipe,
   Patch,
   Post,
   Query,
@@ -42,7 +41,7 @@ export class MedicalHistoryController {
   @Permission(`${ModuleItemsMenu.MedicalHistoryModule}.${PermissionActionsMenu.CREATE}`)
   create(
     @Body() createDto: CreateMedicalHistoryDto,
-    @GetUser('id') userId: number,
+    @GetUser('id') userId: string,
   ) {
     return this.medicalHistoryService.create(createDto, userId);
   }
@@ -66,7 +65,7 @@ export class MedicalHistoryController {
   @ApiResponse({ status: 200, description: 'Historial médico encontrado' })
   @ApiResponse({ status: 404, description: 'Historial médico no encontrado' })
   @Permission(`${ModuleItemsMenu.MedicalHistoryModule}.${PermissionActionsMenu.VIEW}`)
-  findOne(@Param('id', ParseIntPipe) id: number) {
+  findOne(@Param('id') id: string) {
     return this.medicalHistoryService.findOne(id);
   }
 
@@ -77,7 +76,7 @@ export class MedicalHistoryController {
   @ApiOperation({ summary: 'Obtener todo el historial médico de un paciente' })
   @ApiResponse({ status: 200, description: 'Lista de historiales del paciente' })
   @Permission(`${ModuleItemsMenu.MedicalHistoryModule}.${PermissionActionsMenu.VIEW}`)
-  findByPatient(@Param('patientId', ParseIntPipe) patientId: number) {
+  findByPatient(@Param('patientId') patientId: string) {
     return this.medicalHistoryService.findByPatient(patientId);
   }
 
@@ -91,9 +90,9 @@ export class MedicalHistoryController {
   @ApiResponse({ status: 400, description: 'No se puede actualizar consulta completada/cancelada' })
   @Permission(`${ModuleItemsMenu.MedicalHistoryModule}.${PermissionActionsMenu.UPDATE}`)
   update(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id') id: string,
     @Body() updateDto: UpdateMedicalHistoryDto,
-    @GetUser('id') userId: number,
+    @GetUser('id') userId: string,
   ) {
     return this.medicalHistoryService.update(id, updateDto, userId);
   }
@@ -109,7 +108,7 @@ export class MedicalHistoryController {
   @Permission(`${ModuleItemsMenu.MedicalHistoryModule}.${PermissionActionsMenu.UPDATE}`)
   createMedicalReview(
     @Body() reviewDto: CreateMedicalReviewDto,
-    @GetUser('id') userId: number,
+    @GetUser('id') userId: string,
   ) {
     return this.medicalHistoryService.createMedicalReview(reviewDto, userId);
   }
@@ -124,8 +123,8 @@ export class MedicalHistoryController {
   @ApiResponse({ status: 400, description: 'No se puede cancelar consulta completada' })
   @Permission(`${ModuleItemsMenu.MedicalHistoryModule}.${PermissionActionsMenu.UPDATE}`)
   cancelConsultation(
-    @Param('id', ParseIntPipe) id: number,
-    @GetUser('id') userId: number,
+    @Param('id') id: string,
+    @GetUser('id') userId: string,
   ) {
     return this.medicalHistoryService.cancelConsultation(id, userId);
   }
@@ -138,7 +137,7 @@ export class MedicalHistoryController {
   @ApiResponse({ status: 200, description: 'Historial médico eliminado exitosamente' })
   @ApiResponse({ status: 404, description: 'Historial médico no encontrado' })
   @Permission(`${ModuleItemsMenu.MedicalHistoryModule}.${PermissionActionsMenu.DELETE}`)
-  remove(@Param('id', ParseIntPipe) id: number) {
+  remove(@Param('id') id: string) {
     return this.medicalHistoryService.remove(id);
   }
 }

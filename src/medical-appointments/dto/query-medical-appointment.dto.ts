@@ -3,9 +3,9 @@ import { Type } from 'class-transformer';
 import {
   IsDateString,
   IsEnum,
-  IsInt,
   IsOptional,
   IsString,
+  IsUUID,
 } from 'class-validator';
 import { QueryPaginationDto } from 'src/common/dto/query-pagination.dto';
 import {
@@ -23,46 +23,37 @@ export class QueryMedicalAppointmentDto extends QueryPaginationDto {
   search?: string;
 
   @ApiPropertyOptional({
-    description: 'Filtrar por ID de paciente',
-    example: 1,
+    description: 'Filtrar por ID de paciente (UUID)',
   })
   @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  patientId?: number;
+  @IsUUID()
+  patientId?: string;
 
-  @ApiPropertyOptional({ description: 'Filtrar por ID de médico', example: 1 })
+  @ApiPropertyOptional({ description: 'Filtrar por ID de médico (UUID)' })
   @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  doctorId?: number;
+  @IsUUID()
+  doctorId?: string;
 
   @ApiPropertyOptional({
-    description: 'Filtrar por ID de especialidad',
-    example: 2,
+    description: 'Filtrar por ID de especialidad (UUID)',
   })
   @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  specialtyId?: number;
+  @IsUUID()
+  specialtyId?: string;
 
   @ApiPropertyOptional({
-    description: 'Filtrar por ID de centro médico',
-    example: 1,
+    description: 'Filtrar por ID de centro médico (UUID)',
   })
   @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  medicalCenterId?: number;
+  @IsUUID()
+  medicalCenterId?: string;
 
   @ApiPropertyOptional({
-    description: 'Filtrar por ID de departamento',
-    example: 1,
+    description: 'Filtrar por ID de departamento (UUID)',
   })
   @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  departmentId?: number;
+  @IsUUID()
+  departmentId?: string;
 
   @ApiPropertyOptional({
     description: 'Filtrar por estado de la cita',
