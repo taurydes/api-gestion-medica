@@ -23,11 +23,11 @@ import { Department } from 'src/departments/entities/department.entity';
  */
 @Entity({ schema: 'public', name: 'doctors' })
 export class Doctor {
-  @PrimaryGeneratedColumn({ type: 'bigint' })
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
-  @Column({ name: 'common_person_id', type: 'bigint' })
-  commonPersonId: number;
+  @Column({ name: 'common_person_id', type: 'uuid' })
+  commonPersonId: string;
 
   @Column({
     name: 'license_number',

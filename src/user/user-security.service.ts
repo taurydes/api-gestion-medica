@@ -143,7 +143,7 @@ private async clearQueryCache(): Promise<void> {
   /**
    * Obtener usuario por ID con cache
    */
-  async findOne(id: number): Promise<Omit<UserSecurity, 'password'> | null> {
+  async findOne(id: string): Promise<Omit<UserSecurity, 'password'> | null> {
     const cacheKey = `userSecurity:${id}`;
 
     try {
@@ -181,7 +181,7 @@ private async clearQueryCache(): Promise<void> {
    * Actualizar usuario
    */
   async update(
-      id: number,
+      id: string,
       updateUserDto: UpdateUserDto,
     ): Promise<Omit<UserSecurity, 'password'> | null> {
       try {
@@ -221,7 +221,7 @@ private async clearQueryCache(): Promise<void> {
   /**
    * Eliminar usuario
    */
-  async remove(id: number): Promise<void> {
+  async remove(id: string): Promise<void> {
       try {
         const user = await this.findOne(id);
         if (!user) {

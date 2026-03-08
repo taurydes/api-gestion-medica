@@ -6,6 +6,7 @@ import {
   IsBoolean,
   MaxLength,
   IsNumber,
+  IsUUID,
 } from 'class-validator';
 
 export class CreateMedicalCenterDto {
@@ -39,10 +40,10 @@ export class CreateMedicalCenterDto {
   @IsBoolean()
   isActive?: boolean;
 
-  @ApiPropertyOptional({ description: 'Parroquia ID', example: 1 })
+  @ApiPropertyOptional({ description: 'Parroquia ID (UUID)', example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890' })
   @IsOptional()
-  @IsNumber()
-  parishId?: number;
+  @IsUUID()
+  parishId?: string;
 
   @ApiPropertyOptional({ description: 'Número de camillas', default: 0 })
   @IsOptional()

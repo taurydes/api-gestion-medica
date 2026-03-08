@@ -45,20 +45,20 @@ export class RoleController {
   @ApiOperation({ summary: 'Obtener rol por ID' })
   @Permission(`${ModuleItemsMenu.RoleModule}.${PermissionActionsMenu.VIEW}`)
   findOne(@Param('id') id: string) {
-    return this.roleService.findOne(+id);
+    return this.roleService.findOne(id);
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Actualizar rol' })
   @Permission(`${ModuleItemsMenu.RoleModule}.${PermissionActionsMenu.UPDATE}`)
   update(@Param('id') id: string, @Body() dto: UpdateRoleDto) {
-    return this.roleService.update(+id, dto);
+    return this.roleService.update(id, dto);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar rol' })
   @Permission(`${ModuleItemsMenu.RoleModule}.${PermissionActionsMenu.DELETE}`)
   remove(@Param('id') id: string) {
-    return this.roleService.remove(+id);
+    return this.roleService.remove(id);
   }
 }

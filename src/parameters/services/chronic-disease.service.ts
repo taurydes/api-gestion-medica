@@ -98,7 +98,7 @@ export class ChronicDiseaseService {
     return result;
   }
 
-  async findOne(id: number): Promise<ChronicDisease> {
+  async findOne(id: string): Promise<ChronicDisease> {
     const cacheKey = `chronic-disease:${id}`;
 
     const cached = await this.cacheManager.get<ChronicDisease>(cacheKey);
@@ -119,7 +119,7 @@ export class ChronicDiseaseService {
   }
 
   async update(
-    id: number,
+    id: string,
     updateDto: UpdateChronicDiseaseDto,
   ): Promise<ChronicDisease> {
     const disease = await this.findOne(id);
@@ -140,7 +140,7 @@ export class ChronicDiseaseService {
     return updated;
   }
 
-  async remove(id: number): Promise<void> {
+  async remove(id: string): Promise<void> {
     const disease = await this.findOne(id);
 
     await this.chronicDiseaseRepository.save({

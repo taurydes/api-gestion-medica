@@ -228,7 +228,7 @@ export class DoctorsService {
   /**
    * Obtener doctor por ID con cache
    */
-  async findOne(id: number): Promise<Doctor> {
+  async findOne(id: string): Promise<Doctor> {
     const cacheKey = `doctor:${id}`;
 
     try {
@@ -257,7 +257,7 @@ export class DoctorsService {
   /**
    * Actualizar doctor
    */
-  async update(id: number, dto: UpdateDoctorDto): Promise<Doctor> {
+  async update(id: string, dto: UpdateDoctorDto): Promise<Doctor> {
     try {
       const doctor = await this.doctorRepository.findOne({
         where: { id },
@@ -311,7 +311,7 @@ export class DoctorsService {
   /**
    * Eliminar doctor (soft delete)
    */
-  async remove(id: number): Promise<void> {
+  async remove(id: string): Promise<void> {
     try {
       const doctor = await this.doctorRepository.findOneBy({ id });
       if (!doctor) {

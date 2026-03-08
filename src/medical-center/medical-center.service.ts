@@ -132,7 +132,7 @@ export class MedicalCenterService {
   /**
    * Obtener centro médico por ID con cache
    */
-  async findOne(id: number): Promise<MedicalCenter> {
+  async findOne(id: string): Promise<MedicalCenter> {
     const cacheKey = `medicalCenter:${id}`;
 
     try {
@@ -169,7 +169,7 @@ export class MedicalCenterService {
    * Actualizar centro médico
    */
   async update(
-    id: number,
+    id: string,
     dto: UpdateMedicalCenterDto,
   ): Promise<MedicalCenter> {
     try {
@@ -204,7 +204,7 @@ export class MedicalCenterService {
   /**
    * Eliminar centro médico (soft delete)
    */
-  async remove(id: number): Promise<void> {
+  async remove(id: string): Promise<void> {
     try {
       const center = await this.medicalCenterRepository.findOneBy({ id });
       if (!center) {
@@ -230,9 +230,9 @@ export class MedicalCenterService {
    * Asignar un doctor a un centro médico (opcionalmente a un departamento)
    */
   async assignDoctor(
-    medicalCenterId: number,
-    doctorId: number,
-    departmentId?: number,
+    medicalCenterId: string,
+    doctorId: string,
+    departmentId?: string,
   ): Promise<MedicalCenter> {
     const center = await this.medicalCenterRepository.findOne({
       where: { id: medicalCenterId },
@@ -257,7 +257,7 @@ export class MedicalCenterService {
 
     // 1. Asignar al Centro Médico si no está asignado
     const isAssignedToCenter = currentDoctor.medicalCenters.some(
-      (mc) => mc.id === Number(medicalCenterId),
+      (mc) => mc.id === medicalCenterId,
     );
 
     if (!isAssignedToCenter) {
@@ -277,7 +277,7 @@ export class MedicalCenterService {
       }
 
       const isAssignedToDept = currentDoctor.departments.some(
-        (dept) => dept.id === Number(departmentId),
+        (dept) => dept.id === departmentId,
       );
 
       if (!isAssignedToDept) {
@@ -302,8 +302,8 @@ export class MedicalCenterService {
    * Remover un doctor de un centro médico
    */
   async removeDoctor(
-    medicalCenterId: number,
-    doctorId: number,
+    medicalCenterId: string,
+    doctorId: string,
   ): Promise<MedicalCenter> {
     const center = await this.medicalCenterRepository.findOne({
       where: { id: medicalCenterId },
@@ -318,7 +318,7 @@ export class MedicalCenterService {
 
     // Verificar si está asignado
     const doctorIndex = center.doctors.findIndex(
-      (d) => d.id === Number(doctorId),
+      (d) => d.id === doctorId,
     );
     if (doctorIndex === -1) {
       throw new BadRequestException(

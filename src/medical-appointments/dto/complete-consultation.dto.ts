@@ -3,6 +3,7 @@ import {
   IsOptional,
   IsString,
   IsNumber,
+  IsUUID,
   ValidateNested,
   IsArray,
   IsDateString,
@@ -16,8 +17,8 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
  */
 export class ConsultationRecipeItemInputDto {
   @IsOptional()
-  @IsNumber()
-  medicationId?: number;
+  @IsUUID()
+  medicationId?: string;
 
   @IsString()
   @IsNotEmpty({ message: 'El nombre del medicamento es requerido' })

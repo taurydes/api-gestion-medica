@@ -6,7 +6,7 @@ import {
   MaxLength,
   IsOptional,
   IsBoolean,
-  IsNumber,
+  IsUUID,
   IsDateString,
   Length,
 } from 'class-validator';
@@ -58,23 +58,23 @@ export class CreateUserSecurityDto {
   @IsBoolean()
   status?: boolean;
 
-  @ApiProperty({ example: 1 })
-  @IsNumber()
-  roleId: number;
+  @ApiProperty({ example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890' })
+  @IsUUID()
+  roleId: string;
 
-  @ApiProperty({ example: 10, required: false })
+  @ApiProperty({ example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890', required: false })
   @IsOptional()
-  @IsNumber()
-  commonPersonId?: number | null;
+  @IsUUID()
+  commonPersonId?: string | null;
 
   @ApiProperty({ example: '1990-05-20', required: false })
   @IsOptional()
   @IsDateString()
   birthDate?: Date | null;
 
-  @ApiProperty({ example: 1, required: false, description: 'Usuario que crea el registro' })
+  @ApiProperty({ example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890', required: false, description: 'Usuario que crea el registro' })
   @IsOptional()
-  @IsNumber()
-  userId?: number | null;
+  @IsUUID()
+  userId?: string | null;
   
 }

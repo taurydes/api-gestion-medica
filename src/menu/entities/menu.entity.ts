@@ -12,8 +12,8 @@ import {
 
 @Entity({ schema: 'seguridad', name: 'menu' })
 export class Menu {
-  @PrimaryGeneratedColumn({ type: 'bigint' })
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
   @Column({ name: 'nombre', type: 'varchar', length: 150 })
   name: string;
@@ -23,11 +23,10 @@ export class Menu {
 
   @Column({
     name: 'menu_id',
-    type: 'bigint',
+    type: 'uuid',
     nullable: true,
-    default: () => '0',
   })
-  parentId: number | null;
+  parentId: string | null;
 
   @Column({ name: 'url', type: 'varchar', length: 100, nullable: true })
   url: string | null;
@@ -44,8 +43,8 @@ export class Menu {
   @Column({ name: 'status', type: 'boolean', default: true })
   isActive: boolean;
 
-  @Column({ name: 'user_id', type: 'bigint' })
-  userId: number;
+  @Column({ name: 'user_id', type: 'uuid' })
+  userId: string;
 
   @Column({
     name: 'created_at',

@@ -123,7 +123,7 @@ export class AuthService {
     });
     // ✅ Guardar sesión activa en Redis
     await this.redisSession.setSession(
-      user.id.toString(),
+      user.id,
       {
         access_token,
         refresh_token,
@@ -168,7 +168,7 @@ export class AuthService {
     // ========================
     // 🔹 2. Validar sesión en Redis
     // ========================
-    const session = await this.redisSession.getSession(userId.toString());
+    const session = await this.redisSession.getSession(userId);
 
     if (!session) {
       throw new UnauthorizedException('Sesión expirada o inválida');
@@ -201,7 +201,7 @@ export class AuthService {
 
     // ✅ 4. Actualizar sesión en Redis
     await this.redisSession.setSession(
-      userId.toString(),
+      userId,
       {
         access_token: newAccessToken,
         refresh_token: newRefreshToken,
@@ -216,10 +216,13 @@ export class AuthService {
     // Nota: Aquí no sabemos si era isSystemUser a menos que lo guardemos en el token o lo busquemos.
     // Como simplificación, intentamos detectar por el rol o simplemente devolver los tokens.
     // El frontend suele refrescar su estado tras el login.
+    // TODO: roleId ahora es UUID — esta comparación con 1 ya no aplica.
+    // Reemplazar por la lógica correcta para determinar si es usuario de sistema
+    // (ej.: buscar el rol en BD o comparar con un UUID conocido de admin).
     const menu = await this.menuService.getMenuForUser(
       userId,
-      payload.roleId === 1,
-    ); // Asumimos rol 1 como admin/sistema por ahora o lo dejamos como opcional
+      false, // ⚠️ Antes: payload.roleId === 1 — revisar lógica de detección admin
+    );
 
     return {
       access_token: newAccessToken,

@@ -6,6 +6,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
 } from 'class-validator';
 
@@ -29,13 +30,12 @@ export class CreateDepartmentDto {
   description?: string;
 
   @ApiProperty({
-    description: 'ID del centro médico al que pertenece el departamento',
-    example: 1,
+    description: 'ID del centro médico al que pertenece el departamento (UUID)',
+    example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
   })
   @IsNotEmpty({ message: 'El ID del centro médico es requerido.' })
-  @Type(() => Number)
-  @IsNumber()
-  medicalCenterId: number;
+  @IsUUID()
+  medicalCenterId: string;
 
   @ApiPropertyOptional({
     description: 'Estado activo del departamento',
@@ -46,11 +46,11 @@ export class CreateDepartmentDto {
   isActive?: boolean;
 
   @ApiPropertyOptional({
-    description: 'IDs de las especialidades asociadas al departamento',
-    example: [1, 2],
-    type: [Number],
+    description: 'IDs de las especialidades asociadas al departamento (UUID)',
+    example: ['a1b2c3d4-e5f6-7890-abcd-ef1234567890'],
+    type: [String],
   })
   @IsOptional()
-  @IsNumber({}, { each: true })
-  specialtyIds?: number[];
+  @IsUUID('4', { each: true })
+  specialtyIds?: string[];
 }

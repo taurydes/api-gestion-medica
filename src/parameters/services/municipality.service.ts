@@ -63,7 +63,7 @@ export class MunicipalityService {
   /**
    * @summary Find municipality by ID
    */
-  async findOne(id: number): Promise<Municipality> {
+  async findOne(id: string): Promise<Municipality> {
     const entity = await this.repo.findOne({
       where: { id },
       relations: ['state', 'parishes'],
@@ -79,7 +79,7 @@ export class MunicipalityService {
   /**
    * @summary Update municipality by ID
    */
-  async update(id: number, dto: UpdateMunicipalityDto): Promise<Municipality> {
+  async update(id: string, dto: UpdateMunicipalityDto): Promise<Municipality> {
     const entity = await this.findOne(id);
 
     Object.assign(entity, dto, { updatedAt: new Date() });
@@ -90,7 +90,7 @@ export class MunicipalityService {
   /**
    * @summary Soft delete municipality
    */
-  async remove(id: number): Promise<void> {
+  async remove(id: string): Promise<void> {
     const entity = await this.findOne(id);
 
     entity.deletedAt = new Date();

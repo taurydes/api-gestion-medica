@@ -32,6 +32,6 @@ export class ParishController {
   @ApiOperation({ summary: 'Find parish by ID' })
   @ApiParam({ name: 'id', example: 1 })
   findOne(@Param('id') id: string) {
-    return this.service.findOne(+id);
+    return this.service.findOne(id);
   }
 }

@@ -4,7 +4,6 @@ import {
   Delete,
   Get,
   Param,
-  ParseIntPipe,
   Patch,
   Post,
   Query,
@@ -52,7 +51,7 @@ export class SpecialtyController {
   @ApiOperation({ summary: 'Obtener una especialidad por ID' })
   @ApiResponse({ status: 200, description: 'Especialidad encontrada' })
   @ApiResponse({ status: 404, description: 'Especialidad no encontrada' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
+  findOne(@Param('id') id: string) {
     return this.specialtyService.findOne(id);
   }
 
@@ -65,7 +64,7 @@ export class SpecialtyController {
   @ApiResponse({ status: 404, description: 'Especialidad no encontrada' })
   @ApiResponse({ status: 400, description: 'Datos inválidos o duplicados' })
   update(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id') id: string,
     @Body() updateSpecialtyDto: UpdateSpecialtyDto,
   ) {
     return this.specialtyService.update(id, updateSpecialtyDto);
@@ -78,7 +77,7 @@ export class SpecialtyController {
   @ApiOperation({ summary: 'Eliminar una especialidad (soft delete)' })
   @ApiResponse({ status: 200, description: 'Especialidad eliminada exitosamente' })
   @ApiResponse({ status: 404, description: 'Especialidad no encontrada' })
-  remove(@Param('id', ParseIntPipe) id: number) {
+  remove(@Param('id') id: string) {
     return this.specialtyService.remove(id);
   }
 }

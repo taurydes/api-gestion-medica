@@ -145,7 +145,7 @@ export class CommonPersonService {
   /**
    * Obtener persona por ID con cache
    */
-  async findOne(id: number): Promise<CommonPerson> {
+  async findOne(id: string): Promise<CommonPerson> {
     const cacheKey = `commonPerson:${id}`;
 
     const cached = await this.cacheManager.get<CommonPerson>(cacheKey);
@@ -168,7 +168,7 @@ export class CommonPersonService {
    * Actualizar persona
    */
   async update(
-    id: number,
+    id: string,
     updateCommonPersonDto: UpdateCommonPersonDto,
   ): Promise<CommonPerson> {
     const person = await this.findOne(id); // Checks existence
@@ -194,7 +194,7 @@ export class CommonPersonService {
   /**
    * Eliminar persona
    */
-  async remove(id: number): Promise<void> {
+  async remove(id: string): Promise<void> {
     const person = await this.findOne(id); // Checks existence
 
     await this.commonPersonRepository.save({

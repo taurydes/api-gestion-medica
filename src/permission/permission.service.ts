@@ -49,7 +49,7 @@ export class PermissionService {
   // 🔒 Helpers de cache
   // -----------------------------
   private readonly LIST_KEY = 'permissions:list';
-  private itemKey = (id: number) => `permissions:${id}`;
+  private itemKey = (id: string) => `permissions:${id}`;
   private TTL_SECONDS = Number(process.env.CACHE_TTL ?? 3600); // usa tu env o el default del módulo
 
   private async cacheGet<T>(key: string) {
@@ -65,7 +65,7 @@ export class PermissionService {
       /* noop */
     }
   }
-  private async invalidateListAndItems(ids: number[] = []) {
+  private async invalidateListAndItems(ids: string[] = []) {
     await this.cacheDel(this.LIST_KEY);
     await Promise.all(ids.map((id) => this.cacheDel(this.itemKey(id))));
   }
@@ -130,7 +130,7 @@ export class PermissionService {
    *
    * ⚡ Cache: guarda/lee en `permissions:{id}`
    */
-  async findOne(id: number): Promise<Permission> {
+  async findOne(id: string): Promise<Permission> {
     try {
       const key = this.itemKey(id);
       const cached = await this.cacheGet<Permission>(key);
@@ -161,7 +161,7 @@ export class PermissionService {
    * 🧼 Cache: invalida item + lista, y precarga el item actualizado.
    */
   async update(
-    id: number,
+    id: string,
     updatePermissionDto: UpdatePermissionDto,
   ): Promise<Permission> {
     try {
@@ -191,7 +191,7 @@ export class PermissionService {
    *
    * 🧼 Cache: invalida item + lista
    */
-  async remove(id: number): Promise<void> {
+  async remove(id: string): Promise<void> {
     try {
       const permission = await this.findOne(id);
       await this.permissionRepository.remove(permission);
@@ -264,8 +264,8 @@ export class PermissionService {
    * Crea registros en permisos_roles solo si no existen (evita duplicados).
    * Retorna resumen de la operación.
    */
-  async assignAllPermissionsToRole(roleId: number): Promise<{
-    roleId: number;
+  async assignAllPermissionsToRole(roleId: string): Promise<{
+    roleId: string;
     totalMenus: number;
     totalPermissions: number;
     created: number;

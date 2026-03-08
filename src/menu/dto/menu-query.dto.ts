@@ -1,6 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsNumber, IsBoolean } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsOptional, IsString, IsUUID, IsBoolean } from 'class-validator';
 import { QueryPaginationDto } from 'src/common/dto/query-pagination.dto';
 
 export class MenuQueryDto extends QueryPaginationDto {
@@ -9,11 +8,10 @@ export class MenuQueryDto extends QueryPaginationDto {
   @IsString()
   search?: string;
 
-  @ApiPropertyOptional({ description: 'Filtrar por menú padre', type: Number })
+  @ApiPropertyOptional({ description: 'Filtrar por menú padre (UUID)', type: String })
   @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  parentId?: number;
+  @IsUUID()
+  parentId?: string;
 
   @ApiPropertyOptional({ description: 'Filtrar menús activos', type: Boolean })
   @IsOptional()

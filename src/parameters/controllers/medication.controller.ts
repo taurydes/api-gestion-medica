@@ -43,20 +43,20 @@ export class MedicationController {
   @Get(':id')
   @Permission(`${ModuleItemsMenu.ParametersModule}.${PermissionActionsMenu.VIEW}`)
   findOne(@Param('id') id: string) {
-    return this.medicationService.findOne(+id);
+    return this.medicationService.findOne(id);
   }
 
   @ApiOperation({ summary: 'Actualizar medicamento' })
   @Patch(':id')
   @Permission(`${ModuleItemsMenu.ParametersModule}.${PermissionActionsMenu.UPDATE}`)
   update(@Param('id') id: string, @Body() updateDto: UpdateMedicationDto) {
-    return this.medicationService.update(+id, updateDto);
+    return this.medicationService.update(id, updateDto);
   }
 
   @ApiOperation({ summary: 'Eliminar medicamento' })
   @Delete(':id')
   @Permission(`${ModuleItemsMenu.ParametersModule}.${PermissionActionsMenu.DELETE}`)
   remove(@Param('id') id: string) {
-    return this.medicationService.remove(+id);
+    return this.medicationService.remove(id);
   }
 }

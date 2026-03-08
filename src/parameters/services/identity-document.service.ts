@@ -63,7 +63,7 @@ export class IdentityDocumentService {
   /**
    * @summary Find identity document by ID
    */
-  async findOne(id: number): Promise<IdentityDocument> {
+  async findOne(id: string): Promise<IdentityDocument> {
     const entity = await this.repo.findOne({ where: { id } });
 
     if (!entity) throw new NotFoundException('Identity document not found');
@@ -75,7 +75,7 @@ export class IdentityDocumentService {
    * @summary Update identity document by ID
    */
   async update(
-    id: number,
+    id: string,
     dto: UpdateIdentityDocumentDto,
   ): Promise<IdentityDocument> {
     const entity = await this.findOne(id);
@@ -88,7 +88,7 @@ export class IdentityDocumentService {
   /**
    * @summary Soft delete identity document
    */
-  async remove(id: number): Promise<void> {
+  async remove(id: string): Promise<void> {
     const entity = await this.findOne(id);
 
     entity.deletedAt = new Date();

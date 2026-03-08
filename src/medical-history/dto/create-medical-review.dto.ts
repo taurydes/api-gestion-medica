@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString, MaxLength, IsNumber } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, MaxLength, IsUUID } from 'class-validator';
 
 /**
  * DTO para crear una reseña/diagnóstico médico
@@ -7,12 +7,12 @@ import { IsNotEmpty, IsOptional, IsString, MaxLength, IsNumber } from 'class-val
  */
 export class CreateMedicalReviewDto {
   @ApiProperty({
-    description: 'ID del historial médico al cual se agrega el diagnóstico',
-    example: 1,
+    description: 'ID del historial médico al cual se agrega el diagnóstico (UUID)',
+    example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
   })
-  @IsNumber()
+  @IsUUID()
   @IsNotEmpty({ message: 'El ID del historial médico es requerido' })
-  medicalHistoryId: number;
+  medicalHistoryId: string;
 
   @ApiProperty({
     description: 'Diagnóstico del médico',

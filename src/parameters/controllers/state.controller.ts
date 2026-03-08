@@ -29,13 +29,13 @@ export class StateController {
   @ApiOperation({ summary: 'Get state by ID' })
   @ApiParam({ name: 'id', example: 1 })
   findOne(@Param('id') id: string) {
-    return this.service.findOne(+id);
+    return this.service.findOne(id);
   }
 
   @Get(':id/municipalities')
   @ApiOperation({ summary: 'Get a state and its municipalities' })
   @ApiParam({ name: 'id', example: 1 })
   findWithMunicipalities(@Param('id') id: string) {
-    return this.service.findWithMunicipalities(+id);
+    return this.service.findWithMunicipalities(id);
   }
 }

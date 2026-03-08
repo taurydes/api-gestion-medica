@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsOptional, IsString, IsBooleanString, Min } from 'class-validator';
+import { IsOptional, IsString, IsBooleanString, IsUUID } from 'class-validator';
 import { QueryPaginationDto } from 'src/common/dto/query-pagination.dto';
 
 export class MunicipalityQueryDto extends QueryPaginationDto {
@@ -8,11 +8,10 @@ export class MunicipalityQueryDto extends QueryPaginationDto {
   @IsString()
   description?: string;
 
-  @ApiPropertyOptional({ description: 'Filter by State ID' })
+  @ApiPropertyOptional({ description: 'Filter by State ID (UUID)' })
   @IsOptional()
-  @IsInt()
-  @Min(1)
-  stateId?: number;
+  @IsUUID()
+  stateId?: string;
 
   @ApiPropertyOptional({ description: 'Filter by active status', example: true })
   @IsOptional()

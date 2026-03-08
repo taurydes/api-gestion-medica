@@ -15,11 +15,11 @@ import { Parish } from './parish.entity';
  */
 @Entity({ schema: 'parametro', name: 'municipio' })
 export class Municipality {
-  @PrimaryGeneratedColumn('increment', { type: 'bigint' })
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
-  @Column({ name: 'estado_id', type: 'bigint' })
-  stateId: number;
+  @Column({ name: 'estado_id', type: 'uuid' })
+  stateId: string;
 
   @Column({ name: 'descripcion', type: 'varchar', length: 255 })
   description: string;

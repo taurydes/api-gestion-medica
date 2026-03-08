@@ -11,17 +11,17 @@ import {
 
 @Entity({ schema: 'seguridad', name: 'permisos_roles' })
 export class PermissionRole {
-  @PrimaryGeneratedColumn({ type: 'bigint' })
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
-  @Column({ name: 'permiso_id', type: 'bigint' })
-  permissionId: number;
+  @Column({ name: 'permiso_id', type: 'uuid' })
+  permissionId: string;
 
-  @Column({ name: 'submenu_id', type: 'bigint' })
-  submenuId: number;
+  @Column({ name: 'submenu_id', type: 'uuid' })
+  submenuId: string;
 
-  @Column({ name: 'rol_id', type: 'bigint' })
-  roleId: number;
+  @Column({ name: 'rol_id', type: 'uuid' })
+  roleId: string;
 
   @Column({ name: 'activo', type: 'boolean', default: true })
   isActive: boolean;

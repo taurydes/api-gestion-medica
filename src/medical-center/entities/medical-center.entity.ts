@@ -13,8 +13,8 @@ import { Parish } from 'src/parameters/entities/parish.entity';
 
 @Entity({ schema: 'parametro', name: 'medical_centers' })
 export class MedicalCenter {
-  @PrimaryGeneratedColumn({ type: 'bigint' })
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
   @Column({ type: 'varchar', length: 255 })
   name: string;
@@ -31,8 +31,8 @@ export class MedicalCenter {
   @Column({ type: 'boolean', default: true })
   isActive: boolean;
 
-  @Column({ name: 'parroquia_id', type: 'bigint', nullable: true })
-  parishId: number;
+  @Column({ name: 'parroquia_id', type: 'uuid', nullable: true })
+  parishId: string;
 
   @Column({
     name: 'created_at',

@@ -64,7 +64,7 @@ export class UserSecurityController {
   @Get(':id')
   @Permission(`${ModuleItemsMenu.UserModule}.${PermissionActionsMenu.VIEW}`)
   findOne(@Param('id') id: string) {
-    return this.userSecurityService.findOne(+id);
+    return this.userSecurityService.findOne(id);
   }
 
   /**
@@ -78,7 +78,7 @@ export class UserSecurityController {
   @Patch(':id')
   @Permission(`${ModuleItemsMenu.UserModule}.${PermissionActionsMenu.UPDATE}`)
   update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
-    return this.userSecurityService.update(+id, updateUserDto);
+    return this.userSecurityService.update(id, updateUserDto);
   }
 
   /**
@@ -92,6 +92,6 @@ export class UserSecurityController {
   @Delete(':id')
   @Permission(`${ModuleItemsMenu.UserModule}.${PermissionActionsMenu.DELETE}`)
   remove(@Param('id') id: string) {
-    return this.userSecurityService.remove(+id);
+    return this.userSecurityService.remove(id);
   }
 }

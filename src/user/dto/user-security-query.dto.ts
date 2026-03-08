@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString, IsUUID } from 'class-validator';
 import { QueryPaginationDto } from 'src/common/dto/query-pagination.dto';
 
 
@@ -9,9 +9,10 @@ export class UserSecurityQueryDto extends QueryPaginationDto {
   @IsString()
   search?: string;
 
-  @ApiPropertyOptional({ description: 'Filtrar por rol', type: Number })
+  @ApiPropertyOptional({ description: 'Filtrar por rol (UUID)', type: String })
   @IsOptional()
-  roleId?: number;
+  @IsUUID()
+  roleId?: string;
 
   @ApiPropertyOptional({ description: 'Filtrar usuarios activos', type: Boolean })
   @IsOptional()

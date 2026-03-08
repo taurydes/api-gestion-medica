@@ -95,7 +95,7 @@ export class PatientService {
    */
   async create(
     createPatientDto: CreatePatientDto,
-    userId?: number,
+    userId?: string,
   ): Promise<Patient> {
     try {
       let commonPerson: CommonPerson | null = null;
@@ -314,7 +314,7 @@ export class PatientService {
    * @param id - ID del paciente
    * @returns Paciente encontrado con todas sus relaciones
    */
-  async findOne(id: number): Promise<Patient> {
+  async findOne(id: string): Promise<Patient> {
     const cacheKey = `patient:${id}`;
 
     try {
@@ -404,9 +404,9 @@ export class PatientService {
    * @returns Paciente actualizado
    */
   async update(
-    id: number,
+    id: string,
     updatePatientDto: UpdatePatientDto,
-    userId?: number,
+    userId?: string,
   ): Promise<Patient> {
     try {
       const patient = await this.patientRepository.findOne({
@@ -521,7 +521,7 @@ export class PatientService {
    * Eliminar un paciente (soft delete)
    * @param id - ID del paciente a eliminar
    */
-  async remove(id: number): Promise<void> {
+  async remove(id: string): Promise<void> {
     try {
       const patient = await this.findOne(id);
 

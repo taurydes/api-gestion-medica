@@ -5,6 +5,7 @@ import {
   IsNumber,
   IsString,
   IsDateString,
+  IsUUID,
   MaxLength,
 } from 'class-validator';
 
@@ -13,36 +14,36 @@ import {
  */
 export class CreateMedicalHistoryDto {
   @ApiProperty({
-    description: 'ID del paciente',
-    example: 1,
+    description: 'ID del paciente (UUID)',
+    example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
   })
-  @IsNumber()
+  @IsUUID()
   @IsNotEmpty({ message: 'El ID del paciente es requerido' })
-  patientId: number;
+  patientId: string;
 
   @ApiProperty({
-    description: 'ID del doctor que atiende',
-    example: 1,
+    description: 'ID del doctor que atiende (UUID)',
+    example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
   })
-  @IsNumber()
+  @IsUUID()
   @IsNotEmpty({ message: 'El ID del doctor es requerido' })
-  doctorId: number;
+  doctorId: string;
 
   @ApiPropertyOptional({
-    description: 'ID del centro médico donde se realiza la consulta',
-    example: 1,
+    description: 'ID del centro médico donde se realiza la consulta (UUID)',
+    example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
   })
   @IsOptional()
-  @IsNumber()
-  medicalCenterId?: number;
+  @IsUUID()
+  medicalCenterId?: string;
 
   @ApiPropertyOptional({
-    description: 'ID de la especialidad bajo la cual se atiende',
-    example: 1,
+    description: 'ID de la especialidad bajo la cual se atiende (UUID)',
+    example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
   })
   @IsOptional()
-  @IsNumber()
-  specialtyId?: number;
+  @IsUUID()
+  specialtyId?: string;
 
   @ApiProperty({
     description: 'Fecha y hora de la consulta',
@@ -136,10 +137,10 @@ export class CreateMedicalHistoryDto {
   oxygenSaturation?: number;
 
   @ApiPropertyOptional({
-    description: 'ID de la cita médica asociada',
-    example: 1,
+    description: 'ID de la cita médica asociada (UUID)',
+    example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
   })
   @IsOptional()
-  @IsNumber()
-  medicalAppointmentId?: number;
+  @IsUUID()
+  medicalAppointmentId?: string;
 }

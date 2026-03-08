@@ -120,7 +120,7 @@ export class MenuService {
    * Obtiene un menú por su ID.
    * Incluye relaciones útiles: padre, hijos, permisos.
    */
-  async findOne(id: number): Promise<Menu> {
+  async findOne(id: string): Promise<Menu> {
     const cacheKey = `menu:${id}`;
 
     try {
@@ -159,7 +159,7 @@ export class MenuService {
    * Actualiza un menú existente.
    * Valida que el menú exista y que no se apunte a sí mismo como padre.
    */
-  async update(id: number, updateMenuDto: UpdateMenuDto): Promise<Menu> {
+  async update(id: string, updateMenuDto: UpdateMenuDto): Promise<Menu> {
     try {
       const menu = await this.menuRepository.findOneBy({ id });
 
@@ -215,7 +215,7 @@ export class MenuService {
    * Elimina un menú por ID.
    * (Si más adelante quieres borrado lógico, aquí en vez de delete se hace update del deletedAt.)
    */
-  async remove(id: number): Promise<void> {
+  async remove(id: string): Promise<void> {
     try {
       const menu = await this.menuRepository.findOneBy({ id });
 
@@ -238,7 +238,7 @@ export class MenuService {
   /**
    * Genera el menú dinámico para un usuario basado en su rol y permisos asignados.
    */
-  async getMenuForUser(userId: number,isUserSecurity: boolean): Promise<Menu[]> {
+  async getMenuForUser(userId: string,isUserSecurity: boolean): Promise<Menu[]> {
     let user: Partial<UserSecurity> | Partial<User> | null;
        
        if (isUserSecurity) {
@@ -295,7 +295,7 @@ export class MenuService {
    * Construye un árbol jerárquico de menús.
    */
   private buildMenuTree(menus: Menu[]): Menu[] {
-    const menuMap = new Map<number, Menu>();
+    const menuMap = new Map<string, Menu>();
 
     // Crear copia limpia sin children
     menus.forEach((menu) => {

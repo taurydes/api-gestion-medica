@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsNumber, IsBoolean } from 'class-validator';
+import { IsOptional, IsString, IsUUID, IsBoolean } from 'class-validator';
 import { QueryPaginationDto } from 'src/common/dto/query-pagination.dto';
 
 export class RoleQueryDto extends QueryPaginationDto {
@@ -8,10 +8,10 @@ export class RoleQueryDto extends QueryPaginationDto {
   @IsString()
   search?: string;
 
-  @ApiPropertyOptional({ description: 'Filtrar por usuario creador', type: Number })
+  @ApiPropertyOptional({ description: 'Filtrar por usuario creador (UUID)', type: String })
   @IsOptional()
-  @IsNumber()
-  userId?: number;
+  @IsUUID()
+  userId?: string;
 
   @ApiPropertyOptional({ description: 'Filtrar por estado activo', type: Boolean })
   @IsOptional()

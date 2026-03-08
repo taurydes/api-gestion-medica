@@ -43,7 +43,7 @@ export class CommonPersonController {
   @Get(':id')
   @Permission(`${ModuleItemsMenu.CommonPersonModule}.${PermissionActionsMenu.VIEW}`)
   findOne(@Param('id') id: string) {
-    return this.commonPersonService.findOne(+id);
+    return this.commonPersonService.findOne(id);
   }
 
   @ApiOperation({ summary: 'Actualizar persona' })
@@ -53,13 +53,13 @@ export class CommonPersonController {
     @Param('id') id: string,
     @Body() updateCommonPersonDto: UpdateCommonPersonDto,
   ) {
-    return this.commonPersonService.update(+id, updateCommonPersonDto);
+    return this.commonPersonService.update(id, updateCommonPersonDto);
   }
 
   @ApiOperation({ summary: 'Eliminar persona' })
   @Delete(':id')
   @Permission(`${ModuleItemsMenu.CommonPersonModule}.${PermissionActionsMenu.DELETE}`)
   remove(@Param('id') id: string) {
-    return this.commonPersonService.remove(+id);
+    return this.commonPersonService.remove(id);
   }
 }

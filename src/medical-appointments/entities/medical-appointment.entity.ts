@@ -42,8 +42,8 @@ export enum AppointmentType {
  */
 @Entity({ schema: 'public', name: 'medical_appointments' })
 export class MedicalAppointment {
-  @PrimaryGeneratedColumn({ type: 'bigint' })
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
   // ─── Número de cita ────────────────────────────────────────────────────────
 
@@ -90,20 +90,20 @@ export class MedicalAppointment {
 
   // ─── FKs ───────────────────────────────────────────────────────────────────
 
-  @Column({ name: 'patient_id', type: 'bigint' })
-  patientId: number;
+  @Column({ name: 'patient_id', type: 'uuid' })
+  patientId: string;
 
-  @Column({ name: 'doctor_id', type: 'bigint' })
-  doctorId: number;
+  @Column({ name: 'doctor_id', type: 'uuid' })
+  doctorId: string;
 
-  @Column({ name: 'specialty_id', type: 'bigint', nullable: true })
-  specialtyId: number | null;
+  @Column({ name: 'specialty_id', type: 'uuid', nullable: true })
+  specialtyId: string | null;
 
-  @Column({ name: 'medical_center_id', type: 'bigint', nullable: true })
-  medicalCenterId: number | null;
+  @Column({ name: 'medical_center_id', type: 'uuid', nullable: true })
+  medicalCenterId: string | null;
 
-  @Column({ name: 'department_id', type: 'bigint', nullable: true })
-  departmentId: number | null;
+  @Column({ name: 'department_id', type: 'uuid', nullable: true })
+  departmentId: string | null;
 
   // ─── Auditoría ─────────────────────────────────────────────────────────────
 
@@ -119,11 +119,11 @@ export class MedicalAppointment {
   @Column({ name: 'deleted_at', type: 'timestamp', nullable: true })
   deletedAt: Date | null;
 
-  @Column({ name: 'created_by', type: 'bigint', nullable: true })
-  createdBy: number | null;
+  @Column({ name: 'created_by', type: 'uuid', nullable: true })
+  createdBy: string | null;
 
-  @Column({ name: 'updated_by', type: 'bigint', nullable: true })
-  updatedBy: number | null;
+  @Column({ name: 'updated_by', type: 'uuid', nullable: true })
+  updatedBy: string | null;
 
   // ─── Relaciones ────────────────────────────────────────────────────────────
 

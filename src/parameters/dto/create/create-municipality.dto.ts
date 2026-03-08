@@ -1,11 +1,10 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class CreateMunicipalityDto {
-  @ApiProperty({ description: 'State ID associated to the municipality' })
-  @IsInt()
-  @Min(1)
-  stateId: number;
+  @ApiProperty({ description: 'State ID associated to the municipality (UUID)' })
+  @IsUUID()
+  stateId: string;
 
   @ApiProperty({ description: 'Municipality description' })
   @IsString()

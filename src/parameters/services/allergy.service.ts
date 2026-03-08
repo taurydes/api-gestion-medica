@@ -96,7 +96,7 @@ export class AllergyService {
     return result;
   }
 
-  async findOne(id: number): Promise<Allergy> {
+  async findOne(id: string): Promise<Allergy> {
     const cacheKey = `allergy:${id}`;
 
     const cached = await this.cacheManager.get<Allergy>(cacheKey);
@@ -113,7 +113,7 @@ export class AllergyService {
   }
 
   async update(
-    id: number,
+    id: string,
     updateAllergyDto: UpdateAllergyDto,
   ): Promise<Allergy> {
     const allergy = await this.findOne(id);
@@ -132,7 +132,7 @@ export class AllergyService {
     return updated;
   }
 
-  async remove(id: number): Promise<void> {
+  async remove(id: string): Promise<void> {
     const allergy = await this.findOne(id);
 
     await this.allergyRepository.save({

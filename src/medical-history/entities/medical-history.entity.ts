@@ -23,34 +23,34 @@ import {
  */
 @Entity({ schema: 'public', name: 'medical_histories' })
 export class MedicalHistory {
-  @PrimaryGeneratedColumn({ type: 'bigint' })
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
   // ========== RELACIONES PRINCIPALES ==========
 
-  @Column({ name: 'patient_id', type: 'bigint' })
-  patientId: number;
+  @Column({ name: 'patient_id', type: 'uuid' })
+  patientId: string;
 
   @ManyToOne(() => Patient, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   @JoinColumn({ name: 'patient_id' })
   patient: Patient;
 
-  @Column({ name: 'doctor_id', type: 'bigint' })
-  doctorId: number;
+  @Column({ name: 'doctor_id', type: 'uuid' })
+  doctorId: string;
 
   @ManyToOne(() => Doctor, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   @JoinColumn({ name: 'doctor_id' })
   doctor: Doctor;
 
-  @Column({ name: 'medical_center_id', type: 'bigint', nullable: true })
-  medicalCenterId: number | null;
+  @Column({ name: 'medical_center_id', type: 'uuid', nullable: true })
+  medicalCenterId: string | null;
 
   @ManyToOne(() => MedicalCenter, { onDelete: 'SET NULL', onUpdate: 'CASCADE' })
   @JoinColumn({ name: 'medical_center_id' })
   medicalCenter: MedicalCenter;
 
-  @Column({ name: 'specialty_id', type: 'bigint', nullable: true })
-  specialtyId: number | null;
+  @Column({ name: 'specialty_id', type: 'uuid', nullable: true })
+  specialtyId: string | null;
 
   @ManyToOne(() => Specialty, { onDelete: 'SET NULL', onUpdate: 'CASCADE' })
   @JoinColumn({ name: 'specialty_id' })
@@ -179,16 +179,16 @@ export class MedicalHistory {
   @Column({ name: 'deleted_at', type: 'timestamp', nullable: true })
   deletedAt: Date | null;
 
-  @Column({ name: 'created_by', type: 'bigint', nullable: true })
-  createdBy: number | null;
+  @Column({ name: 'created_by', type: 'uuid', nullable: true })
+  createdBy: string | null;
 
-  @Column({ name: 'updated_by', type: 'bigint', nullable: true })
-  updatedBy: number | null;
+  @Column({ name: 'updated_by', type: 'uuid', nullable: true })
+  updatedBy: string | null;
 
   // ========== RELACIÓN CON CITA MÉDICA ==========
 
-  @Column({ name: 'medical_appointment_id', type: 'bigint', nullable: true })
-  medicalAppointmentId: number | null;
+  @Column({ name: 'medical_appointment_id', type: 'uuid', nullable: true })
+  medicalAppointmentId: string | null;
 
   // Relación inversa con MedicalAppointment (1:1 opcional)
   // Se usa 'any' para evitar importación circular; la relación se define

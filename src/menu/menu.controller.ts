@@ -55,7 +55,7 @@ export class MenuController {
   @Get(':id')
   @Permission(`${ModuleItemsMenu.MenuModule}.${PermissionActionsMenu.VIEW}`)
   findOne(@Param('id') id: string) {
-    return this.menuService.findOne(+id);
+    return this.menuService.findOne(id);
   }
 
   /**
@@ -69,7 +69,7 @@ export class MenuController {
   @Patch(':id')
   @Permission(`${ModuleItemsMenu.MenuModule}.${PermissionActionsMenu.UPDATE}`)
   update(@Param('id') id: string, @Body() updateMenuDto: UpdateMenuDto) {
-    return this.menuService.update(+id, updateMenuDto);
+    return this.menuService.update(id, updateMenuDto);
   }
 
   /**
@@ -83,6 +83,6 @@ export class MenuController {
   @Delete(':id')
   @Permission(`${ModuleItemsMenu.MenuModule}.${PermissionActionsMenu.DELETE}`)
   remove(@Param('id') id: string) {
-    return this.menuService.remove(+id);
+    return this.menuService.remove(id);
   }
 }

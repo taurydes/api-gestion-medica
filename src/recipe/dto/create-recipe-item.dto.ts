@@ -3,6 +3,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsNumber,
+  IsUUID,
   IsString,
   MaxLength,
 } from 'class-validator';
@@ -12,12 +13,12 @@ import {
  */
 export class CreateRecipeItemDto {
   @ApiPropertyOptional({
-    description: 'ID del medicamento del catálogo (opcional)',
-    example: 1,
+    description: 'ID del medicamento del catálogo (UUID, opcional)',
+    example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
   })
   @IsOptional()
-  @IsNumber()
-  medicationId?: number;
+  @IsUUID()
+  medicationId?: string;
 
   @ApiProperty({
     description: 'Nombre del medicamento',

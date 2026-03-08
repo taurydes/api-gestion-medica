@@ -61,7 +61,7 @@ export class DepartmentsController {
     `${ModuleItemsMenu.DepartmentsModule}.${PermissionActionsMenu.VIEW}`,
   )
   findOne(@Param('id') id: string) {
-    return this.departmentsService.findOne(+id);
+    return this.departmentsService.findOne(id);
   }
 
   @ApiOperation({
@@ -73,7 +73,7 @@ export class DepartmentsController {
     `${ModuleItemsMenu.DepartmentsModule}.${PermissionActionsMenu.UPDATE}`,
   )
   update(@Param('id') id: string, @Body() dto: UpdateDepartmentDto) {
-    return this.departmentsService.update(+id, dto);
+    return this.departmentsService.update(id, dto);
   }
 
   @ApiOperation({
@@ -85,6 +85,6 @@ export class DepartmentsController {
     `${ModuleItemsMenu.DepartmentsModule}.${PermissionActionsMenu.DELETE}`,
   )
   remove(@Param('id') id: string) {
-    return this.departmentsService.remove(+id);
+    return this.departmentsService.remove(id);
   }
 }

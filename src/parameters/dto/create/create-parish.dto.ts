@@ -1,11 +1,10 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class CreateParishDto {
-  @ApiProperty({ description: 'Municipality ID' })
-  @IsInt()
-  @Min(1)
-  municipalityId: number;
+  @ApiProperty({ description: 'Municipality ID (UUID)' })
+  @IsUUID()
+  municipalityId: string;
 
   @ApiProperty({ description: 'Description of the parish' })
   @IsString()

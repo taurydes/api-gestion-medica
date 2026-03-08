@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsNumber, IsOptional, IsString } from 'class-validator';
-import { Transform, Type } from 'class-transformer';
+import { IsBoolean, IsOptional, IsString, IsUUID } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { QueryPaginationDto } from 'src/common/dto/query-pagination.dto';
 
 /**
@@ -16,31 +16,25 @@ export class RecipeQueryDto extends QueryPaginationDto {
   search?: string;
 
   @ApiPropertyOptional({
-    description: 'Filtrar por ID de paciente',
-    example: 1,
+    description: 'Filtrar por ID de paciente (UUID)',
   })
   @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  patientId?: number;
+  @IsUUID()
+  patientId?: string;
 
   @ApiPropertyOptional({
-    description: 'Filtrar por ID de doctor',
-    example: 1,
+    description: 'Filtrar por ID de doctor (UUID)',
   })
   @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  doctorId?: number;
+  @IsUUID()
+  doctorId?: string;
 
   @ApiPropertyOptional({
-    description: 'Filtrar por ID de historial médico',
-    example: 1,
+    description: 'Filtrar por ID de historial médico (UUID)',
   })
   @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  medicalHistoryId?: number;
+  @IsUUID()
+  medicalHistoryId?: string;
 
   @ApiPropertyOptional({
     description: 'Filtrar por estado (active, dispensed, expired, cancelled)',

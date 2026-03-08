@@ -11,8 +11,8 @@ import { CommonPerson } from '../../common-person/entities/common-person.entity'
 
 @Entity({ schema: 'public', name: 'users' })
 export class User {
-  @PrimaryGeneratedColumn({ type: 'bigint' })
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
   @Column({ type: 'varchar', length: 255, unique: true })
   name: string;
@@ -47,8 +47,8 @@ export class User {
   @Column({ name: 'deleted_at', type: 'timestamp', nullable: true })
   deletedAt: Date | null;
 
-  @Column({ name: 'role_id', type: 'bigint' })
-  roleId: number;
+  @Column({ name: 'role_id', type: 'uuid' })
+  roleId: string;
 
   @Column({
     name: 'first_login',

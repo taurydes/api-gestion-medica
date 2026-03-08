@@ -98,7 +98,7 @@ export class MedicationService {
     return result;
   }
 
-  async findOne(id: number): Promise<Medication> {
+  async findOne(id: string): Promise<Medication> {
     const cacheKey = `medication:${id}`;
 
     const cached = await this.cacheManager.get<Medication>(cacheKey);
@@ -117,7 +117,7 @@ export class MedicationService {
   }
 
   async update(
-    id: number,
+    id: string,
     updateDto: UpdateMedicationDto,
   ): Promise<Medication> {
     const medication = await this.findOne(id);
@@ -136,7 +136,7 @@ export class MedicationService {
     return updated;
   }
 
-  async remove(id: number): Promise<void> {
+  async remove(id: string): Promise<void> {
     const medication = await this.findOne(id);
 
     await this.medicationRepository.save({

@@ -23,27 +23,27 @@ import { RecipeItem } from './recipe-item.entity';
  */
 @Entity({ schema: 'public', name: 'recipes' })
 export class Recipe {
-  @PrimaryGeneratedColumn({ type: 'bigint' })
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
   // ========== RELACIONES ==========
 
-  @Column({ name: 'medical_history_id', type: 'bigint' })
-  medicalHistoryId: number;
+  @Column({ name: 'medical_history_id', type: 'uuid' })
+  medicalHistoryId: string;
 
   @ManyToOne(() => MedicalHistory, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   @JoinColumn({ name: 'medical_history_id' })
   medicalHistory: MedicalHistory;
 
-  @Column({ name: 'patient_id', type: 'bigint' })
-  patientId: number;
+  @Column({ name: 'patient_id', type: 'uuid' })
+  patientId: string;
 
   @ManyToOne(() => Patient, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   @JoinColumn({ name: 'patient_id' })
   patient: Patient;
 
-  @Column({ name: 'doctor_id', type: 'bigint' })
-  doctorId: number;
+  @Column({ name: 'doctor_id', type: 'uuid' })
+  doctorId: string;
 
   @ManyToOne(() => Doctor, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   @JoinColumn({ name: 'doctor_id' })
@@ -98,16 +98,16 @@ export class Recipe {
   @Column({ name: 'deleted_at', type: 'timestamp', nullable: true })
   deletedAt: Date | null;
 
-  @Column({ name: 'created_by', type: 'bigint', nullable: true })
-  createdBy: number | null;
+  @Column({ name: 'created_by', type: 'uuid', nullable: true })
+  createdBy: string | null;
 
-  @Column({ name: 'updated_by', type: 'bigint', nullable: true })
-  updatedBy: number | null;
+  @Column({ name: 'updated_by', type: 'uuid', nullable: true })
+  updatedBy: string | null;
 
   // ========== RELACIÓN CON CITA MÉDICA ==========
 
-  @Column({ name: 'medical_appointment_id', type: 'bigint', nullable: true })
-  medicalAppointmentId: number | null;
+  @Column({ name: 'medical_appointment_id', type: 'uuid', nullable: true })
+  medicalAppointmentId: string | null;
 
   // Relación con cita médica (opcional - usa string para evitar importación circular)
   @ManyToOne('MedicalAppointment', 'recipes', {

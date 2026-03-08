@@ -23,7 +23,7 @@ export interface LogCreationOptions {
   statusCode?: number;
   route?: string;
   httpMethod?: string;
-  userId?: number;
+  userId?: string;
   correlationId?: string;
   host?: string;
   appVersion?: string;
