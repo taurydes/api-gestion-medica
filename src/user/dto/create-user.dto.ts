@@ -10,7 +10,7 @@ import {
   MinLength,
   ValidateNested,
 } from 'class-validator';
-import { CreateCommonPersonDto } from './create-common-person.dto';
+import { CreateCommonPersonDto } from '../../common-person/dto/create-common-person.dto';
 import { CreateDoctorNestedDto } from 'src/doctors/dto/create-doctor-nested.dto';
 
 export class CreateUserDto {

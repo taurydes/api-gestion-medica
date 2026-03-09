@@ -3,29 +3,76 @@ services:
   # 🚀 SERVICIO PRINCIPAL (NestJS)
   # ===============================
   api-gestion-medica:
-      build:
-        context: .
-        dockerfile: Dockerfile
-      container_name: api-gestion-medica
-      restart: always
-      env_file: .env
-      volumes:
-        - ${UPLOADS_PATH}:/app/uploads
-        - /etc/localtime:/etc/localtime:ro
-        - /etc/timezone:/etc/timezone:ro
-      environment:
-        TZ: America/Caracas
-      ports:
-        - "${PORT}:${PORT}"
-      networks:
-        - base-net
-      depends_on:
-        - redis-api
-      healthcheck:
-        test: ["CMD", "node", "-e", "require('net').createConnection(process.env.PORT).on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
-        interval: 30s
-        timeout: 5s
-        retries: 5
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: api-gestion-medica
+    restart: always
+    env_file: .env
+    environment:
+      - PORT=8008
+      - REDIS_HOST=redis-api
+      - REDIS_SESSION_HOST=redis-api
+      - TZ=America/Caracas
+    volumes:
+      - ${UPLOADS_PATH:-./uploads}:/app/uploads
+    ports:
+      - "8008:8008"
+    networks:
+      - base-net
+    depends_on:
+      redis-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('net').createConnection(process.env.PORT || 8008, 'localhost').on('connect', () => process.exit(0)).on('error', () => process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  # ===============================
+  # 🖼️ FRONTEND (Angular)
+  # ===============================
+  frontend-angular:
+    build:
+      context: ../portal-usuario/gestion-medica
+      dockerfile: Dockerfile
+    container_name: frontend-angular
+    restart: always
+    ports:
+      - "8007:80"
+    networks:
+      - base-net
+    depends_on:
+      api-gestion-medica:
+        condition: service_healthy
+      ml-api-python:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80/index.html"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ===============================
+  # 🧠 MACHINE LEARNING (Python/FastAPI)
+  # ===============================
+  ml-api-python:
+    build:
+      context: ../machine-learning/detector-cancer-de-mama
+      dockerfile: Dockerfile
+    container_name: ml-api-python
+    restart: always
+    ports:
+      - "8009:8501"
+    environment:
+      - TZ=America/Caracas
+    networks:
+      - base-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # ===============================
   # 🧠 REDIS
@@ -35,14 +82,14 @@ services:
     container_name: redis-api
     restart: always
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "8010:6379"
     networks:
       - base-net
     volumes:
       - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 30s
+      interval: 10s
       timeout: 5s
       retries: 5
 
@@ -59,35 +106,23 @@ services:
   #     POSTGRES_DB: ${DB_NAME}
   #     TZ: America/Caracas
   #   ports:
-  #     - "${DB_PORT}:5432"
+  #     - "${DB_PORT:-5432}:5432"
   #   volumes:
   #     - postgres_data:/var/lib/postgresql/data
   #   networks:
   #     - base-net
   #   healthcheck:
   #     test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
-  #     interval: 30s
+  #     interval: 10s
   #     timeout: 10s
   #     retries: 5
 
   # ===============================
-  # 📬 MAILPIT (para test de correos)
+  # 📬 MAILPIT
   # ===============================
   # mailpit:
-  #   image: axllent/mailpit:latest
-  #   container_name: mailpit
-  #   restart: always
-  #   ports:
-  #     - "1025:1025"   # SMTP
-  #     - "8025:8025"   # Web UI
-  #   networks:
-  #     - base-net
-  #   environment:
-  #     - TZ=America/Caracas
+  #   ... (se mantiene comentado)
 
-# ===============================
-# 🔗 RED Y VOLUMENES
-# ===============================
 networks:
   base-net:
     driver: bridge

@@ -1,0 +1,15 @@
+node_modules
+dist
+uploads
+.git
+.vscode
+.github
+Dockerfile
+docker-compose.yml
+*.md
+.env
+.env.*
+*.log
+coverage
+test
+*.spec.ts

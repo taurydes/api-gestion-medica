@@ -1,52 +1,61 @@
 # ===========================
-# 📦 Etapa 1 - Build
+# 📦 Etapa 1 - Dependencias
 # ===========================
-FROM node:20-slim AS builder
-
+FROM node:20-slim AS deps
 WORKDIR /app
 
-# Instalar dependencias necesarias
-RUN apt-get update && apt-get install -y python3 build-essential
+# Herramientas nativas para compilar módulos (bcrypt, etc.)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copiar package.json e instalar deps
+# Copiar manifiestos primero para aprovechar la caché de capas Docker.
+# Solo se reinstalan dependencias si cambia package*.json.
 COPY package*.json ./
-RUN npm install --legacy-peer-deps
+RUN npm ci --legacy-peer-deps --no-audit
 
-# Copiar código fuente
+
+# ===========================
+# 🔨 Etapa 2 - Compilación
+# ===========================
+FROM node:20-slim AS builder
+WORKDIR /app
+
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Compilar TS
+# Compilar TypeScript
 RUN npm run build
 
 
 # ===========================
-# 🚀 Etapa 2 - Runtime
+# 🚀 Etapa 3 - Runtime
 # ===========================
-FROM node:20-slim
-
+FROM node:20-slim AS runtime
 WORKDIR /app
 
-# Instalar FFmpeg + ffprobe
-RUN apt-get update && apt-get install -y ffmpeg
+# FFmpeg + ffprobe para procesamiento de video/archivos
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
 
-# Variables del entorno
+# Variables de entorno de producción
 ENV NODE_ENV=production
 ENV TZ=America/Caracas
 
-# Copiar dependencias y dist
-COPY --from=builder /app/package*.json ./
-RUN npm install --only=production --legacy-peer-deps
+# Instalar solo dependencias de producción (sin devDependencies)
+COPY package*.json ./
+RUN npm ci --omit=dev --legacy-peer-deps --no-audit
 
+# Copiar artefactos del build
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/src/logs/views ./src/logs/views
 
-# Crear directorio para uploads
+# Crear directorio para uploads (persistido vía volume en docker-compose)
 RUN mkdir -p ./uploads
 
-# Exponer puerto
-ARG PORT=7008
+# Puerto configurado por variable de entorno (default: 8008)
+ARG PORT=8008
 ENV PORT=${PORT}
-EXPOSE ${PORT}
+EXPOSE 8008
 
-# Iniciar app
 CMD ["node", "dist/main.js"]
