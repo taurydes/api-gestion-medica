@@ -85,4 +85,5 @@ export class CreateCommonPersonDto {
   @IsOptional()
   @IsBoolean({ message: 'isActive debe ser un valor booleano' })
   isActive?: boolean;
+
 }
