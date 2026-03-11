@@ -58,9 +58,7 @@ export class MenuService {
 
       return menu;
     } catch (error) {
-      throw new BadRequestException(
-        `Error al crear el menú: ${error.message}`,
-      );
+      throw new BadRequestException(`Error al crear el menú: ${error.message}`);
     }
   }
 
@@ -80,14 +78,13 @@ export class MenuService {
     const qb = this.menuRepository
       .createQueryBuilder('m')
       .leftJoinAndSelect('m.parent', 'parent')
-      .leftJoinAndSelect('m.children', 'children')
+      .leftJoinAndSelect('m.submenu', 'children')
       .where('m.deletedAt IS NULL');
 
     if (search) {
-      qb.andWhere(
-        `(m.name ILIKE :s OR m.route ILIKE :s OR m.icon ILIKE :s)`,
-        { s: `%${search}%` },
-      );
+      qb.andWhere(`(m.name ILIKE :s OR m.route ILIKE :s OR m.icon ILIKE :s)`, {
+        s: `%${search}%`,
+      });
     }
 
     if (parentId !== undefined) {
@@ -131,13 +128,7 @@ export class MenuService {
       // 2️⃣ Si no hay caché → DB
       const menu = await this.menuRepository.findOne({
         where: { id },
-        relations: [
-          'parent',
-          'children',
-          'permissionMenus',
-          'submenuPermissionMenus',
-          'permissionRoles',
-        ],
+        relations: ['parent', 'submenu', 'permissionMenus'],
       });
 
       if (!menu) {
@@ -149,9 +140,7 @@ export class MenuService {
 
       return menu;
     } catch (error) {
-      throw new NotFoundException(
-        `Error al obtener el menú: ${error.message}`,
-      );
+      throw new NotFoundException(`Error al obtener el menú: ${error.message}`);
     }
   }
 
@@ -192,7 +181,7 @@ export class MenuService {
 
       const updatedMenu = await this.menuRepository.findOne({
         where: { id },
-        relations: ['parent', 'children'],
+        relations: ['parent', 'submenu'],
       });
 
       if (!updatedMenu) {
@@ -238,29 +227,31 @@ export class MenuService {
   /**
    * Genera el menú dinámico para un usuario basado en su rol y permisos asignados.
    */
-  async getMenuForUser(userId: string,isUserSecurity: boolean): Promise<Menu[]> {
+  async getMenuForUser(
+    userId: string,
+    isUserSecurity: boolean,
+  ): Promise<Menu[]> {
     let user: Partial<UserSecurity> | Partial<User> | null;
-       
-       if (isUserSecurity) {
-         user = await this.userSecurityService.findOne(userId);
-       } else {
-         user = await this.userService.findOne(userId);
-       }
-    // 1️⃣ Obtener al usuario con rol y permisosRoles
 
+    if (isUserSecurity) {
+      user = await this.userSecurityService.findOne(userId);
+    } else {
+      user = await this.userService.findOne(userId);
+    }
+    // 1️⃣ Obtener al usuario con rol y permisosRoles
 
     if (!user) {
       throw new NotFoundException(`Usuario con ID ${userId} no encontrado`);
     }
-    
-    if(!user.role){
-     throw new NotFoundException(`no posee rol asignado`);
+
+    if (!user.role) {
+      throw new NotFoundException(`no posee rol asignado`);
     }
 
     // 2️⃣ Obtener los submenuId permitidos por el rol
-    const allowedSubmenuIds = user.role.permissionsRoles
+    const allowedSubmenuIds = user.role.permissionMenus
       .filter((pr) => pr.isActive)
-      .map((pr) => pr.submenuId);
+      .map((pr) => pr.menuId);
 
     if (allowedSubmenuIds.length === 0) {
       return [];
@@ -299,7 +290,7 @@ export class MenuService {
 
     // Crear copia limpia sin children
     menus.forEach((menu) => {
-      menu.children = [];
+      menu.submenu = [];
       menuMap.set(menu.id, menu);
     });
 
@@ -308,7 +299,7 @@ export class MenuService {
     menus.forEach((menu) => {
       if (menu.parent) {
         const parent = menuMap.get(menu.parent.id);
-        if (parent) parent.children.push(menu);
+        if (parent) parent.submenu.push(menu);
       } else {
         rootList.push(menu);
       }
@@ -317,7 +308,7 @@ export class MenuService {
     // Ordenar por order asc
     rootList.sort((a, b) => a.order - b.order);
     rootList.forEach((menu) => {
-      menu.children.sort((a, b) => a.order - b.order);
+      menu.submenu.sort((a, b) => a.order - b.order);
     });
 
     return rootList;

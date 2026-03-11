@@ -1,6 +1,7 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import {
   BadRequestException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -18,6 +19,7 @@ import { Patient } from 'src/patient/entities/patient.entity';
 import { Doctor } from 'src/doctors/entities/doctor.entity';
 import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity';
 import { Specialty } from 'src/parameters/entities/specialty.entity';
+import { User } from 'src/user/entities/user.entity';
 
 /**
  * Servicio para gestionar el historial médico de los pacientes
@@ -41,9 +43,29 @@ export class MedicalHistoryService {
     @InjectRepository(Specialty, DatabaseConnectionName.DB_MAIN)
     private readonly specialtyRepository: Repository<Specialty>,
 
+    @InjectRepository(User, DatabaseConnectionName.DB_MAIN)
+    private readonly userRepository: Repository<User>,
+
     @Inject(CACHE_MANAGER)
     private readonly cacheManager: Cache,
   ) {}
+
+  /**
+   * Obtiene el doctorId vinculado al usuario autenticado (si es doctor).
+   * Retorna null si es admin u otro rol sin doctor asociado.
+   */
+  private async getDoctorIdForUser(user: any): Promise<string | null> {
+    if (!user?.id) return null;
+    const userEntity = await this.userRepository.findOne({
+      where: { id: user.id },
+      relations: ['commonPerson'],
+    });
+    if (!userEntity?.commonPerson) return null;
+    const doctor = await this.doctorRepository.findOne({
+      where: { commonPerson: { id: userEntity.commonPerson.id } },
+    });
+    return doctor?.id ?? null;
+  }
 
   /**
    * 🔥 Método para limpiar cache de paginaciones dinámicas
@@ -176,7 +198,7 @@ export class MedicalHistoryService {
    * @param query - Parámetros de búsqueda y paginación
    * @returns Lista paginada de historiales médicos
    */
-  async findAll(query: MedicalHistoryQueryDto) {
+  async findAll(query: MedicalHistoryQueryDto, user?: any) {
     const {
       page,
       limit,
@@ -192,8 +214,11 @@ export class MedicalHistoryService {
       endDate,
     } = query;
 
+    // IDOR: si el usuario es doctor, forzar su doctorId
+    const effectiveDoctorId = await this.getDoctorIdForUser(user) ?? doctorId;
+
     // 🔑 Key única para esta consulta
-    const cacheKey = `medical-history:query:${JSON.stringify(query)}`;
+    const cacheKey = `medical-history:query:${JSON.stringify({ ...query, effectiveDoctorId })}`;
     const listKey = 'medical-history:query:keys';
 
     // 1️⃣ Consultar cache
@@ -223,8 +248,8 @@ export class MedicalHistoryService {
       qb.andWhere('history.patientId = :patientId', { patientId });
     }
 
-    if (doctorId) {
-      qb.andWhere('history.doctorId = :doctorId', { doctorId });
+    if (effectiveDoctorId) {
+      qb.andWhere('history.doctorId = :doctorId', { doctorId: effectiveDoctorId });
     }
 
     if (medicalCenterId) {
@@ -281,13 +306,22 @@ export class MedicalHistoryService {
    * @param id - ID del historial médico
    * @returns Historial médico encontrado con todas sus relaciones
    */
-  async findOne(id: string): Promise<MedicalHistory> {
+  async findOne(id: string, user?: any): Promise<MedicalHistory> {
     const cacheKey = `medical-history:${id}`;
 
     try {
       // Consultar cache
       const cached = await this.cacheManager.get<MedicalHistory>(cacheKey);
-      if (cached) return cached;
+      if (cached) {
+        // IDOR: verificar acceso del doctor al registro cacheado
+        if (user) {
+          const doctorId = await this.getDoctorIdForUser(user);
+          if (doctorId && cached.doctorId !== doctorId) {
+            throw new ForbiddenException('No tiene acceso a este historial médico.');
+          }
+        }
+        return cached;
+      }
 
       const history = await this.medicalHistoryRepository.findOne({
         where: { id },
@@ -307,12 +341,20 @@ export class MedicalHistoryService {
         );
       }
 
+      // IDOR: verificar que el doctor solo acceda a sus historiales
+      if (user) {
+        const doctorId = await this.getDoctorIdForUser(user);
+        if (doctorId && history.doctorId !== doctorId) {
+          throw new ForbiddenException('No tiene acceso a este historial médico.');
+        }
+      }
+
       // Guardar en cache por 10 min
       await this.cacheManager.set(cacheKey, history, 600);
 
       return history;
     } catch (error) {
-      if (error instanceof NotFoundException) throw error;
+      if (error instanceof NotFoundException || error instanceof ForbiddenException) throw error;
       throw new NotFoundException(
         `Error al obtener el historial médico: ${error.message}`,
       );
@@ -324,15 +366,30 @@ export class MedicalHistoryService {
    * @param patientId - ID del paciente
    * @returns Lista de historiales médicos del paciente
    */
-  async findByPatient(patientId: string): Promise<MedicalHistory[]> {
+  async findByPatient(patientId: string, user?: any): Promise<MedicalHistory[]> {
     const cacheKey = `medical-history:patient:${patientId}`;
 
     try {
       const cached = await this.cacheManager.get<MedicalHistory[]>(cacheKey);
-      if (cached) return cached;
+      if (cached) {
+        // IDOR: si es doctor, filtrar solo sus registros
+        if (user) {
+          const doctorId = await this.getDoctorIdForUser(user);
+          if (doctorId) return cached.filter(h => h.doctorId === doctorId);
+        }
+        return cached;
+      }
+
+      const whereClause: any = { patientId };
+
+      // IDOR: si es doctor, solo sus historiales
+      if (user) {
+        const doctorId = await this.getDoctorIdForUser(user);
+        if (doctorId) whereClause.doctorId = doctorId;
+      }
 
       const histories = await this.medicalHistoryRepository.find({
-        where: { patientId },
+        where: whereClause,
         relations: [
           'doctor',
           'doctor.commonPerson',
@@ -440,6 +497,7 @@ export class MedicalHistoryService {
   async createMedicalReview(
     dto: CreateMedicalReviewDto,
     userId?: string,
+    user?: any,
   ): Promise<MedicalHistory> {
     try {
       const history = await this.medicalHistoryRepository.findOne({
@@ -450,6 +508,14 @@ export class MedicalHistoryService {
         throw new NotFoundException(
           `Historial médico con ID ${dto.medicalHistoryId} no encontrado.`,
         );
+      }
+
+      // IDOR: solo el doctor asignado puede agregar diagnóstico
+      if (user) {
+        const doctorId = await this.getDoctorIdForUser(user);
+        if (doctorId && history.doctorId !== doctorId) {
+          throw new ForbiddenException('Solo el doctor asignado puede agregar diagnóstico a esta consulta.');
+        }
       }
 
       // Verificar que la consulta esté en progreso
@@ -494,7 +560,7 @@ export class MedicalHistoryService {
    * @param userId - ID del usuario que cancela
    * @returns Historial médico actualizado
    */
-  async cancelConsultation(id: string, userId?: string): Promise<MedicalHistory> {
+  async cancelConsultation(id: string, userId?: string, user?: any): Promise<MedicalHistory> {
     try {
       const history = await this.medicalHistoryRepository.findOne({
         where: { id },
@@ -504,6 +570,14 @@ export class MedicalHistoryService {
         throw new NotFoundException(
           `Historial médico con ID ${id} no encontrado.`,
         );
+      }
+
+      // IDOR: solo el doctor asignado puede cancelar la consulta
+      if (user) {
+        const doctorId = await this.getDoctorIdForUser(user);
+        if (doctorId && history.doctorId !== doctorId) {
+          throw new ForbiddenException('Solo el doctor asignado puede cancelar esta consulta.');
+        }
       }
 
       if (history.status === 'completed') {

@@ -1,6 +1,7 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import {
   BadRequestException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -29,6 +30,7 @@ import { Medication } from 'src/parameters/entities/medication.entity';
 import { MedicalHistoryService } from 'src/medical-history/medical-history.service';
 import { RecipeService } from 'src/recipe/recipe.service';
 import { CompleteConsultationDto } from './dto/complete-consultation.dto';
+import { User } from 'src/user/entities/user.entity';
 
 @Injectable()
 export class MedicalAppointmentsService {
@@ -66,9 +68,31 @@ export class MedicalAppointmentsService {
     @Inject(CACHE_MANAGER)
     private readonly cacheManager: Cache,
 
+    @InjectRepository(User, DatabaseConnectionName.DB_MAIN)
+    private readonly userRepository: Repository<User>,
+
     private readonly historyService: MedicalHistoryService,
     private readonly recipeService: RecipeService,
   ) {}
+
+  // ─── IDOR helper ───────────────────────────────────────────────────────────
+
+  /**
+   * Resuelve el doctorId vinculado al usuario autenticado.
+   * Retorna null si el usuario no es un doctor.
+   */
+  private async getDoctorIdForUser(userId: string): Promise<string | null> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['commonPerson'],
+    });
+    if (!user?.commonPerson) return null;
+
+    const doctor = await this.doctorRepository.findOne({
+      where: { commonPersonId: user.commonPerson.id },
+    });
+    return doctor?.id ?? null;
+  }
 
   // ─── Cache helpers ─────────────────────────────────────────────────────────
 
@@ -413,9 +437,10 @@ export class MedicalAppointmentsService {
   }
 
   /**
-   * Listar citas con filtros y paginación
+   * Listar citas con filtros y paginación.
+   * IDOR: si el usuario es doctor, solo ve sus propias citas.
    */
-  async findAll(query: QueryMedicalAppointmentDto) {
+  async findAll(query: QueryMedicalAppointmentDto, authUser?: any) {
     const {
       page,
       limit,
@@ -432,7 +457,16 @@ export class MedicalAppointmentsService {
       dateTo,
     } = query;
 
-    const cacheKey = `appointment:query:${JSON.stringify(query)}`;
+    // IDOR: forzar filtro por doctorId si el usuario es doctor
+    let effectiveDoctorId = doctorId;
+    if (authUser?.id) {
+      const myDoctorId = await this.getDoctorIdForUser(authUser.id);
+      if (myDoctorId) {
+        effectiveDoctorId = myDoctorId;
+      }
+    }
+
+    const cacheKey = `appointment:query:${JSON.stringify({ ...query, effectiveDoctorId })}`;
     const listKey = 'appointment:query:keys';
 
     const cached = await this.cacheManager.get(cacheKey);
@@ -457,7 +491,7 @@ export class MedicalAppointmentsService {
     }
 
     if (patientId) qb.andWhere('apt.patientId = :patientId', { patientId });
-    if (doctorId) qb.andWhere('apt.doctorId = :doctorId', { doctorId });
+    if (effectiveDoctorId) qb.andWhere('apt.doctorId = :doctorId', { doctorId: effectiveDoctorId });
     if (specialtyId)
       qb.andWhere('apt.specialtyId = :specialtyId', { specialtyId });
     if (medicalCenterId)
@@ -490,15 +524,26 @@ export class MedicalAppointmentsService {
   }
 
   /**
-   * Obtener una cita por ID con todas sus relaciones
+   * Obtener una cita por ID con todas sus relaciones.
+   * IDOR: si el usuario es doctor, solo puede ver sus propias citas.
    */
-  async findOne(id: string): Promise<MedicalAppointment> {
+  async findOne(id: string, authUser?: any): Promise<MedicalAppointment> {
     const cacheKey = `appointment:${id}`;
     const cached = await this.cacheManager.get<MedicalAppointment>(cacheKey);
-    if (cached) return cached;
 
-    const apt = await this.loadFullAppointment(id);
-    await this.cacheManager.set(cacheKey, apt, 600);
+    const apt = cached ?? await this.loadFullAppointment(id);
+
+    // IDOR: validar que doctor solo acceda a sus citas
+    if (authUser?.id) {
+      const myDoctorId = await this.getDoctorIdForUser(authUser.id);
+      if (myDoctorId && apt.doctorId !== myDoctorId) {
+        throw new ForbiddenException('No tiene acceso a esta cita médica.');
+      }
+    }
+
+    if (!cached) {
+      await this.cacheManager.set(cacheKey, apt, 600);
+    }
     return apt;
   }
 
@@ -718,11 +763,13 @@ export class MedicalAppointmentsService {
   // ─── Métodos especiales ────────────────────────────────────────────────────
 
   /**
-   * Obtener historial de citas de un paciente
+   * Obtener historial de citas de un paciente.
+   * IDOR: si el usuario es doctor, solo ve citas donde él es el doctor.
    */
   async getPatientHistory(
     patientId: string,
     query: QueryMedicalAppointmentDto,
+    authUser?: any,
   ) {
     const { page, limit, order, status, dateFrom, dateTo } = query;
 
@@ -753,6 +800,14 @@ export class MedicalAppointmentsService {
       .where('apt.patientId = :patientId', { patientId })
       .andWhere('apt.deletedAt IS NULL');
 
+    // IDOR: si el usuario es doctor, solo ve las citas donde es el doctor asignado
+    if (authUser?.id) {
+      const myDoctorId = await this.getDoctorIdForUser(authUser.id);
+      if (myDoctorId) {
+        qb.andWhere('apt.doctorId = :myDoctorId', { myDoctorId });
+      }
+    }
+
     if (status) qb.andWhere('apt.status = :status', { status });
     if (dateFrom) qb.andWhere('apt.appointmentDate >= :dateFrom', { dateFrom });
     if (dateTo) qb.andWhere('apt.appointmentDate <= :dateTo', { dateTo });
@@ -775,13 +830,23 @@ export class MedicalAppointmentsService {
   }
 
   /**
-   * Obtener agenda de citas de un médico por rango de fechas
+   * Obtener agenda de citas de un médico por rango de fechas.
+   * IDOR: si el usuario es doctor, solo puede ver su propia agenda.
    */
-  async getDoctorSchedule(doctorId: string, query: QueryMedicalAppointmentDto) {
+  async getDoctorSchedule(doctorId: string, query: QueryMedicalAppointmentDto, authUser?: any) {
     const { page, limit, order, status, dateFrom, dateTo } = query;
 
+    // IDOR: si el usuario es doctor, forzar su propio doctorId
+    let effectiveDoctorId = doctorId;
+    if (authUser?.id) {
+      const myDoctorId = await this.getDoctorIdForUser(authUser.id);
+      if (myDoctorId && myDoctorId !== doctorId) {
+        throw new ForbiddenException('Solo puede consultar su propia agenda.');
+      }
+    }
+
     const doctor = await this.doctorRepository.findOne({
-      where: { id: doctorId, deletedAt: IsNull() },
+      where: { id: effectiveDoctorId, deletedAt: IsNull() },
     });
     if (!doctor) {
       throw new NotFoundException(`Médico con ID ${doctorId} no encontrado.`);

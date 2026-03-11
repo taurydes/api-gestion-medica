@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -73,8 +74,9 @@ export class MedicalAppointmentsController {
   getPatientHistory(
     @Param('patientId') patientId: string,
     @Query() query: QueryMedicalAppointmentDto,
+    @Req() req: any,
   ) {
-    return this.appointmentsService.getPatientHistory(patientId, query);
+    return this.appointmentsService.getPatientHistory(patientId, query, req.user);
   }
 
   @ApiOperation({
@@ -89,8 +91,9 @@ export class MedicalAppointmentsController {
   getDoctorSchedule(
     @Param('doctorId') doctorId: string,
     @Query() query: QueryMedicalAppointmentDto,
+    @Req() req: any,
   ) {
-    return this.appointmentsService.getDoctorSchedule(doctorId, query);
+    return this.appointmentsService.getDoctorSchedule(doctorId, query, req.user);
   }
 
   // ─── Standard CRUD ──────────────────────────────────────────────────────────
@@ -117,8 +120,8 @@ export class MedicalAppointmentsController {
   @Permission(
     `${ModuleItemsMenu.MedicalAppointmentsModule}.${PermissionActionsMenu.VIEW}`,
   )
-  findAll(@Query() query: QueryMedicalAppointmentDto) {
-    return this.appointmentsService.findAll(query);
+  findAll(@Query() query: QueryMedicalAppointmentDto, @Req() req: any) {
+    return this.appointmentsService.findAll(query, req.user);
   }
 
   @ApiOperation({
@@ -130,8 +133,8 @@ export class MedicalAppointmentsController {
   @Permission(
     `${ModuleItemsMenu.MedicalAppointmentsModule}.${PermissionActionsMenu.VIEW}`,
   )
-  findOne(@Param('id') id: string) {
-    return this.appointmentsService.findOne(id);
+  findOne(@Param('id') id: string, @Req() req: any) {
+    return this.appointmentsService.findOne(id, req.user);
   }
 
   @ApiOperation({

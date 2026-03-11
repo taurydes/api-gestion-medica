@@ -1,7 +1,7 @@
 import { CacheModule } from '@nestjs/cache-manager';
-import { Module } from '@nestjs/common';
+import { Module, ValidationPipe } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_PIPE } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { redisStore } from 'cache-manager-redis-store';
 import { AuthModule } from './auth/auth.module';
@@ -31,6 +31,7 @@ import { MedicalHistoryModule } from './medical-history/medical-history.module';
 import { RecipeModule } from './recipe/recipe.module';
 import { DepartmentsModule } from './departments/departments.module';
 import { MedicalAppointmentsModule } from './medical-appointments/medical-appointments.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -96,6 +97,7 @@ import { MedicalAppointmentsModule } from './medical-appointments/medical-appoin
     RecipeModule,
     DepartmentsModule,
     MedicalAppointmentsModule,
+    DashboardModule,
   ],
   controllers: [],
   providers: [
@@ -105,7 +107,15 @@ import { MedicalAppointmentsModule } from './medical-appointments/medical-appoin
     SchemaInitService,
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard, // Esto aplicará el guard automáticamente
+      useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_PIPE,
+      useFactory: () =>
+        new ValidationPipe({
+          transform: true,
+          whitelist: true,
+        }),
     },
   ],
 })

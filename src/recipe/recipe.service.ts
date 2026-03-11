@@ -1,6 +1,7 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import {
   BadRequestException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -17,6 +18,7 @@ import { RecipeQueryDto } from './dto/recipe-query.dto';
 import { Patient } from 'src/patient/entities/patient.entity';
 import { Doctor } from 'src/doctors/entities/doctor.entity';
 import { MedicalHistory } from 'src/medical-history/entities/medical-history.entity';
+import { User } from 'src/user/entities/user.entity';
 
 /**
  * Servicio para gestionar las recetas médicas
@@ -42,7 +44,24 @@ export class RecipeService {
 
     @Inject(CACHE_MANAGER)
     private readonly cacheManager: Cache,
+
+    @InjectRepository(User, DatabaseConnectionName.DB_MAIN)
+    private readonly userRepository: Repository<User>,
   ) {}
+
+  // ─── IDOR helper ───────────────────────────────────────────────────────────
+
+  private async getDoctorIdForUser(userId: string): Promise<string | null> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['commonPerson'],
+    });
+    if (!user?.commonPerson) return null;
+    const doctor = await this.doctorRepository.findOne({
+      where: { commonPersonId: user.commonPerson.id },
+    });
+    return doctor?.id ?? null;
+  }
 
   /**
    * 🔥 Método para limpiar cache de paginaciones dinámicas
@@ -167,11 +186,10 @@ export class RecipeService {
   }
 
   /**
-   * Listar recetas médicas con filtros + paginación + cache
-   * @param query - Parámetros de búsqueda y paginación
-   * @returns Lista paginada de recetas
+   * Listar recetas médicas con filtros + paginación + cache.
+   * IDOR: si el usuario es doctor, solo ve sus recetas.
    */
-  async findAll(query: RecipeQueryDto) {
+  async findAll(query: RecipeQueryDto, authUser?: any) {
     const {
       page,
       limit,
@@ -186,15 +204,19 @@ export class RecipeService {
       endDate,
     } = query;
 
-    // 🔑 Key única para esta consulta
-    const cacheKey = `recipe:query:${JSON.stringify(query)}`;
+    // IDOR: forzar filtro por doctorId si el usuario es doctor
+    let effectiveDoctorId = doctorId;
+    if (authUser?.id) {
+      const myDoctorId = await this.getDoctorIdForUser(authUser.id);
+      if (myDoctorId) effectiveDoctorId = myDoctorId;
+    }
+
+    const cacheKey = `recipe:query:${JSON.stringify({ ...query, effectiveDoctorId })}`;
     const listKey = 'recipe:query:keys';
 
-    // 1️⃣ Consultar cache
     const cached = await this.cacheManager.get(cacheKey);
     if (cached) return cached;
 
-    // 2️⃣ Construir QueryBuilder
     const qb = this.recipeRepository
       .createQueryBuilder('recipe')
       .leftJoinAndSelect('recipe.patient', 'patient')
@@ -205,7 +227,6 @@ export class RecipeService {
       .leftJoinAndSelect('recipe.items', 'items')
       .where('recipe.deletedAt IS NULL');
 
-    // 🔍 Filtros
     if (search) {
       qb.andWhere(
         '(recipe.recipeNumber ILIKE :search OR recipe.diagnosis ILIKE :search)',
@@ -213,52 +234,23 @@ export class RecipeService {
       );
     }
 
-    if (patientId) {
-      qb.andWhere('recipe.patientId = :patientId', { patientId });
-    }
-
-    if (doctorId) {
-      qb.andWhere('recipe.doctorId = :doctorId', { doctorId });
-    }
-
-    if (medicalHistoryId) {
-      qb.andWhere('recipe.medicalHistoryId = :medicalHistoryId', { medicalHistoryId });
-    }
-
-    if (status) {
-      qb.andWhere('recipe.status = :status', { status });
-    }
-
-    if (isActive !== undefined) {
-      qb.andWhere('recipe.isActive = :isActive', { isActive });
-    }
-
-    if (startDate) {
-      qb.andWhere('recipe.issueDate >= :startDate', {
-        startDate: new Date(startDate),
-      });
-    }
-
-    if (endDate) {
-      qb.andWhere('recipe.issueDate <= :endDate', {
-        endDate: new Date(endDate),
-      });
-    }
+    if (patientId) qb.andWhere('recipe.patientId = :patientId', { patientId });
+    if (effectiveDoctorId) qb.andWhere('recipe.doctorId = :doctorId', { doctorId: effectiveDoctorId });
+    if (medicalHistoryId) qb.andWhere('recipe.medicalHistoryId = :medicalHistoryId', { medicalHistoryId });
+    if (status) qb.andWhere('recipe.status = :status', { status });
+    if (isActive !== undefined) qb.andWhere('recipe.isActive = :isActive', { isActive });
+    if (startDate) qb.andWhere('recipe.issueDate >= :startDate', { startDate: new Date(startDate) });
+    if (endDate) qb.andWhere('recipe.issueDate <= :endDate', { endDate: new Date(endDate) });
 
     qb.orderBy('recipe.issueDate', order);
     qb.addOrderBy('items.orderNumber', 'ASC');
     qb.skip((page - 1) * limit).take(limit);
 
     const [items, total] = await qb.getManyAndCount();
-
     const result = { data: items, total, page, limit };
 
-    // 3️⃣ Guardar en cache por 5 min
     await this.cacheManager.set(cacheKey, result, 300);
-
-    // 4️⃣ Registrar la key para poder limpiarla después
     const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
-
     if (!keys.includes(cacheKey)) {
       keys.push(cacheKey);
       await this.cacheManager.set(listKey, keys);
@@ -268,19 +260,15 @@ export class RecipeService {
   }
 
   /**
-   * Obtener una receta médica por ID con cache
-   * @param id - ID de la receta
-   * @returns Receta encontrada con todas sus relaciones
+   * Obtener una receta médica por ID con cache.
+   * IDOR: si el usuario es doctor, valida que sea su receta.
    */
-  async findOne(id: string): Promise<Recipe> {
+  async findOne(id: string, authUser?: any): Promise<Recipe> {
     const cacheKey = `recipe:${id}`;
 
     try {
-      // Consultar cache
       const cached = await this.cacheManager.get<Recipe>(cacheKey);
-      if (cached) return cached;
-
-      const recipe = await this.recipeRepository.findOne({
+      const recipe = cached ?? await this.recipeRepository.findOne({
         where: { id },
         relations: [
           'patient',
@@ -291,61 +279,57 @@ export class RecipeService {
           'items',
           'items.medication',
         ],
-        order: {
-          items: {
-            orderNumber: 'ASC',
-          },
-        },
+        order: { items: { orderNumber: 'ASC' } },
       });
 
       if (!recipe) {
-        throw new NotFoundException(
-          `Receta con ID ${id} no encontrada.`,
-        );
+        throw new NotFoundException(`Receta con ID ${id} no encontrada.`);
       }
 
-      // Guardar en cache por 10 min
-      await this.cacheManager.set(cacheKey, recipe, 600);
+      // IDOR: validar acceso del doctor
+      if (authUser?.id) {
+        const myDoctorId = await this.getDoctorIdForUser(authUser.id);
+        if (myDoctorId && recipe.doctorId !== myDoctorId) {
+          throw new ForbiddenException('No tiene acceso a esta receta.');
+        }
+      }
+
+      if (!cached) {
+        await this.cacheManager.set(cacheKey, recipe, 600);
+      }
 
       return recipe;
     } catch (error) {
-      if (error instanceof NotFoundException) throw error;
-      throw new NotFoundException(
-        `Error al obtener la receta: ${error.message}`,
-      );
+      if (error instanceof NotFoundException || error instanceof ForbiddenException) throw error;
+      throw new NotFoundException(`Error al obtener la receta: ${error.message}`);
     }
   }
 
   /**
-   * Obtener todas las recetas de un paciente
-   * @param patientId - ID del paciente
-   * @returns Lista de recetas del paciente
+   * Obtener todas las recetas de un paciente.
+   * IDOR: si el usuario es doctor, solo ve recetas donde él es el doctor.
    */
-  async findByPatient(patientId: string): Promise<Recipe[]> {
+  async findByPatient(patientId: string, authUser?: any): Promise<Recipe[]> {
     const cacheKey = `recipe:patient:${patientId}`;
 
     try {
-      const cached = await this.cacheManager.get<Recipe[]>(cacheKey);
-      if (cached) return cached;
+      const where: any = { patientId };
+
+      // IDOR: filtrar por doctorId si el usuario es doctor
+      if (authUser?.id) {
+        const myDoctorId = await this.getDoctorIdForUser(authUser.id);
+        if (myDoctorId) where.doctorId = myDoctorId;
+      }
 
       const recipes = await this.recipeRepository.find({
-        where: { patientId },
-        relations: [
-          'doctor',
-          'doctor.commonPerson',
-          'medicalHistory',
-          'items',
-        ],
+        where,
+        relations: ['doctor', 'doctor.commonPerson', 'medicalHistory', 'items'],
         order: { issueDate: 'DESC' },
       });
 
-      await this.cacheManager.set(cacheKey, recipes, 300);
-
       return recipes;
     } catch (error) {
-      throw new NotFoundException(
-        `Error al obtener las recetas del paciente: ${error.message}`,
-      );
+      throw new NotFoundException(`Error al obtener las recetas del paciente: ${error.message}`);
     }
   }
 

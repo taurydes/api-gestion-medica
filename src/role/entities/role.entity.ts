@@ -1,14 +1,7 @@
 import { PermissionMenu } from 'src/permission/entities/permission-menu.entity';
-import { PermissionRole } from 'src/permission/entities/Permission-role.entity';
 import { UserSecurity } from 'src/user/entities/user.system.entity';
 import { User } from '../../user/entities/user.entity';
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  OneToMany,
-} from 'typeorm';
-
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
 
 @Entity({ schema: 'seguridad', name: 'roles' })
 export class Role {
@@ -47,7 +40,4 @@ export class Role {
 
   @OneToMany(() => PermissionMenu, (pm) => pm.role)
   permissionMenus: PermissionMenu[];
-
-  @OneToMany(() => PermissionRole, (pr) => pr.role)
-  permissionsRoles: PermissionRole[];
 }

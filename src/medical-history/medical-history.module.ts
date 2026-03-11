@@ -8,6 +8,7 @@ import { Patient } from 'src/patient/entities/patient.entity';
 import { Doctor } from 'src/doctors/entities/doctor.entity';
 import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity';
 import { Specialty } from 'src/parameters/entities/specialty.entity';
+import { User } from 'src/user/entities/user.entity';
 
 /**
  * Módulo de Historial Médico
@@ -17,7 +18,7 @@ import { Specialty } from 'src/parameters/entities/specialty.entity';
 @Module({
   imports: [
     TypeOrmModule.forFeature(
-      [MedicalHistory, Patient, Doctor, MedicalCenter, Specialty],
+      [MedicalHistory, Patient, Doctor, MedicalCenter, Specialty, User],
       DatabaseConnectionName.DB_MAIN,
     ),
   ],

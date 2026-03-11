@@ -1,16 +1,9 @@
-import {
-  Column,
-  Entity,
-  OneToMany,
-  PrimaryGeneratedColumn,
-} from 'typeorm';
-import { PermissionRole } from './Permission-role.entity';
+import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { PermissionMenu } from './permission-menu.entity';
-
 
 @Entity({ schema: 'seguridad', name: 'permisos' })
 export class Permission {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn({ type: 'bigint' })
   id: string;
 
   @Column({ name: 'nombre', type: 'varchar', length: 255 })
@@ -53,10 +46,6 @@ export class Permission {
   controlType: string | null;
 
   // RELATIONS
-
-  @OneToMany(() => PermissionRole, (pr) => pr.permission)
-  permissionRoles: PermissionRole[];
-
   @OneToMany(() => PermissionMenu, (pm) => pm.permission)
   permissionMenus: PermissionMenu[];
 }

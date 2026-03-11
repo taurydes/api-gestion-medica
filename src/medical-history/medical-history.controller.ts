@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { MedicalHistoryService } from './medical-history.service';
@@ -53,8 +54,8 @@ export class MedicalHistoryController {
   @ApiOperation({ summary: 'Listar historiales médicos con filtros y paginación' })
   @ApiResponse({ status: 200, description: 'Lista de historiales médicos' })
   @Permission(`${ModuleItemsMenu.MedicalHistoryModule}.${PermissionActionsMenu.VIEW}`)
-  findAll(@Query() query: MedicalHistoryQueryDto) {
-    return this.medicalHistoryService.findAll(query);
+  findAll(@Query() query: MedicalHistoryQueryDto, @Req() req: any) {
+    return this.medicalHistoryService.findAll(query, req.user);
   }
 
   /**
@@ -65,8 +66,8 @@ export class MedicalHistoryController {
   @ApiResponse({ status: 200, description: 'Historial médico encontrado' })
   @ApiResponse({ status: 404, description: 'Historial médico no encontrado' })
   @Permission(`${ModuleItemsMenu.MedicalHistoryModule}.${PermissionActionsMenu.VIEW}`)
-  findOne(@Param('id') id: string) {
-    return this.medicalHistoryService.findOne(id);
+  findOne(@Param('id') id: string, @Req() req: any) {
+    return this.medicalHistoryService.findOne(id, req.user);
   }
 
   /**
@@ -76,8 +77,8 @@ export class MedicalHistoryController {
   @ApiOperation({ summary: 'Obtener todo el historial médico de un paciente' })
   @ApiResponse({ status: 200, description: 'Lista de historiales del paciente' })
   @Permission(`${ModuleItemsMenu.MedicalHistoryModule}.${PermissionActionsMenu.VIEW}`)
-  findByPatient(@Param('patientId') patientId: string) {
-    return this.medicalHistoryService.findByPatient(patientId);
+  findByPatient(@Param('patientId') patientId: string, @Req() req: any) {
+    return this.medicalHistoryService.findByPatient(patientId, req.user);
   }
 
   /**
@@ -109,8 +110,9 @@ export class MedicalHistoryController {
   createMedicalReview(
     @Body() reviewDto: CreateMedicalReviewDto,
     @GetUser('id') userId: string,
+    @Req() req: any,
   ) {
-    return this.medicalHistoryService.createMedicalReview(reviewDto, userId);
+    return this.medicalHistoryService.createMedicalReview(reviewDto, userId, req.user);
   }
 
   /**
@@ -125,8 +127,9 @@ export class MedicalHistoryController {
   cancelConsultation(
     @Param('id') id: string,
     @GetUser('id') userId: string,
+    @Req() req: any,
   ) {
-    return this.medicalHistoryService.cancelConsultation(id, userId);
+    return this.medicalHistoryService.cancelConsultation(id, userId, req.user);
   }
 
   /**

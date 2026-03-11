@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { RecipeService } from './recipe.service';
@@ -52,8 +53,8 @@ export class RecipeController {
   @ApiOperation({ summary: 'Listar recetas médicas con filtros y paginación' })
   @ApiResponse({ status: 200, description: 'Lista de recetas médicas' })
   @Permission(`${ModuleItemsMenu.RecipeModule}.${PermissionActionsMenu.VIEW}`)
-  findAll(@Query() query: RecipeQueryDto) {
-    return this.recipeService.findAll(query);
+  findAll(@Query() query: RecipeQueryDto, @Req() req: any) {
+    return this.recipeService.findAll(query, req.user);
   }
 
   /**
@@ -64,8 +65,8 @@ export class RecipeController {
   @ApiResponse({ status: 200, description: 'Receta encontrada' })
   @ApiResponse({ status: 404, description: 'Receta no encontrada' })
   @Permission(`${ModuleItemsMenu.RecipeModule}.${PermissionActionsMenu.VIEW}`)
-  findOne(@Param('id') id: string) {
-    return this.recipeService.findOne(id);
+  findOne(@Param('id') id: string, @Req() req: any) {
+    return this.recipeService.findOne(id, req.user);
   }
 
   /**
@@ -75,8 +76,8 @@ export class RecipeController {
   @ApiOperation({ summary: 'Obtener todas las recetas de un paciente' })
   @ApiResponse({ status: 200, description: 'Lista de recetas del paciente' })
   @Permission(`${ModuleItemsMenu.RecipeModule}.${PermissionActionsMenu.VIEW}`)
-  findByPatient(@Param('patientId') patientId: string) {
-    return this.recipeService.findByPatient(patientId);
+  findByPatient(@Param('patientId') patientId: string, @Req() req: any) {
+    return this.recipeService.findByPatient(patientId, req.user);
   }
 
   /**
