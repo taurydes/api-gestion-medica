@@ -17,6 +17,8 @@ import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { Allergy } from 'src/parameters/entities/allergy.entity';
 import { ChronicDisease } from 'src/parameters/entities/chronic-disease.entity';
 import { Medication } from 'src/parameters/entities/medication.entity';
+import { User } from 'src/user/entities/user.entity';
+import { Doctor } from 'src/doctors/entities/doctor.entity';
 
 /**
  * Servicio para gestionar los pacientes del sistema
@@ -40,9 +42,32 @@ export class PatientService {
     @InjectRepository(Medication, DatabaseConnectionName.DB_MAIN)
     private readonly medicationRepository: Repository<Medication>,
 
+    @InjectRepository(User, DatabaseConnectionName.DB_MAIN)
+    private readonly userRepository: Repository<User>,
+
+    @InjectRepository(Doctor, DatabaseConnectionName.DB_MAIN)
+    private readonly doctorRepository: Repository<Doctor>,
+
     @Inject(CACHE_MANAGER)
     private readonly cacheManager: Cache,
   ) {}
+
+  /**
+   * Obtiene el doctorId vinculado al usuario autenticado.
+   * Retorna null si no es doctor.
+   */
+  private async getDoctorIdForUser(user: any): Promise<string | null> {
+    if (!user?.id) return null;
+    const userEntity = await this.userRepository.findOne({
+      where: { id: user.id },
+      relations: ['commonPerson'],
+    });
+    if (!userEntity?.commonPerson) return null;
+    const doctor = await this.doctorRepository.findOne({
+      where: { commonPerson: { id: userEntity.commonPerson.id } },
+    });
+    return doctor?.id ?? null;
+  }
 
   /**
    * 🔥 Método para limpiar cache de paginaciones dinámicas
@@ -250,11 +275,14 @@ export class PatientService {
    * @param query - Parámetros de búsqueda y paginación
    * @returns Lista paginada de pacientes
    */
-  async findAll(query: PatientQueryDto) {
+  async findAll(query: PatientQueryDto, user?: any) {
     const { page, limit, order, search, bloodType, isActive } = query;
 
+    // IDOR: si es doctor, solo ve pacientes de sus citas
+    const doctorId = user ? await this.getDoctorIdForUser(user) : null;
+
     // 🔑 Key única para esta consulta
-    const cacheKey = `patient:query:${JSON.stringify(query)}`;
+    const cacheKey = `patient:query:${JSON.stringify({ ...query, doctorId })}`;
 
     // 📌 Key donde guardamos TODAS las keys usadas por findAll
     const listKey = 'patient:query:keys';
@@ -286,6 +314,14 @@ export class PatientService {
 
     if (isActive !== undefined) {
       qb.andWhere('patient.isActive = :isActive', { isActive });
+    }
+
+    // IDOR: doctor solo ve pacientes con los que tiene citas
+    if (doctorId) {
+      qb.andWhere(
+        `patient.id IN (SELECT ma."patientId" FROM medical_appointments ma WHERE ma."doctorId" = :doctorId AND ma."deletedAt" IS NULL)`,
+        { doctorId },
+      );
     }
 
     qb.orderBy('patient.id', order);

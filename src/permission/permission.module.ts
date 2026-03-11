@@ -1,24 +1,26 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuthModule } from 'src/auth/auth.module';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
-import { Role } from 'src/role/entities/role.entity';
-import { Permission } from './entities/permission.entity';
-import { PermissionController } from './permission.controller';
-import { PermissionService } from './permission.service';
-import { PermissionRole } from './entities/Permission-role.entity';
-import { PermissionMenu } from './entities/permission-menu.entity';
 import { Menu } from 'src/menu/entities/menu.entity';
 import { MenuModule } from 'src/menu/menu.module';
+import { Role } from 'src/role/entities/role.entity';
+import { UserSecurity } from 'src/user/entities/user.system.entity';
+import { CaslPermissionController } from './controller/permission.controller';
+import { PermissionMenu } from './entities/permission-menu.entity';
+import { Permission } from './entities/permission.entity';
+import { PermissionService } from './services/permission.service';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature(
-      [Permission, PermissionRole,Role,PermissionMenu,Menu],
+      [Permission, Role, PermissionMenu, UserSecurity, Menu],
       DatabaseConnectionName.DB_MAIN,
     ),
-    MenuModule
+    forwardRef(() => AuthModule),
+    MenuModule,
   ],
-  controllers: [PermissionController],
+  controllers: [CaslPermissionController],
   providers: [PermissionService],
   exports: [PermissionService],
 })

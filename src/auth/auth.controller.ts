@@ -82,8 +82,25 @@ export class AuthController {
 
   @Public()
   @Post('refresh')
-  async refresh(@Body() dto: RefreshTokenDto, @Res() res: Response) {
-    const tokens = await this.authService.refreshTokens(dto);
+  async refresh(@Body() dto: RefreshTokenDto, @Res() res: Response, @GetUser() user: AuthUser) {
+    const tokens = await this.authService.refreshTokens(dto, user);
     return res.json(tokens);
+  }
+
+  // ======================================================
+  // 🔹 OBTENER DATOS DEL USUARIO AUTENTICADO + PERMISOS
+  // ======================================================
+
+  /**
+   * @summary Devuelve info del usuario autenticado, su rol, y permisos.
+   * @description
+   * Útil para que el frontend construya la UI según permisos.
+   *
+   * @route GET /auth/me
+   */
+  @Get('me')
+  async me(@Req() req: Request) {
+    const userId = (req as any).user?.id;
+    return this.authService.getUserWithPermissions(userId);
   }
 }

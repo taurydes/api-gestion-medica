@@ -4,12 +4,12 @@ import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import * as dotenv from 'dotenv';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
+import { PermissionModule } from 'src/permission/permission.module';
 import { User } from 'src/user/entities/user.entity';
+import { UserSecurity } from 'src/user/entities/user.system.entity';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
-import { UserSecurity } from 'src/user/entities/user.system.entity';
-import { MenuModule } from 'src/menu/menu.module';
 
 dotenv.config();
 @Module({
@@ -23,7 +23,7 @@ dotenv.config();
       secret: process.env.JWT_SECRET || 'secret',
       signOptions: { expiresIn: process.env.JWT_EXPIRES_IN || '1h' },
     }),
-    MenuModule,
+    PermissionModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],

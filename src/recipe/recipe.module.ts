@@ -8,16 +8,12 @@ import { RecipeController } from './recipe.controller';
 import { Patient } from 'src/patient/entities/patient.entity';
 import { Doctor } from 'src/doctors/entities/doctor.entity';
 import { MedicalHistory } from 'src/medical-history/entities/medical-history.entity';
+import { User } from 'src/user/entities/user.entity';
 
-/**
- * Módulo de Recetas Médicas
- * Gestiona la emisión y control de recetas médicas
- * Incluye ítems de medicamentos con instrucciones de administración
- */
 @Module({
   imports: [
     TypeOrmModule.forFeature(
-      [Recipe, RecipeItem, Patient, Doctor, MedicalHistory],
+      [Recipe, RecipeItem, Patient, Doctor, MedicalHistory, User],
       DatabaseConnectionName.DB_MAIN,
     ),
   ],

@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
 } from '@nestjs/common';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
@@ -70,8 +71,8 @@ export class PatientController {
   @ApiResponse({ status: 200, description: 'Lista de pacientes' })
   @Get()
   @Permission(`${ModuleItemsMenu.PatientModule}.${PermissionActionsMenu.VIEW}`)
-  async findAll(@Query() query: PatientQueryDto) {
-    return await this.patientService.findAll(query);
+  async findAll(@Query() query: PatientQueryDto, @Req() req: any) {
+    return await this.patientService.findAll(query, req.user);
   }
 
   /**

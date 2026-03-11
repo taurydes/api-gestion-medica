@@ -1,5 +1,4 @@
 import { PermissionMenu } from 'src/permission/entities/permission-menu.entity';
-import { PermissionRole } from 'src/permission/entities/Permission-role.entity';
 import {
     Column,
     Entity,
@@ -64,22 +63,17 @@ export class Menu {
 
   // RELATIONS
 
-  @ManyToOne(() => Menu, (menu) => menu.children, {
+  @ManyToOne(() => Menu, (menu) => menu.submenu, {
     onDelete: 'NO ACTION',
     onUpdate: 'CASCADE',
   })
   @JoinColumn({ name: 'menu_id' })
   parent: Menu;
 
-  @OneToMany(() => Menu, (menu) => menu.parent)
-  children: Menu[];
+  @OneToMany(() => Menu, (menu) => menu.submenu)
+  submenu: Menu[];
 
   @OneToMany(() => PermissionMenu, (pm) => pm.menu)
   permissionMenus: PermissionMenu[];
 
-  @OneToMany(() => PermissionMenu, (pm) => pm.submenu)
-  submenuPermissionMenus: PermissionMenu[];
-
-  @OneToMany(() => PermissionRole, (pr) => pr.submenu)
-  permissionRoles: PermissionRole[];
 }

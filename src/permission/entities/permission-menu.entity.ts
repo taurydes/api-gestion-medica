@@ -2,26 +2,23 @@ import { Menu } from 'src/menu/entities/menu.entity';
 import { Permission } from 'src/permission/entities/permission.entity';
 import { Role } from 'src/role/entities/role.entity';
 import {
-    Column,
-    Entity,
-    JoinColumn,
-    ManyToOne,
-    PrimaryGeneratedColumn,
+  Column,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
 } from 'typeorm';
 
 @Entity({ schema: 'seguridad', name: 'permisos_menus' })
 export class PermissionMenu {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @PrimaryGeneratedColumn({ type: 'bigint' })
+  id: number;
 
-  @Column({ name: 'permiso_id', type: 'uuid' })
+  @Column({ name: 'permiso_id', type: 'bigint' })
   permissionId: string;
 
-  @Column({ name: 'menu_id', type: 'uuid' })
+  @Column({ name: 'menu_id', type: 'bigint' })
   menuId: string;
-
-  @Column({ name: 'submenu_id', type: 'uuid' })
-  submenuId: string;
 
   @Column({ name: 'rol_id', type: 'uuid' })
   roleId: string;
@@ -63,13 +60,6 @@ export class PermissionMenu {
   })
   @JoinColumn({ name: 'menu_id' })
   menu: Menu;
-
-  @ManyToOne(() => Menu, (menu) => menu.submenuPermissionMenus, {
-    onDelete: 'NO ACTION',
-    onUpdate: 'CASCADE',
-  })
-  @JoinColumn({ name: 'submenu_id' })
-  submenu: Menu;
 
   @ManyToOne(() => Role, (role) => role.permissionMenus, {
     onDelete: 'NO ACTION',

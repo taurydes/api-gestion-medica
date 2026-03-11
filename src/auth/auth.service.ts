@@ -12,6 +12,7 @@ import { JwtPayload } from './auth.const';
 import { LoginUserDto } from './dto/login-auth.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { AuthUser } from './interfaces/User';
+import { PermissionService } from 'src/permission/services/permission.service';
 
 /**
  * @summary Servicio de autenticación principal de la aplicación.
@@ -30,7 +31,7 @@ export class AuthService {
 
     private readonly jwtService: JwtService,
     private readonly redisSession: RedisSessionService,
-    private readonly menuService: MenuService,
+    private readonly permissionService: PermissionService,
   ) {}
 
   // ======================================================
@@ -107,8 +108,6 @@ export class AuthService {
     }
     const payload = {
       id: user.id,
-      name: user.user.name,
-      roleId: user.user.roleId,
       user,
     };
 
@@ -123,7 +122,7 @@ export class AuthService {
     });
     // ✅ Guardar sesión activa en Redis
     await this.redisSession.setSession(
-      user.id,
+      user.id.toString(),
       {
         access_token,
         refresh_token,
@@ -131,25 +130,48 @@ export class AuthService {
         roleId: user.user.roleId,
         loginAt: new Date().toISOString(),
       },
-      604800, // TTL de la sesión (ej: 7 días para coincidir con el refresh token)
+      3600, // TTL del access token
     );
-    const menu = await this.menuService.getMenuForUser(
-      user.id,
-      loginDto.isSystemUser,
-    );
-    return { access_token, refresh_token, data: user, menu };
+    const {
+      userId: rawUserId,
+      email,
+      rules,
+      ...modules
+    } = await this.permissionService.getUserPermissions(user.id);
+
+    const summaryUser = {
+      id: user.id,
+      name: user.user.name,
+      email: user.user.email,
+    };
+    return { access_token, refresh_token, data: summaryUser, modules };
   }
 
   // ======================================================
   // 🔹 REFRESH TOKEN
   // ======================================================
-  async refreshTokens(dto: RefreshTokenDto): Promise<JwtPayload> {
+  async refreshTokens(
+    dto: RefreshTokenDto,
+    currentUser: AuthUser,
+  ): Promise<JwtPayload> {
     const { refreshToken } = dto;
+    const userId = currentUser.id;
+
+    const session = await this.redisSession.getSession(userId);
+
+    if (!session) {
+      throw new UnauthorizedException('Sesión expirada o inválida');
+    }
+
+    if (session.refresh_token !== refreshToken) {
+      throw new UnauthorizedException('Refresh token inválido');
+    }
 
     // ========================
-    // 🔥 1. Decodificar y verificar refresh token primero
+    // 🔥 Decodificar refresh token
     // ========================
     let payload: any;
+
     try {
       payload = this.jwtService.verify(refreshToken, {
         secret: process.env.JWT_REFRESH_SECRET,
@@ -158,48 +180,33 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token inválido o expirado');
     }
 
-    const userId = payload.id;
-    if (!userId) {
-      throw new UnauthorizedException(
-        'Token no contiene información de usuario',
-      );
-    }
-
     // ========================
-    // 🔹 2. Validar sesión en Redis
+    //  Regenerar tokens
     // ========================
-    const session = await this.redisSession.getSession(userId);
+    const newAccessToken = this.jwtService.sign(
+      {
+        id: payload.id,
+        name: payload.name,
+        roleId: payload.roleId,
+      },
+      {
+        secret: process.env.JWT_SECRET,
+        expiresIn: process.env.JWT_EXPIRES_IN || '1h',
+      },
+    );
 
-    if (!session) {
-      throw new UnauthorizedException('Sesión expirada o inválida');
-    }
-
-    if (session.refresh_token !== refreshToken) {
-      throw new UnauthorizedException(
-        'Refresh token no coincide con la sesión activa',
-      );
-    }
-
-    // ========================
-    // 🔹 3. Regenerar tokens
-    // ========================
-    const newPayload = {
-      id: payload.id,
-      name: payload.name,
-      roleId: payload.roleId,
-    };
-
-    const newAccessToken = this.jwtService.sign(newPayload, {
-      secret: process.env.JWT_SECRET,
-      expiresIn: process.env.JWT_EXPIRES_IN || '1h',
-    });
-
-    const newRefreshToken = this.jwtService.sign(newPayload, {
-      secret: process.env.JWT_REFRESH_SECRET,
-      expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
-    });
-
-    // ✅ 4. Actualizar sesión en Redis
+    const newRefreshToken = this.jwtService.sign(
+      {
+        id: payload.id,
+        name: payload.name,
+        roleId: payload.roleId,
+      },
+      {
+        secret: process.env.JWT_REFRESH_SECRET,
+        expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+      },
+    );
+    //  Actualizar sesión en Redis
     await this.redisSession.setSession(
       userId,
       {
@@ -209,26 +216,21 @@ export class AuthService {
         roleId: payload.roleId,
         refreshedAt: new Date().toISOString(),
       },
-      604800,
+      3600,
     );
-
-    // Re-obtener el menú (podemos optimizar esto si fuera necesario)
-    // Nota: Aquí no sabemos si era isSystemUser a menos que lo guardemos en el token o lo busquemos.
-    // Como simplificación, intentamos detectar por el rol o simplemente devolver los tokens.
-    // El frontend suele refrescar su estado tras el login.
-    // TODO: roleId ahora es UUID — esta comparación con 1 ya no aplica.
-    // Reemplazar por la lógica correcta para determinar si es usuario de sistema
-    // (ej.: buscar el rol en BD o comparar con un UUID conocido de admin).
-    const menu = await this.menuService.getMenuForUser(
-      userId,
-      false, // ⚠️ Antes: payload.roleId === 1 — revisar lógica de detección admin
-    );
-
+    const {
+      userId: rawUserId,
+      email,
+      ...modules
+    } = await this.permissionService.getUserPermissions(userId);
     return {
       access_token: newAccessToken,
       refresh_token: newRefreshToken,
-      data: { id: userId },
-      menu,
+      data: {
+        id: payload.id,
+        user: currentUser.user,
+      },
+      modules,
     };
   }
 
@@ -255,5 +257,82 @@ export class AuthService {
    */
   async isSessionActive(userId: string): Promise<boolean> {
     return this.redisSession.isValidSession(userId);
+  }
+
+  // ======================================================
+  // 🔹 OBTENER USUARIO CON PERMISOS
+  // ======================================================
+
+  /**
+   * Retorna datos del usuario autenticado junto con sus permisos
+   * en formato 'module.action' para que el frontend construya la UI.
+   */
+  async getUserWithPermissions(userId: string) {
+    // Buscar en users normales primero
+    let user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: [
+        'role',
+        'role.permissionMenus',
+        'role.permissionMenus.permission',
+        'role.permissionMenus.menu',
+        'commonPerson',
+      ],
+    });
+
+    if (user) {
+      const { password, ...safeUser } = user;
+      const permissions = (user.role?.permissionMenus ?? [])
+        .filter(
+          (pr) =>
+            pr.isActive &&
+            pr.menu?.name &&
+            pr.permission?.isActive &&
+            pr.permission?.name,
+        )
+        .map((pr) => `${pr.menu.name}.${pr.permission.name}`.toLowerCase());
+
+      return {
+        user: safeUser,
+        role: user.role ? { id: user.role.id, name: user.role.name } : null,
+        permissions,
+        isSystemUser: false,
+      };
+    }
+
+    // Buscar en users de seguridad
+    const secUser = await this.userSystemRepository.findOne({
+      where: { id: userId },
+      relations: [
+        'role',
+        'role.permissionMenus',
+        'role.permissionMenus.permission',
+        'role.permissionMenus.menu',
+      ],
+    });
+
+    if (!secUser) {
+      throw new UnauthorizedException('Usuario no encontrado');
+    }
+
+    const { password, ...safeSecUser } = secUser;
+    const permissions = (secUser.role?.permissionMenus ?? [])
+      .filter(
+        (pr) =>
+          pr.isActive &&
+          pr.menu?.name &&
+          pr.permission?.isActive &&
+          pr.permission?.name,
+      )
+      .map((pr) => `${pr.menu.name}.${pr.permission.name}`.toLowerCase());
+
+    return {
+      user: safeSecUser,
+      role: secUser.role
+        ? { id: secUser.role.id, name: secUser.role.name }
+        : null,
+      permissions,
+      isSystemUser: true,
+    };
   }
 }
