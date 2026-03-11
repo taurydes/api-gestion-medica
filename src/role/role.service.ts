@@ -80,8 +80,8 @@ export class RoleService {
 
     const qb = this.roleRepository
       .createQueryBuilder('role')
-      .leftJoinAndSelect('role.permissionsRoles', 'permissionsRoles')
-      .leftJoinAndSelect('permissionsRoles.permission', 'permission')
+      .leftJoinAndSelect('role.permissionMenus', 'permissionMenus')
+      .leftJoinAndSelect('permissionMenus.permission', 'permission')
       .where('role.deletedAt IS NULL');
 
     // 🔍 Filtros
@@ -134,7 +134,7 @@ export class RoleService {
 
       const role = await this.roleRepository.findOne({
         where: { id },
-        relations: ['permissionsRoles', 'permissionsRoles.permission'],
+        relations: ['permissionMenus', 'permissionMenus.permission'],
       });
 
       if (!role) {

@@ -10,11 +10,12 @@ import { CaslPermissionController } from './controller/permission.controller';
 import { PermissionMenu } from './entities/permission-menu.entity';
 import { Permission } from './entities/permission.entity';
 import { PermissionService } from './services/permission.service';
+import { User } from 'src/user/entities/user.entity';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature(
-      [Permission, Role, PermissionMenu, UserSecurity, Menu],
+      [Permission, Role, PermissionMenu, UserSecurity, Menu, User],
       DatabaseConnectionName.DB_MAIN,
     ),
     forwardRef(() => AuthModule),

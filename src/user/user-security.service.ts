@@ -28,21 +28,20 @@ export class UserSecurityService {
   /**
    * 🔥 Método para limpiar cache de paginaciones dinámicas
    */
-private async clearQueryCache(): Promise<void> {
-  const listKey = 'users-security:query:keys';
+  private async clearQueryCache(): Promise<void> {
+    const listKey = 'users-security:query:keys';
 
-  // Recuperamos las keys almacenadas manualmente
-  const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
+    // Recuperamos las keys almacenadas manualmente
+    const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
 
-  // Eliminamos cada key asociada a consultas paginadas
-  for (const key of keys) {
-    await this.cacheManager.del(key);
+    // Eliminamos cada key asociada a consultas paginadas
+    for (const key of keys) {
+      await this.cacheManager.del(key);
+    }
+
+    // Finalmente limpiamos la lista de claves
+    await this.cacheManager.del(listKey);
   }
-
-  // Finalmente limpiamos la lista de claves
-  await this.cacheManager.del(listKey);
-}
-
 
   /**
    * Crear usuario
@@ -59,7 +58,10 @@ private async clearQueryCache(): Promise<void> {
         throw new BadRequestException('El correo electrónico ya está en uso.');
       }
 
-      const hashedPassword = await bcrypt.hash(createUserSecurityDto.password, 10);
+      const hashedPassword = await bcrypt.hash(
+        createUserSecurityDto.password,
+        10,
+      );
 
       const newUser = this.userSecurityRepository.create({
         ...createUserSecurityDto,
@@ -101,8 +103,8 @@ private async clearQueryCache(): Promise<void> {
     const qb = this.userSecurityRepository
       .createQueryBuilder('userSecurity')
       .leftJoinAndSelect('userSecurity.role', 'role')
-      .leftJoinAndSelect('role.permissionsRoles', 'permissionsRoles')
-      .leftJoinAndSelect('permissionsRoles.permission', 'permission')
+      .leftJoinAndSelect('role.permissionsMenus', 'permissionsMenus')
+      .leftJoinAndSelect('permissionsMenus.permission', 'permission')
       .where('userSecurity.deletedAt IS NULL');
     // 🔍 Filtros
     if (search) {
@@ -113,7 +115,8 @@ private async clearQueryCache(): Promise<void> {
     }
 
     if (roleId) qb.andWhere('userSecurity.roleId = :roleId', { roleId });
-    if (status !== undefined) qb.andWhere('userSecurity.status = :status', { status });
+    if (status !== undefined)
+      qb.andWhere('userSecurity.status = :status', { status });
 
     qb.orderBy('userSecurity.id', order);
     qb.skip((page - 1) * limit).take(limit);
@@ -139,7 +142,6 @@ private async clearQueryCache(): Promise<void> {
     return result;
   }
 
-
   /**
    * Obtener usuario por ID con cache
    */
@@ -147,17 +149,16 @@ private async clearQueryCache(): Promise<void> {
     const cacheKey = `userSecurity:${id}`;
 
     try {
-      const cached = await this.cacheManager.get<Omit<UserSecurity, 'password'>>(
-        cacheKey,
-      );
+      const cached =
+        await this.cacheManager.get<Omit<UserSecurity, 'password'>>(cacheKey);
       if (cached) return cached;
 
       const user = await this.userSecurityRepository.findOne({
         where: { id },
         relations: [
           'role',
-          'role.permissionsRoles',
-          'role.permissionsRoles.permission',
+          'role.permissionsMenus',
+          'role.permissionsMenus.permission',
         ],
       });
 
@@ -181,62 +182,61 @@ private async clearQueryCache(): Promise<void> {
    * Actualizar usuario
    */
   async update(
-      id: string,
-      updateUserDto: UpdateUserDto,
-    ): Promise<Omit<UserSecurity, 'password'> | null> {
-      try {
-        const user = await this.userSecurityRepository.findOneBy({ id });
+    id: string,
+    updateUserDto: UpdateUserDto,
+  ): Promise<Omit<UserSecurity, 'password'> | null> {
+    try {
+      const user = await this.userSecurityRepository.findOneBy({ id });
 
-        if (!user) {
-          throw new NotFoundException(`Usuario con ID ${id} no encontrado.`);
-        }
-
-        if (updateUserDto.password) {
-          updateUserDto.password = await bcrypt.hash(updateUserDto.password, 10);
-        }
-
-        await this.userSecurityRepository.update(id, updateUserDto);
-        const updated = await this.userSecurityRepository.findOneBy({ id });
-
-        if (!updated) {
-          throw new NotFoundException('Error al actualizar el usuario.');
-        }
-
-        const { password, ...rest } = updated;
-
-        // limpiar caches
-        await this.cacheManager.del(`userSecurity:${id}`);
-        await this.cacheManager.del('userSecurity:all');
-        await this.clearQueryCache();
-
-        return rest;
-      } catch (error) {
-        throw new BadRequestException(
-          `Error al actualizar el usuario: ${error.message}`,
-        );
+      if (!user) {
+        throw new NotFoundException(`Usuario con ID ${id} no encontrado.`);
       }
-    }
 
+      if (updateUserDto.password) {
+        updateUserDto.password = await bcrypt.hash(updateUserDto.password, 10);
+      }
+
+      await this.userSecurityRepository.update(id, updateUserDto);
+      const updated = await this.userSecurityRepository.findOneBy({ id });
+
+      if (!updated) {
+        throw new NotFoundException('Error al actualizar el usuario.');
+      }
+
+      const { password, ...rest } = updated;
+
+      // limpiar caches
+      await this.cacheManager.del(`userSecurity:${id}`);
+      await this.cacheManager.del('userSecurity:all');
+      await this.clearQueryCache();
+
+      return rest;
+    } catch (error) {
+      throw new BadRequestException(
+        `Error al actualizar el usuario: ${error.message}`,
+      );
+    }
+  }
 
   /**
    * Eliminar usuario
    */
   async remove(id: string): Promise<void> {
-      try {
-        const user = await this.findOne(id);
-        if (!user) {
-          throw new NotFoundException(`Usuario con ID ${id} no encontrado.`);
-        }
-
-        await this.userSecurityRepository.delete(id);
-
-        await this.cacheManager.del(`userSecurity:${id}`);
-        await this.cacheManager.del('userSecurity:all');
-        await this.clearQueryCache();
-      } catch (error) {
-        throw new NotFoundException(
-          `Error al eliminar el usuario: ${error.message}`,
-        );
+    try {
+      const user = await this.findOne(id);
+      if (!user) {
+        throw new NotFoundException(`Usuario con ID ${id} no encontrado.`);
       }
+
+      await this.userSecurityRepository.delete(id);
+
+      await this.cacheManager.del(`userSecurity:${id}`);
+      await this.cacheManager.del('userSecurity:all');
+      await this.clearQueryCache();
+    } catch (error) {
+      throw new NotFoundException(
+        `Error al eliminar el usuario: ${error.message}`,
+      );
+    }
   }
 }

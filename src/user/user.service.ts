@@ -259,8 +259,8 @@ export class UserService {
       where: { id },
       relations: [
         'role',
-        'role.permissionsRoles',
-        'role.permissionsRoles.permission',
+        'role.permissionMenus',
+        'role.permissionMenus.permission',
       ],
     });
 

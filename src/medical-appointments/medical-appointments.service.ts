@@ -94,6 +94,26 @@ export class MedicalAppointmentsService {
     return doctor?.id ?? null;
   }
 
+  /**
+   * Resuelve los IDs de centros médicos asociados al doctor del usuario.
+   * Retorna null si el usuario no es un doctor.
+   */
+  private async getMedicalCenterIdsForUser(userId: string): Promise<string[] | null> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['commonPerson'],
+    });
+    if (!user?.commonPerson) return null;
+
+    const doctor = await this.doctorRepository.findOne({
+      where: { commonPersonId: user.commonPerson.id },
+      relations: ['medicalCenters'],
+    });
+    if (!doctor) return null;
+
+    return doctor.medicalCenters?.map((mc) => mc.id) ?? [];
+  }
+
   // ─── Cache helpers ─────────────────────────────────────────────────────────
 
   private async clearQueryCache(): Promise<void> {
@@ -459,10 +479,18 @@ export class MedicalAppointmentsService {
 
     // IDOR: forzar filtro por doctorId si el usuario es doctor
     let effectiveDoctorId = doctorId;
+    let effectiveMedicalCenterId = medicalCenterId;
     if (authUser?.id) {
       const myDoctorId = await this.getDoctorIdForUser(authUser.id);
       if (myDoctorId) {
         effectiveDoctorId = myDoctorId;
+        // Filtrar por centro médico: si pidió uno, validar que sea suyo
+        const myCenterIds = await this.getMedicalCenterIdsForUser(authUser.id);
+        if (myCenterIds?.length) {
+          if (medicalCenterId && !myCenterIds.includes(medicalCenterId)) {
+            throw new ForbiddenException('No tiene acceso a este centro médico.');
+          }
+        }
       }
     }
 

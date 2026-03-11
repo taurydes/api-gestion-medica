@@ -120,7 +120,6 @@ export class PermissionsGuard implements CanActivate {
     const hasPermission = lowerRequired.some((required) =>
       userPermissionCodes.includes(required),
     );
-    return true;
 
     if (!hasPermission) {
       throw new ForbiddenException(

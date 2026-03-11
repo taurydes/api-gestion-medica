@@ -3,7 +3,7 @@ import { PermissionMenu } from './permission-menu.entity';
 
 @Entity({ schema: 'seguridad', name: 'permisos' })
 export class Permission {
-  @PrimaryGeneratedColumn({ type: 'bigint' })
+  @PrimaryGeneratedColumn('uuid')
   id: string;
 
   @Column({ name: 'nombre', type: 'varchar', length: 255 })
