@@ -29,6 +29,7 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -45,7 +46,10 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { SessionGuard } from 'src/auth/guards/session.guard';
 import { AuthUser } from 'src/auth/interfaces/User';
 import { ModuleItemsMenu } from 'src/menu/menu.const';
-import { PermissionActionsMenu, PermissionToFront } from 'src/permission/permission.const';
+import {
+  PermissionActionsMenu,
+  PermissionToFront,
+} from 'src/permission/permission.const';
 import {
   AssignPermissionDto,
   BulkUpdatePermissionsDto,
@@ -59,9 +63,8 @@ import {
   BulkAssignPermissionsToRoleByIdDto,
   BulkAssignPermissionsToUserByIdDto,
 } from '../dto/bulk-assign-permissions.dto';
-import {
-  PermissionService
-} from '../services/permission.service';
+import { PermissionService } from '../services/permission.service';
+import { QueryPermissionDto } from '../dto/query-permission.dto';
 
 // =============================================================================
 // CONTROLLER
@@ -105,7 +108,7 @@ export class CaslPermissionController {
     `${ModuleItemsMenu.PermissionModule}.${PermissionActionsMenu.VIEW}`,
   )
   async getUserPermissions(
-    @Param('userId') userId: string | number,
+    @Param('userId') userId: string,
   ): Promise<PermissionToFront> {
     return this.permissionService.getUserPermissionsSummary(userId);
   }
@@ -121,6 +124,18 @@ export class CaslPermissionController {
   )
   async getRolePermissions(@Param('roleId') roleId: string | number) {
     return this.permissionService.getMenusForUserAndRole(String(roleId));
+  }
+
+  /**
+   * Obtiene los permisos de un rol.
+   */
+  @Get()
+  @ApiOperation({ summary: 'Obtener todos los permisos' })
+  @Permission(
+    `${ModuleItemsMenu.PermissionModule}.${PermissionActionsMenu.VIEW}`,
+  )
+  async findAllPermissions(@Query() pagination: QueryPermissionDto) {
+    return this.permissionService.findAllPermissions(pagination);
   }
 
   // ===========================================================================

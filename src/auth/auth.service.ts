@@ -132,46 +132,17 @@ export class AuthService {
       },
       3600, // TTL del access token
     );
-    const {
-      userId: rawUserId,
-      email,
-      rules,
-      ...modules
-    } = await this.permissionService.getUserPermissions(user.id);
-
-    const summaryUser = {
-      id: user.id,
-      name: user.user.name,
-      email: user.user.email,
-    };
-    return { access_token, refresh_token, data: summaryUser, modules };
+    return { access_token, refresh_token };
   }
 
   // ======================================================
   // 🔹 REFRESH TOKEN
   // ======================================================
-  async refreshTokens(
-    dto: RefreshTokenDto,
-    currentUser: AuthUser,
-  ): Promise<JwtPayload> {
+  async refreshTokens(dto: RefreshTokenDto): Promise<JwtPayload> {
     const { refreshToken } = dto;
-    const userId = currentUser.id;
 
-    const session = await this.redisSession.getSession(userId);
-
-    if (!session) {
-      throw new UnauthorizedException('Sesión expirada o inválida');
-    }
-
-    if (session.refresh_token !== refreshToken) {
-      throw new UnauthorizedException('Refresh token inválido');
-    }
-
-    // ========================
-    // 🔥 Decodificar refresh token
-    // ========================
+    // 1. Decodificar el refresh token para obtener el userId
     let payload: any;
-
     try {
       payload = this.jwtService.verify(refreshToken, {
         secret: process.env.JWT_REFRESH_SECRET,
@@ -180,57 +151,67 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token inválido o expirado');
     }
 
-    // ========================
-    //  Regenerar tokens
-    // ========================
-    const newAccessToken = this.jwtService.sign(
-      {
-        id: payload.id,
-        name: payload.name,
-        roleId: payload.roleId,
-      },
-      {
-        secret: process.env.JWT_SECRET,
-        expiresIn: process.env.JWT_EXPIRES_IN || '1h',
-      },
-    );
+    const userId = payload.id;
+    if (!userId) {
+      throw new UnauthorizedException('Refresh token no contiene información de usuario');
+    }
 
-    const newRefreshToken = this.jwtService.sign(
-      {
-        id: payload.id,
-        name: payload.name,
-        roleId: payload.roleId,
-      },
-      {
-        secret: process.env.JWT_REFRESH_SECRET,
-        expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
-      },
-    );
-    //  Actualizar sesión en Redis
+    // 2. Validar que la sesión en Redis aún exista y el refresh_token coincida
+    const session = await this.redisSession.getSession(userId);
+    if (!session) {
+      throw new UnauthorizedException('Sesión expirada o inválida');
+    }
+    if (session.refresh_token !== refreshToken) {
+      throw new UnauthorizedException('Refresh token inválido');
+    }
+
+    // 3. Buscar al usuario para obtener datos actualizados del rol
+    let user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['role'],
+    });
+    if (!user) {
+      const sysUser = await this.userSystemRepository.findOne({
+        where: { id: userId },
+        relations: ['role'],
+      });
+      user = sysUser as any;
+    }
+    if (!user) {
+      throw new UnauthorizedException('Usuario no encontrado');
+    }
+
+    // 4. Regenerar tokens con datos frescos
+    const tokenPayload = {
+      id: user.id,
+      user: { id: user.id, user: { ...user, password: undefined } },
+    };
+
+    const newAccessToken = this.jwtService.sign(tokenPayload, {
+      secret: process.env.JWT_SECRET,
+      expiresIn: process.env.JWT_EXPIRES_IN || '1h',
+    });
+
+    const newRefreshToken = this.jwtService.sign(tokenPayload, {
+      secret: process.env.JWT_REFRESH_SECRET,
+      expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+    });
+
+    // 5. Actualizar sesión en Redis
     await this.redisSession.setSession(
       userId,
       {
         access_token: newAccessToken,
         refresh_token: newRefreshToken,
-        userId: payload.id,
-        roleId: payload.roleId,
+        userId: user.id,
+        roleId: user.roleId,
         refreshedAt: new Date().toISOString(),
       },
       3600,
     );
-    const {
-      userId: rawUserId,
-      email,
-      ...modules
-    } = await this.permissionService.getUserPermissions(userId);
     return {
       access_token: newAccessToken,
       refresh_token: newRefreshToken,
-      data: {
-        id: payload.id,
-        user: currentUser.user,
-      },
-      modules,
     };
   }
 
@@ -268,71 +249,34 @@ export class AuthService {
    * en formato 'module.action' para que el frontend construya la UI.
    */
   async getUserWithPermissions(userId: string) {
-    // Buscar en users normales primero
-    let user = await this.userRepository.findOne({
+    // 1. Obtener módulos y permisos desde el servicio de permisos
+    const {
+      userId: _,
+      email: __,
+      rules: ___, 
+      ...modules
+    } = await this.permissionService.getUserPermissions(userId);
+
+    // 2. Obtener datos del usuario (buscando en ambos repositorios)
+    let user = await this.userSystemRepository.findOne({
       where: { id: userId },
-      relations: [
-        'role',
-        'role.permissionMenus',
-        'role.permissionMenus.permission',
-        'role.permissionMenus.menu',
-        'commonPerson',
-      ],
     });
-
-    if (user) {
-      const { password, ...safeUser } = user;
-      const permissions = (user.role?.permissionMenus ?? [])
-        .filter(
-          (pr) =>
-            pr.isActive &&
-            pr.menu?.name &&
-            pr.permission?.isActive &&
-            pr.permission?.name,
-        )
-        .map((pr) => `${pr.menu.name}.${pr.permission.name}`.toLowerCase());
-
-      return {
-        user: safeUser,
-        role: user.role ? { id: user.role.id, name: user.role.name } : null,
-        permissions,
-        isSystemUser: false,
-      };
+    if (!user) {
+      user = (await this.userRepository.findOne({
+        where: { id: userId },
+      })) as any;
     }
 
-    // Buscar en users de seguridad
-    const secUser = await this.userSystemRepository.findOne({
-      where: { id: userId },
-      relations: [
-        'role',
-        'role.permissionMenus',
-        'role.permissionMenus.permission',
-        'role.permissionMenus.menu',
-      ],
-    });
-
-    if (!secUser) {
+    if (!user) {
       throw new UnauthorizedException('Usuario no encontrado');
     }
 
-    const { password, ...safeSecUser } = secUser;
-    const permissions = (secUser.role?.permissionMenus ?? [])
-      .filter(
-        (pr) =>
-          pr.isActive &&
-          pr.menu?.name &&
-          pr.permission?.isActive &&
-          pr.permission?.name,
-      )
-      .map((pr) => `${pr.menu.name}.${pr.permission.name}`.toLowerCase());
-
-    return {
-      user: safeSecUser,
-      role: secUser.role
-        ? { id: secUser.role.id, name: secUser.role.name }
-        : null,
-      permissions,
-      isSystemUser: true,
+    const data = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
     };
+
+    return { data, modules };
   }
 }

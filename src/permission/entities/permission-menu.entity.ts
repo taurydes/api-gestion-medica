@@ -11,13 +11,13 @@ import {
 
 @Entity({ schema: 'seguridad', name: 'permisos_menus' })
 export class PermissionMenu {
-  @PrimaryGeneratedColumn({ type: 'bigint' })
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
-  @Column({ name: 'permiso_id', type: 'bigint' })
+  @Column({ name: 'permiso_id', type: 'uuid' })
   permissionId: string;
 
-  @Column({ name: 'menu_id', type: 'bigint' })
+  @Column({ name: 'menu_id', type: 'uuid' })
   menuId: string;
 
   @Column({ name: 'rol_id', type: 'uuid' })

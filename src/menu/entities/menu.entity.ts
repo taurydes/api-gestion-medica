@@ -1,13 +1,12 @@
 import { PermissionMenu } from 'src/permission/entities/permission-menu.entity';
 import {
-    Column,
-    Entity,
-    JoinColumn,
-    ManyToOne,
-    OneToMany,
-    PrimaryGeneratedColumn,
+  Column,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  OneToMany,
+  PrimaryGeneratedColumn,
 } from 'typeorm';
-
 
 @Entity({ schema: 'seguridad', name: 'menu' })
 export class Menu {
@@ -38,6 +37,9 @@ export class Menu {
 
   @Column({ name: 'es_titulo', type: 'boolean', default: false })
   isTitle: boolean;
+
+  @Column({ name: 'es_visible', type: 'boolean', default: false })
+  isVisible: boolean;
 
   @Column({ name: 'status', type: 'boolean', default: true })
   isActive: boolean;
@@ -75,5 +77,4 @@ export class Menu {
 
   @OneToMany(() => PermissionMenu, (pm) => pm.menu)
   permissionMenus: PermissionMenu[];
-
 }

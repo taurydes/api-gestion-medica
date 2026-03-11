@@ -82,8 +82,8 @@ export class AuthController {
 
   @Public()
   @Post('refresh')
-  async refresh(@Body() dto: RefreshTokenDto, @Res() res: Response, @GetUser() user: AuthUser) {
-    const tokens = await this.authService.refreshTokens(dto, user);
+  async refresh(@Body() dto: RefreshTokenDto, @Res() res: Response) {
+    const tokens = await this.authService.refreshTokens(dto);
     return res.json(tokens);
   }
 

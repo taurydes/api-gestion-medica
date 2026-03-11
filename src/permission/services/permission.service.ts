@@ -36,6 +36,8 @@ import {
 } from '../dto';
 import { PermissionMenu } from '../entities/permission-menu.entity';
 import { AuthUser } from 'src/auth/interfaces/User';
+import { User } from 'src/user/entities/user.entity';
+import { QueryPermissionDto } from '../dto/query-permission.dto';
 @Injectable()
 export class PermissionService {
   private readonly logger = new Logger(PermissionService.name);
@@ -63,6 +65,9 @@ export class PermissionService {
 
     @InjectRepository(PermissionMenu, DatabaseConnectionName.DB_MAIN)
     private readonly permissionMenuRepo: Repository<PermissionMenu>,
+
+    @InjectRepository(User, DatabaseConnectionName.DB_MAIN)
+    private readonly normalUserRepo: Repository<User>,
 
     @Inject(CACHE_MANAGER)
     private readonly cache: Cache,
@@ -509,9 +514,7 @@ export class PermissionService {
    * Obtiene los permisos agrupados por módulo para un usuario (para frontend).
    * Optimizado: no trae todos los menús ni todos los permisos, solo los que el usuario posee.
    */
-  async getUserPermissionsSummary(
-    userId: string | number,
-  ): Promise<PermissionToFront> {
+  async getUserPermissionsSummary(userId: string): Promise<PermissionToFront> {
     // Construye la habilidad y (en result.user.permissions) vienen los permisos planos tipo "module.action"
     const data = await this.getUserPermissions(userId);
     return {
@@ -560,12 +563,19 @@ export class PermissionService {
    * Compatible con la estructura de respuesta de la API de Go.
    */
   async getUserPermissions(
-    userId: number | string,
+    userId: string,
   ): Promise<UserPermissionsResponseDto> {
-    const user = await this.userRepo.findOne({
-      where: { id: String(userId) },
+    let user = await this.userRepo.findOne({
+      where: { id: userId },
       relations: ['role'],
     });
+
+    if (!user) {
+      user = (await this.normalUserRepo.findOne({
+        where: { id: userId },
+        relations: ['role'],
+      })) as any;
+    }
 
     if (!user) {
       throw new NotFoundException(`Usuario con ID ${userId} no encontrado`);
@@ -981,79 +991,65 @@ export class PermissionService {
    * Estructura recursiva para hijos.
    */
   async getMenusForUserAndRole(
-    userId: string | number,
+    userId: string,
     roleRawId?: string | number,
   ): Promise<MenuTree[]> {
-    // Obtener usuario y su rol
-    const user = await this.userRepo.findOne({
-      where: { id: String(userId) },
-      relations: ['role', 'role.permissionMenus'],
+    // Obtener usuario y su rol (buscando en ambos repos)
+    let user = await this.userRepo.findOne({
+      where: { id: userId },
+      relations: ['role'],
     });
+
+    if (!user) {
+      user = (await this.normalUserRepo.findOne({
+        where: { id: userId },
+        relations: ['role'],
+      })) as any;
+    }
+
     if (!user || !user.roleId)
       throw new NotFoundException(`Usuario con ID ${userId} no encontrado`);
 
     const roleId = roleRawId ?? user.roleId;
 
-    const role = await this.roleRepo.findOne({
-      where: { id: String(roleId) },
-    });
-
-    if (!role) {
-      throw new NotFoundException(`Rol no encontrado`);
-    }
-
-    // Menús por rol (PermissionRole)
-    const roleMenus = await this.permissionMenuRepo.find({
+    // 1. Obtener IDs de menús permitidos para este rol
+    const permissionMenus = await this.permissionMenuRepo.find({
       where: { roleId: String(roleId), isActive: true },
-      relations: ['menu'],
+      select: ['menuId'],
     });
-    const roleMenuIds = new Set(roleMenus.map((pr) => pr.menuId));
+    const allowedMenuIds = new Set(permissionMenus.map((pm) => pm.menuId));
 
-    // Menús por usuario directo (PermissionMenu)
-    const userMenus = await this.permissionMenuRepo.find({
-      where: { roleId: String(roleId), isActive: true },
-      relations: ['menu'],
-    });
-
-    const userMenuIds = new Set([
-      ...userMenus.map((pm) => pm.menuId),
-      ...userMenus.map((pm) => pm.menuId),
-    ]);
-
-    // Unir todos los IDs de menú
-    const allMenuIds = Array.from(
-      new Set([...roleMenuIds, ...userMenuIds]),
-    ).filter((id) => !!id);
-
-    if (allMenuIds.length === 0) return [];
-
-    // Buscar los menús activos
-    const menus = await this.menuRepo.find({
-      where: { id: In(allMenuIds), isActive: true },
-      select: ['id', 'slug', 'name', 'parentId', 'url', 'icon', 'order'],
+    // 2. Cargar TODOS los menús activos y visibles para construir la estructura completa
+    const allMenus = await this.menuRepo.find({
+      where: { isActive: true, isVisible: true },
       order: { order: 'ASC' },
+      select: ['id', 'slug', 'name', 'parentId', 'url', 'icon', 'order'],
     });
 
-    // Crear un mapa para acceso rápido a los menús
     const menuMap = new Map<string, Menu>();
-    menus.forEach((menu) => menuMap.set(menu.id, menu));
+    allMenus.forEach((m) => menuMap.set(m.id, m));
 
-    // Función recursiva para construir el árbol
-    const buildMenuTree = (menuId: string | number): MenuTree => {
-      const menu = menuMap.get(String(menuId));
-      if (!menu) {
-        // Esto no debería ocurrir si la función se llama correctamente
-        throw new Error(`Menú con ID ${menuId} no encontrado`);
+    // 3. Función recursiva para construir el árbol
+    const buildMenuTree = (menuId: string): MenuTree | null => {
+      const menu = menuMap.get(menuId);
+      if (!menu) return null;
+
+      // Buscar hijos de este menú
+      const children = allMenus
+        .filter((m) => m.parentId === menuId)
+        .map((child) => buildMenuTree(child.id))
+        .filter((child) => child !== null) as MenuTree[];
+
+      // Un menú se muestra si:
+      // a) Él mismo tiene permiso directo (allowedMenuIds.has(menuId))
+      // b) O alguno de sus hijos tiene permiso (children.length > 0)
+      if (!allowedMenuIds.has(menuId) && children.length === 0) {
+        return null;
       }
-
-      // Buscar hijos de este menú que estén en nuestra lista de menús permitidos
-      const children = menus
-        .filter((m) => m.parentId === String(menuId))
-        .map((child) => buildMenuTree(child.id));
 
       return {
         id: menu.id,
-        slug: menu.slug as string,
+        slug: menu.slug || '',
         name: menu.name,
         url: menu.url,
         icon: menu.icon,
@@ -1062,19 +1058,27 @@ export class PermissionService {
       };
     };
 
-    // Obtener solo los menús raíz (sin padre o con padre no incluido en los permisos)
-    const rootMenus = menus
-      .filter((menu) => {
-        // Si no tiene padre, es raíz
-        if (!menu.parentId) return true;
-
-        // Si tiene padre, pero el padre no está en nuestros menús permitidos, también es raíz
-        const parentExists = menuMap.has(menu.parentId);
-        return !parentExists;
-      })
-      .map((menu) => buildMenuTree(menu.id))
-      .filter((menu) => menu.slug != null); // Filtramos los que no tienen slug
+    // 4. Construir el árbol desde los raíces (parentId null o padre no existe/no visible)
+    const rootMenus = allMenus
+      .filter((m) => !m.parentId || !menuMap.has(m.parentId))
+      .map((m) => buildMenuTree(m.id))
+      .filter((m) => m !== null) as MenuTree[];
 
     return rootMenus;
+  }
+
+  async findAllPermissions(
+    pagination: QueryPermissionDto,
+  ): Promise<Permission[]> {
+    const qb = this.permissionRepo.createQueryBuilder('permission');
+
+    if (pagination.page && pagination.limit) {
+      const skip = (pagination.page - 1) * pagination.limit;
+      qb.skip(skip).take(pagination.limit);
+    }
+
+    const data = await qb.getMany();
+
+    return data;
   }
 }

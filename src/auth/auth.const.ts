@@ -9,6 +9,6 @@ export type UserSecurityPayload = {
 export interface JwtPayload {
   access_token: string;
   refresh_token: string;
-  data: Partial<AuthUser>;
-  modules: PermissionResult;
+  data?: Partial<AuthUser>;
+  modules?: any;
 }
