@@ -3,11 +3,15 @@ import { FilesService } from './files.service';
 import { FilesController } from './files.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { VideoPublicity } from './entities/video-publicy.entity';
+import { AppointmentFile } from './entities/appointment-file.entity';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([VideoPublicity], DatabaseConnectionName.DB_MAIN),
+    TypeOrmModule.forFeature(
+      [VideoPublicity, AppointmentFile],
+      DatabaseConnectionName.DB_MAIN,
+    ),
   ],
   controllers: [FilesController],
   providers: [FilesService],

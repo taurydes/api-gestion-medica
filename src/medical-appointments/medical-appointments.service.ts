@@ -31,6 +31,7 @@ import { MedicalHistoryService } from 'src/medical-history/medical-history.servi
 import { RecipeService } from 'src/recipe/recipe.service';
 import { CompleteConsultationDto } from './dto/complete-consultation.dto';
 import { User } from 'src/user/entities/user.entity';
+import { DoctorScheduleService } from 'src/doctors/doctor-schedule.service';
 
 @Injectable()
 export class MedicalAppointmentsService {
@@ -73,6 +74,7 @@ export class MedicalAppointmentsService {
 
     private readonly historyService: MedicalHistoryService,
     private readonly recipeService: RecipeService,
+    private readonly scheduleService: DoctorScheduleService,
   ) {}
 
   // ─── IDOR helper ───────────────────────────────────────────────────────────
@@ -112,6 +114,19 @@ export class MedicalAppointmentsService {
     if (!doctor) return null;
 
     return doctor.medicalCenters?.map((mc) => mc.id) ?? [];
+  }
+
+  /**
+   * Verifica si el usuario tiene rol de administrador.
+   * Los admins no están sujetos a restricciones IDOR aunque tengan perfil de doctor.
+   */
+  private async isAdminUser(userId: string): Promise<boolean> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['role'],
+    });
+    const roleName = (user?.role?.name ?? '').toLowerCase();
+    return roleName.includes('admin') || roleName.includes('super');
   }
 
   // ─── Cache helpers ─────────────────────────────────────────────────────────
@@ -287,6 +302,95 @@ export class MedicalAppointmentsService {
     }
   }
 
+  /**
+   * Valida que el doctor tenga horario configurado el día de la cita
+   * en el centro médico indicado.
+   */
+  private async validateDoctorSchedule(
+    doctorId: string,
+    medicalCenterId: string,
+    appointmentDate: Date,
+  ): Promise<void> {
+    const dayOfWeek = appointmentDate.getDay(); // 0=Domingo ... 6=Sábado
+    const schedules = await this.scheduleService.getScheduleForDoctorOnDay(
+      doctorId,
+      medicalCenterId,
+      dayOfWeek,
+    );
+
+    if (!schedules.length) {
+      const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+      throw new BadRequestException(
+        `El doctor no tiene horario configurado para el día ${dayNames[dayOfWeek]} en este centro médico.`,
+      );
+    }
+
+    // Validar que la hora de la cita esté dentro de algún bloque horario
+    const appointmentTime = appointmentDate.toTimeString().slice(0, 5); // HH:mm
+    const inBlock = schedules.some(
+      (s) => appointmentTime >= s.startTime && appointmentTime < s.endTime,
+    );
+    if (!inBlock) {
+      throw new BadRequestException(
+        `La hora ${appointmentTime} no está dentro del horario del doctor en este centro médico.`,
+      );
+    }
+  }
+
+  /**
+   * Valida que el doctor no haya superado el máximo de citas diarias
+   * configurado en su horario para ese centro médico.
+   */
+  private async validateDailyAppointmentLimit(
+    doctorId: string,
+    medicalCenterId: string,
+    appointmentDate: Date,
+    excludeId?: string,
+  ): Promise<void> {
+    const dayOfWeek = appointmentDate.getDay();
+    const schedules = await this.scheduleService.getScheduleForDoctorOnDay(
+      doctorId,
+      medicalCenterId,
+      dayOfWeek,
+    );
+
+    if (!schedules.length) return; // Sin horario = sin límite (ya se validó antes)
+
+    // Tomar el máximo diario del primer bloque (se aplica a nivel día)
+    const maxDaily = schedules[0].maxDailyAppointments || 20;
+
+    // Contar citas activas del doctor ese día en ese centro
+    const dayStart = new Date(appointmentDate);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(appointmentDate);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    const qb = this.appointmentRepository
+      .createQueryBuilder('apt')
+      .where('apt.doctorId = :doctorId', { doctorId })
+      .andWhere('apt.medicalCenterId = :medicalCenterId', { medicalCenterId })
+      .andWhere('apt.deletedAt IS NULL')
+      .andWhere('apt.status NOT IN (:...statuses)', {
+        statuses: [AppointmentStatus.CANCELLED],
+      })
+      .andWhere('apt.appointmentDate BETWEEN :dayStart AND :dayEnd', {
+        dayStart,
+        dayEnd,
+      });
+
+    if (excludeId) {
+      qb.andWhere('apt.id != :excludeId', { excludeId });
+    }
+
+    const currentCount = await qb.getCount();
+
+    if (currentCount >= maxDaily) {
+      throw new BadRequestException(
+        `El doctor ya alcanzó el máximo de ${maxDaily} citas para este día en este centro médico.`,
+      );
+    }
+  }
+
   // ─── Cargar relaciones completas ───────────────────────────────────────────
 
   private async loadFullAppointment(id: string): Promise<MedicalAppointment> {
@@ -386,6 +490,20 @@ export class MedicalAppointmentsService {
         dto.durationMinutes ?? 30,
       );
 
+      // Validar horario del doctor en el centro médico
+      if (dto.medicalCenterId) {
+        await this.validateDoctorSchedule(
+          dto.doctorId,
+          dto.medicalCenterId,
+          appointmentDate,
+        );
+        await this.validateDailyAppointmentLimit(
+          dto.doctorId,
+          dto.medicalCenterId,
+          appointmentDate,
+        );
+      }
+
       // Validar specialty, center y department si se proporcionan
       if (dto.specialtyId) {
         const specialty = await this.specialtyRepository.findOne({
@@ -477,18 +595,21 @@ export class MedicalAppointmentsService {
       dateTo,
     } = query;
 
-    // IDOR: forzar filtro por doctorId si el usuario es doctor
+    // IDOR: forzar filtro por doctorId solo si el usuario es doctor Y no es admin
     let effectiveDoctorId = doctorId;
     let effectiveMedicalCenterId = medicalCenterId;
     if (authUser?.id) {
       const myDoctorId = await this.getDoctorIdForUser(authUser.id);
       if (myDoctorId) {
-        effectiveDoctorId = myDoctorId;
-        // Filtrar por centro médico: si pidió uno, validar que sea suyo
-        const myCenterIds = await this.getMedicalCenterIdsForUser(authUser.id);
-        if (myCenterIds?.length) {
-          if (medicalCenterId && !myCenterIds.includes(medicalCenterId)) {
-            throw new ForbiddenException('No tiene acceso a este centro médico.');
+        const isAdmin = await this.isAdminUser(authUser.id);
+        if (!isAdmin) {
+          effectiveDoctorId = myDoctorId;
+          // Filtrar por centro médico: si pidió uno, validar que sea suyo
+          const myCenterIds = await this.getMedicalCenterIdsForUser(authUser.id);
+          if (myCenterIds?.length) {
+            if (medicalCenterId && !myCenterIds.includes(medicalCenterId)) {
+              throw new ForbiddenException('No tiene acceso a este centro médico.');
+            }
           }
         }
       }
@@ -561,11 +682,14 @@ export class MedicalAppointmentsService {
 
     const apt = cached ?? await this.loadFullAppointment(id);
 
-    // IDOR: validar que doctor solo acceda a sus citas
+    // IDOR: validar que doctor solo acceda a sus citas (los admins pueden ver cualquiera)
     if (authUser?.id) {
       const myDoctorId = await this.getDoctorIdForUser(authUser.id);
       if (myDoctorId && apt.doctorId !== myDoctorId) {
-        throw new ForbiddenException('No tiene acceso a esta cita médica.');
+        const isAdmin = await this.isAdminUser(authUser.id);
+        if (!isAdmin) {
+          throw new ForbiddenException('No tiene acceso a esta cita médica.');
+        }
       }
     }
 
@@ -917,13 +1041,17 @@ export class MedicalAppointmentsService {
 
   /**
    * Verificar slots disponibles del médico en un día
-   * Retorna los horarios ya ocupados para una fecha dada
+   * Retorna los horarios ya ocupados, el horario del doctor y si el día está disponible
    */
   async checkAvailability(
     doctorId: string,
     date: string,
+    medicalCenterId?: string,
   ): Promise<{
     occupiedSlots: { start: Date; end: Date; appointmentNumber: string }[];
+    schedule: { startTime: string; endTime: string; maxDailyAppointments: number }[];
+    currentCount: number;
+    available: boolean;
   }> {
     const doctor = await this.doctorRepository.findOne({
       where: { id: doctorId, deletedAt: IsNull() },
@@ -937,7 +1065,24 @@ export class MedicalAppointmentsService {
     const dayEnd = new Date(date);
     dayEnd.setHours(23, 59, 59, 999);
 
-    const appointments = await this.appointmentRepository
+    const dayOfWeek = dayStart.getDay();
+
+    // Obtener horarios del doctor para ese día
+    let schedule: { startTime: string; endTime: string; maxDailyAppointments: number }[] = [];
+    if (medicalCenterId) {
+      const blocks = await this.scheduleService.getScheduleForDoctorOnDay(
+        doctorId,
+        medicalCenterId,
+        dayOfWeek,
+      );
+      schedule = blocks.map((b) => ({
+        startTime: b.startTime,
+        endTime: b.endTime,
+        maxDailyAppointments: b.maxDailyAppointments,
+      }));
+    }
+
+    const qb = this.appointmentRepository
       .createQueryBuilder('apt')
       .where('apt.doctorId = :doctorId', { doctorId })
       .andWhere('apt.deletedAt IS NULL')
@@ -947,9 +1092,13 @@ export class MedicalAppointmentsService {
       .andWhere('apt.appointmentDate BETWEEN :dayStart AND :dayEnd', {
         dayStart,
         dayEnd,
-      })
-      .orderBy('apt.appointmentDate', 'ASC')
-      .getMany();
+      });
+
+    if (medicalCenterId) {
+      qb.andWhere('apt.medicalCenterId = :medicalCenterId', { medicalCenterId });
+    }
+
+    const appointments = await qb.orderBy('apt.appointmentDate', 'ASC').getMany();
 
     const occupiedSlots = appointments.map((apt) => ({
       start: apt.appointmentDate,
@@ -959,6 +1108,86 @@ export class MedicalAppointmentsService {
       appointmentNumber: apt.appointmentNumber,
     }));
 
-    return { occupiedSlots };
+    const currentCount = appointments.length;
+    const maxDaily = schedule.length > 0 ? schedule[0].maxDailyAppointments : 20;
+    const available = schedule.length > 0 && currentCount < maxDaily;
+
+    return { occupiedSlots, schedule, currentCount, available };
+  }
+
+  /**
+   * Obtener los días disponibles de un doctor en un rango de fechas.
+   * Retorna un array de fechas donde el doctor tiene horario y cupos.
+   */
+  async getAvailableDates(
+    doctorId: string,
+    medicalCenterId: string,
+    startDate: string,
+    endDate: string,
+  ): Promise<{ date: string; dayOfWeek: number; slotsAvailable: number }[]> {
+    const doctor = await this.doctorRepository.findOne({
+      where: { id: doctorId, deletedAt: IsNull() },
+    });
+    if (!doctor) {
+      throw new NotFoundException(`Médico con ID ${doctorId} no encontrado.`);
+    }
+
+    // Obtener todos los horarios del doctor en ese centro
+    const schedules = await this.scheduleService.getSchedulesByDoctor(
+      doctorId,
+      medicalCenterId,
+    );
+
+    // Mapear los días que tiene disponible
+    const scheduledDays = new Map<number, { maxDailyAppointments: number }>();
+    for (const sc of schedules) {
+      scheduledDays.set(sc.dayOfWeek, {
+        maxDailyAppointments: sc.maxDailyAppointments,
+      });
+    }
+
+    const result: { date: string; dayOfWeek: number; slotsAvailable: number }[] = [];
+    const current = new Date(startDate);
+    const end = new Date(endDate);
+
+    while (current <= end) {
+      const dayOfWeek = current.getDay();
+      const config = scheduledDays.get(dayOfWeek);
+
+      if (config) {
+        // Contar citas existentes para ese día
+        const dayStart = new Date(current);
+        dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(current);
+        dayEnd.setHours(23, 59, 59, 999);
+
+        const count = await this.appointmentRepository
+          .createQueryBuilder('apt')
+          .where('apt.doctorId = :doctorId', { doctorId })
+          .andWhere('apt.medicalCenterId = :medicalCenterId', { medicalCenterId })
+          .andWhere('apt.deletedAt IS NULL')
+          .andWhere('apt.status NOT IN (:...statuses)', {
+            statuses: [AppointmentStatus.CANCELLED],
+          })
+          .andWhere('apt.appointmentDate BETWEEN :dayStart AND :dayEnd', {
+            dayStart,
+            dayEnd,
+          })
+          .getCount();
+
+        const slotsAvailable = config.maxDailyAppointments - count;
+        if (slotsAvailable > 0) {
+          result.push({
+            date: current.toISOString().split('T')[0],
+            dayOfWeek,
+            slotsAvailable,
+          });
+        }
+      }
+
+      current.setDate(current.getDate() + 1);
+    }
+
+    return result;
   }
 }

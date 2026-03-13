@@ -47,6 +47,10 @@ export class DoctorSchedule {
   @Column({ name: 'max_patients_per_slot', type: 'int', default: 1 })
   maxPatientsPerSlot: number;
 
+  /** Máximo de citas por día para este doctor en este centro médico (0 = sin límite) */
+  @Column({ name: 'max_daily_appointments', type: 'int', default: 20 })
+  maxDailyAppointments: number;
+
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
 

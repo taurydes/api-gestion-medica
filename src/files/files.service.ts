@@ -12,10 +12,11 @@ import * as path from 'path';
 import * as ffmpeg from 'fluent-ffmpeg';
 
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 
 import { UploadFileDto } from './dto/create-file.dto';
 import { VideoPublicity } from './entities/video-publicy.entity';
+import { AppointmentFile } from './entities/appointment-file.entity';
 import { CreateVideoBase64Dto, CreateVideoMultipartDto } from './dto/create-video-publict.dto';
 
 
@@ -29,6 +30,9 @@ export class FilesService {
   constructor(
     @InjectRepository(VideoPublicity, DatabaseConnectionName.DB_MAIN)
     private readonly videoRepository: Repository<VideoPublicity>,
+
+    @InjectRepository(AppointmentFile, DatabaseConnectionName.DB_MAIN)
+    private readonly appointmentFileRepository: Repository<AppointmentFile>,
 
     private readonly configService: ConfigService,
   ) {
@@ -209,5 +213,127 @@ export class FilesService {
 
     res.setHeader('Content-Type', 'video/mp4');
     fs.createReadStream(localPath).pipe(res);
+  }
+
+  /* ============================================================
+   * 📁 ARCHIVOS DE CITAS MÉDICAS (mamografías, estudios, etc.)
+   * ============================================================ */
+
+  /**
+   * @summary Subir archivo asociado a una cita médica (binario/multipart)
+   * @description
+   * - Guarda el archivo en UPLOADS_PATH/userId/medicalCenterId/appointmentId/
+   * - Registra la referencia en BD (appointment_files)
+   * - Usa almacenamiento binario, NO base64
+   */
+  async uploadAppointmentFile(
+    file: Express.Multer.File,
+    data: {
+      appointmentId: string;
+      medicalHistoryId?: string;
+      patientId: string;
+      medicalCenterId: string;
+      uploadedBy: string;
+      fileType?: string;
+      description?: string;
+    },
+  ): Promise<AppointmentFile> {
+    if (!file) {
+      throw new BadRequestException('Debe enviar un archivo.');
+    }
+
+    // Validar tipo de imagen
+    const allowedMimes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/dicom'];
+    if (!allowedMimes.includes(file.mimetype)) {
+      throw new BadRequestException(
+        `Tipo de archivo no permitido: ${file.mimetype}. Solo se aceptan imágenes.`,
+      );
+    }
+
+    // Estructura: UPLOADS_PATH/userId/medicalCenterId/appointmentId/
+    const relativePath = path.join(
+      data.uploadedBy,
+      data.medicalCenterId,
+      data.appointmentId,
+    );
+    const fullDir = path.join(process.cwd(), this.uploadsDir, relativePath);
+    fs.mkdirSync(fullDir, { recursive: true });
+
+    // Nombre único para evitar colisiones
+    const ext = path.extname(file.originalname);
+    const storedName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
+    const fullPath = path.join(fullDir, storedName);
+
+    // Guardar archivo binario
+    fs.writeFileSync(fullPath, file.buffer);
+
+    // Ruta relativa a guardar en BD
+    const filePathRelative = path.join(relativePath, storedName).replace(/\\/g, '/');
+
+    // Crear registro en BD
+    const record = this.appointmentFileRepository.create({
+      appointmentId: data.appointmentId,
+      medicalHistoryId: data.medicalHistoryId ?? null,
+      patientId: data.patientId,
+      uploadedBy: data.uploadedBy,
+      originalName: file.originalname,
+      storedName,
+      mimeType: file.mimetype,
+      fileSize: file.size,
+      filePath: filePathRelative,
+      fileType: data.fileType ?? 'mammography',
+      description: data.description ?? null,
+    });
+
+    return this.appointmentFileRepository.save(record);
+  }
+
+  /**
+   * @summary Servir archivo de cita médica por ID
+   * @description Devuelve un stream del archivo con las cabeceras MIME correctas.
+   */
+  async serveAppointmentFile(fileId: string, res: any): Promise<void> {
+    const record = await this.appointmentFileRepository.findOne({
+      where: { id: fileId, deletedAt: IsNull() },
+    });
+    if (!record) {
+      throw new NotFoundException('Archivo no encontrado.');
+    }
+
+    const fullPath = path.join(process.cwd(), this.uploadsDir, record.filePath);
+    if (!fs.existsSync(fullPath)) {
+      throw new NotFoundException('Archivo físico no encontrado en el servidor.');
+    }
+
+    res.setHeader('Content-Type', record.mimeType);
+    res.setHeader('Content-Disposition', `inline; filename="${record.originalName}"`);
+    fs.createReadStream(fullPath).pipe(res);
+  }
+
+  /**
+   * @summary Obtener URL pública de un archivo de cita
+   */
+  getAppointmentFileUrl(fileId: string): string {
+    return `${this.publicUrl}/files/appointment-files/${fileId}`;
+  }
+
+  /**
+   * @summary Listar archivos asociados a una cita médica
+   */
+  async getFilesByAppointment(appointmentId: string): Promise<AppointmentFile[]> {
+    return this.appointmentFileRepository.find({
+      where: { appointmentId, deletedAt: IsNull() },
+      order: { createdAt: 'ASC' },
+    });
+  }
+
+  /**
+   * @summary Listar archivos asociados a un historial médico
+   */
+  async getFilesByMedicalHistory(medicalHistoryId: string): Promise<AppointmentFile[]> {
+    return this.appointmentFileRepository.find({
+      where: { medicalHistoryId, deletedAt: IsNull() },
+      order: { createdAt: 'ASC' },
+    });
   }
 }

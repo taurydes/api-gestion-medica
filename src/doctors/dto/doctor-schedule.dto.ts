@@ -44,6 +44,13 @@ export class ScheduleBlockDto {
   @Min(1)
   @Max(10)
   maxPatientsPerSlot?: number;
+
+  @ApiPropertyOptional({ description: 'Máximo de citas por día para este doctor en este centro', example: 20, default: 20 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  maxDailyAppointments?: number;
 }
 
 /** DTO para crear o reemplazar todos los horarios de un doctor en un centro médico */
@@ -96,6 +103,13 @@ export class UpdateDoctorScheduleBlockDto {
   @Min(1)
   @Max(10)
   maxPatientsPerSlot?: number;
+
+  @ApiPropertyOptional({ description: 'Máximo de citas por día' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  maxDailyAppointments?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
