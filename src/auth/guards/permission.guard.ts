@@ -72,11 +72,11 @@ export class PermissionsGuard implements CanActivate {
         .filter(
           (pr) =>
             pr.isActive &&
-            pr.menu?.name &&
+            pr.menu?.slug &&
             pr.permission?.isActive &&
             pr.permission?.name,
         )
-        .map((pr) => `${pr.menu.name}.${pr.permission.name}`.toLowerCase());
+        .map((pr) => `${pr.menu.slug}.${pr.permission.name}`.toLowerCase());
 
       // Inyectar permisos y rol en la request para uso posterior
       (request as any).userPermissions = userPermissionCodes;
@@ -104,11 +104,11 @@ export class PermissionsGuard implements CanActivate {
         .filter(
           (pr) =>
             pr.isActive &&
-            pr.menu?.name &&
+            pr.menu?.slug &&
             pr.permission?.isActive &&
             pr.permission?.name,
         )
-        .map((pr) => `${pr.menu.name}.${pr.permission.name}`.toLowerCase());
+        .map((pr) => `${pr.menu.slug}.${pr.permission.name}`.toLowerCase());
 
       (request as any).userPermissions = userPermissionCodes;
       (request as any).userRole = normalUser.role;

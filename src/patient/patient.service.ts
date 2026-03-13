@@ -312,10 +312,6 @@ export class PatientService {
       qb.andWhere('patient.bloodType = :bloodType', { bloodType });
     }
 
-    if (isActive !== undefined) {
-      qb.andWhere('patient.isActive = :isActive', { isActive });
-    }
-
     // IDOR: doctor solo ve pacientes con los que tiene citas
     if (doctorId) {
       qb.andWhere(

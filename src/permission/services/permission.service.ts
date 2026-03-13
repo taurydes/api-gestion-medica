@@ -1,5 +1,5 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import type { Cache } from 'cache-manager';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
@@ -38,6 +38,10 @@ import { PermissionMenu } from '../entities/permission-menu.entity';
 import { AuthUser } from 'src/auth/interfaces/User';
 import { User } from 'src/user/entities/user.entity';
 import { QueryPermissionDto } from '../dto/query-permission.dto';
+import { CreatePermissionDto } from '../dto/create-permission.dto';
+import { ModuleItemsMenu } from 'src/menu/menu.const';
+
+type UpdatePermissionDto = Partial<CreatePermissionDto>;
 @Injectable()
 export class PermissionService {
   private readonly logger = new Logger(PermissionService.name);
@@ -49,6 +53,29 @@ export class PermissionService {
     `permission:role:${id}:permissions`;
   private readonly ALL_PERMISSIONS_KEY = 'permission:permissions:all';
   private readonly TTL_SECONDS = 3600; // 1 hora
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // PRIVATE CACHE HELPERS
+  // ──────────────────────────────────────────────────────────────────────────
+
+  private itemKey(id: string | number): string {
+    return `permission:item:${id}`;
+  }
+
+  private async cacheGet<T>(key: string): Promise<T | null> {
+    return (await this.cache.get<T>(key)) ?? null;
+  }
+
+  private async cacheSet<T>(key: string, value: T, ttl = this.TTL_SECONDS): Promise<void> {
+    await this.cache.set(key, value, ttl);
+  }
+
+  private async invalidateListAndItems(ids: (string | number)[] = []): Promise<void> {
+    await this.cache.del(this.ALL_PERMISSIONS_KEY);
+    for (const id of ids) {
+      await this.cache.del(this.itemKey(id));
+    }
+  }
 
   constructor(
     @InjectRepository(UserSecurity, DatabaseConnectionName.DB_MAIN)
@@ -1067,18 +1094,268 @@ export class PermissionService {
     return rootMenus;
   }
 
-  async findAllPermissions(
-    pagination: QueryPermissionDto,
-  ): Promise<Permission[]> {
-    const qb = this.permissionRepo.createQueryBuilder('permission');
+/**
+   * Obtiene todos los permisos registrados en la base de datos.
+   *
+   * @returns Un arreglo de objetos Permission.
+   * @throws InternalServerErrorException Si ocurre un error durante la consulta.
+   *
+   * ⚡ Cache: guarda/lee en `permission:permissions:all`
+   */
+  async findAll(pagination: QueryPermissionDto): Promise<Permission[]> {
+    try {
+      const cacheKey = this.ALL_PERMISSIONS_KEY;
+      const cached = await this.cacheGet<Permission[]>(cacheKey);
+      if (cached) return cached;
 
-    if (pagination.page && pagination.limit) {
-      const skip = (pagination.page - 1) * pagination.limit;
-      qb.skip(skip).take(pagination.limit);
+
+      const query = this.permissionRepo.createQueryBuilder('permission');
+
+      if (pagination.search) {
+        query.where('permission.name ILIKE :search', {
+          search: `%${pagination.search}%`,
+        });
+      }
+      if (pagination.isActive !== undefined) {
+        query.andWhere('permission.isActive = :isActive', {
+          isActive: pagination.isActive,
+        });
+      }
+      query.orderBy('permission.createdAt', 'DESC');
+
+      const permissions = await query.getMany();
+       
+
+
+      await this.cacheSet(cacheKey, permissions);
+      return permissions;
+    } catch (error) {
+      if (error instanceof InternalServerErrorException) throw error;
+      throw new InternalServerErrorException('Error al obtener los permisos');
     }
-
-    const data = await qb.getMany();
-
-    return data;
   }
+
+
+  ////LEGACY 
+  /**
+   * Busca un permiso específico por su ID.
+   *
+   * @param id - Identificador único del permiso.
+   * @returns El permiso encontrado.
+   * @throws NotFoundException Si no existe el permiso con el ID indicado.
+   * @throws InternalServerErrorException Si ocurre un error inesperado en la consulta.
+   *
+   * ⚡ Cache: guarda/lee en `permissions:{id}`
+   */
+  async findOne(id: string): Promise<Permission> {
+    try {
+      const key = this.itemKey(id);
+      const cached = await this.cacheGet<Permission>(key);
+      if (cached) return cached;
+
+      const permission = await this.permissionRepo.findOne({ where: { id } });
+      if (!permission) {
+        throw new NotFoundException(`Permiso con ID ${id} no encontrado`);
+      }
+
+      await this.cacheSet(key, permission);
+      return permission;
+    } catch (error) {
+      if (error instanceof NotFoundException) throw error;
+      throw new InternalServerErrorException('Error al obtener el permiso');
+    }
+  }
+
+  /**
+   * Actualiza la información de un permiso existente.
+   *
+   * @param id - Identificador del permiso a actualizar.
+   * @param updatePermissionDto - Datos a modificar.
+   * @returns El permiso actualizado.
+   * @throws NotFoundException Si el permiso no existe.
+   * @throws InternalServerErrorException Si ocurre un error al guardar los cambios.
+   *
+   * 🧼 Cache: invalida item + lista, y precarga el item actualizado.
+   */
+  async update(
+    id: string,
+    updatePermissionDto: UpdatePermissionDto,
+  ): Promise<Permission> {
+    try {
+      const permission = await this.findOne(id);
+      Object.assign(permission, updatePermissionDto, { updatedAt: new Date() });
+
+      const saved = await this.permissionRepo.save(permission);
+
+      // Invalida lista y precachea el item actualizado
+      await this.invalidateListAndItems([id]);
+      await this.cacheSet(this.itemKey(id), saved);
+
+      return saved;
+    } catch (error) {
+      if (error instanceof NotFoundException) throw error;
+      throw new InternalServerErrorException('Error al actualizar el permiso');
+    }
+  }
+
+  /**
+   * Elimina un permiso de la base de datos.
+   *
+   * @param id - Identificador del permiso a eliminar.
+   * @returns void
+   * @throws NotFoundException Si el permiso no existe.
+   * @throws InternalServerErrorException Si ocurre un error durante la eliminación.
+   *
+   * 🧼 Cache: invalida item + lista
+   */
+  async remove(id: string): Promise<void> {
+    try {
+      const permission = await this.findOne(id);
+      // Soft delete: marcar como inactivo en vez de borrar físicamente
+      permission.isActive = false;
+      permission.deletedAt = new Date();
+      await this.permissionRepo.save(permission);
+
+      await this.invalidateListAndItems([id]);
+    } catch (error) {
+      if (error instanceof NotFoundException) throw error;
+      throw new InternalServerErrorException('Error al eliminar el permiso');
+    }
+  }
+
+  /**
+   * Asigna uno o varios permisos a un rol.
+   *
+   * @param createpermissionsRolesDto - Contiene el ID del rol y los IDs de los permisos a asignar.
+   * @returns Un mensaje de confirmación de la asignación.
+   * @throws NotFoundException Si el rol o alguno de los permisos no existen.
+   * @throws InternalServerErrorException Si ocurre un error durante la asignación.
+   *
+   * 🧼 Cache: invalida lista y los items de los permisos afectados.
+   */
+  // async assignPermissionsToRole(dto: CreatepermissionsRolesDto): Promise<string> {
+  //   const { roleId, assignments } = dto;
+
+  //   // 1. Validar rol
+  //   const role = await this.roleRepo.findOne({
+  //     where: { id: roleId },
+  //   });
+  //   if (!role) throw new NotFoundException(`Rol con ID ${roleId} no existe`);
+
+  //   // 2. Validar permisos & submenu
+  //   for (const item of assignments) {
+  //     const { permissionId, submenuId } = item;
+
+  //     const perm = await this.permissionMenuRepo.findOne({
+  //       where: { id: permissionId },
+  //     });
+  //     if (!perm)
+  //       throw new NotFoundException(
+  //         `Permiso con ID ${permissionId} no existe`,
+  //       );
+
+  //     const submenu = await this.menuService.findOne(submenuId);
+  //     if (!submenu)
+  //       throw new NotFoundException(
+  //         `Submenú con ID ${submenuId} no existe`,
+  //       );
+  //   }
+
+  //   // 3. Crear registros en permisos_roles
+  //   const records = assignments.map((item) =>
+  //     this.rolepermissionMenuRepo.create({
+  //       roleId,
+  //       permissionId: item.permissionId,
+  //       submenuId: item.submenuId,
+  //       isActive: true,
+  //     }),
+  //   );
+
+  //   await this.rolepermissionMenuRepo.save(records);
+
+  //   // 4. Limpiar cache
+  //   await this.invalidateListAndItems();
+
+  //   return 'Permisos asignados correctamente al rol';
+  // }
+
+  //   /**
+  //  * Asignar TODOS los permisos activos a un rol para TODOS los menús cuyos slug estén en ModuleItemsMenu.
+  //  * Crea registros en permisos_roles solo si no existen (evita duplicados).
+  //  * Retorna resumen de la operación.
+  //  */
+  // async assignAllPermissionsToRole(roleId: string): Promise<{
+  //   roleId: string;
+  //   totalMenus: number;
+  //   totalPermissions: number;
+  //   created: number;
+  //   skipped: number;
+  // }> {
+  //   // 1. Validar rol
+  //   const role = await this.roleRepo.findOne({ where: { id: roleId }, relations: ['permissionsRoles'] });
+  //   if (!role) throw new NotFoundException(`Rol con ID ${roleId} no existe`);
+
+  //   // 2. Obtener todos los menús (submenús) cuyos slug estén en el enum
+  //   const targetSlugs = Object.values(ModuleItemsMenu).map((v) => String(v).trim());
+  //   const menus = await this.menuService['menuRepository'].find({
+  //     where: { name: In(targetSlugs) },
+  //   });
+
+  //   if (!menus.length) {
+  //     throw new NotFoundException('No se encontraron menús para los slugs definidos en ModuleItemsMenu');
+  //   }
+
+  //   const submenuIds = menus.map((m) => m.id);
+
+  //   // 3. Permisos activos
+  //   const permissions = await this.permissionMenuRepo.find({ where: { isActive: true } });
+  //   if (!permissions.length) {
+  //     throw new NotFoundException('No hay permisos activos para asignar');
+  //   }
+
+  //   // 4. Existentes (para evitar duplicados)
+  //   const existing = await this.rolepermissionMenuRepo.find({
+  //     where: {
+  //       roleId,
+  //       submenuId: In(submenuIds),
+  //       permissionId: In(permissions.map((p) => p.id)),
+  //     },
+  //   });
+  //   const existingKey = new Set(existing.map((e) => `${e.submenuId}:${e.permissionId}`));
+
+  //   // 5. Construir nuevos registros
+  //   const toCreate: PermissionRole[] = [];
+  //   for (const submenuId of submenuIds) {
+  //     for (const perm of permissions) {
+  //       const key = `${submenuId}:${perm.id}`;
+  //       if (existingKey.has(key)) continue;
+  //       toCreate.push(
+  //         this.rolepermissionMenuRepo.create({
+  //           roleId,
+  //           submenuId,
+  //           permissionId: perm.id,
+  //           isActive: true,
+  //         }),
+  //       );
+  //     }
+  //   }
+
+  //   // 6. Guardar
+  //   let created = 0;
+  //   if (toCreate.length) {
+  //     await this.rolepermissionMenuRepo.save(toCreate);
+  //     created = toCreate.length;
+  //   }
+
+  //   // 7. Invalidar cache
+  //   await this.invalidateListAndItems();
+
+  //   return {
+  //     roleId,
+  //     totalMenus: menus.length,
+  //     totalPermissions: permissions.length,
+  //     created,
+  //     skipped: existingKey.size,
+  //   };
+  // }
 }
