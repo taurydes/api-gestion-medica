@@ -85,6 +85,7 @@ export class DoctorScheduleService {
         endTime: block.endTime,
         slotDurationMinutes: block.slotDurationMinutes ?? 30,
         maxPatientsPerSlot: block.maxPatientsPerSlot ?? 1,
+        maxDailyAppointments: block.maxDailyAppointments ?? 20,
         isActive: true,
       }),
     );

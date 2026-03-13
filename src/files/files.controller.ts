@@ -7,6 +7,7 @@ import {
   UploadedFile,
   UseInterceptors,
   Res,
+  Query,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -28,6 +29,7 @@ import { VideoValidationInterceptor } from 'src/common/interceptors/video.interc
 import { ModuleItemsMenu } from 'src/menu/menu.const';
 import { PermissionActionsMenu } from 'src/permission/permission.const';
 import { Permission } from 'src/auth/decorators/permission.decorator';
+import { GetUser } from 'src/auth/decorators/get-user.decorator';
 
 @ApiTags('Files & Videos')
 @ApiBearerAuth()
@@ -116,5 +118,74 @@ export class FilesController {
   @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.VIEW}`)
   async downloadVideo(@Param('id') id: string, @Res() res) {
     return this.filesService.downloadVideo(id, res);
+  }
+
+  /* ============================================================
+   * 📁 MÉTODO 6 – SUBIR ARCHIVO DE CITA MÉDICA (multipart/binario)
+   * ============================================================ */
+  @ApiOperation({
+    summary: 'Subir archivo de cita médica (mamografía u otro estudio)',
+    description:
+      'Recibe una imagen en formato binario (multipart), la almacena en ' +
+      'UPLOADS_PATH/userId/medicalCenterId/appointmentId/ y registra la referencia en BD.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @Post('appointment-upload')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 50 * 1024 * 1024 }, // 50MB límite
+    }),
+  )
+  @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.CREATE}`)
+  async uploadAppointmentFile(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('appointmentId') appointmentId: string,
+    @Body('medicalHistoryId') medicalHistoryId: string,
+    @Body('patientId') patientId: string,
+    @Body('medicalCenterId') medicalCenterId: string,
+    @Body('fileType') fileType: string,
+    @Body('description') description: string,
+    @GetUser('id') userId: string,
+  ) {
+    return this.filesService.uploadAppointmentFile(file, {
+      appointmentId,
+      medicalHistoryId: medicalHistoryId || undefined,
+      patientId,
+      medicalCenterId,
+      uploadedBy: userId,
+      fileType: fileType || 'mammography',
+      description: description || undefined,
+    });
+  }
+
+  /* ============================================================
+   * 📁 MÉTODO 7 – SERVIR ARCHIVO DE CITA MÉDICA
+   * ============================================================ */
+  @ApiOperation({
+    summary: 'Servir archivo de cita médica',
+    description: 'Devuelve el archivo como stream con las cabeceras MIME correctas.',
+  })
+  @Get('appointment-files/:fileId')
+  @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.VIEW}`)
+  async serveAppointmentFile(
+    @Param('fileId') fileId: string,
+    @Res() res,
+  ) {
+    return this.filesService.serveAppointmentFile(fileId, res);
+  }
+
+  /* ============================================================
+   * 📁 MÉTODO 8 – LISTAR ARCHIVOS DE UNA CITA MÉDICA
+   * ============================================================ */
+  @ApiOperation({
+    summary: 'Listar archivos de una cita médica',
+    description: 'Retorna todos los archivos asociados a una cita específica.',
+  })
+  @Get('appointment-files')
+  @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.VIEW}`)
+  async getFilesByAppointment(
+    @Query('appointmentId') appointmentId: string,
+  ) {
+    return this.filesService.getFilesByAppointment(appointmentId);
   }
 }

@@ -51,6 +51,7 @@ export class MedicalAppointmentsController {
     required: true,
     example: '2026-03-15',
   })
+  @ApiQuery({ name: 'medicalCenterId', type: String, required: false })
   @Get('availability')
   @Permission(
     `${ModuleItemsMenu.MedicalAppointmentsModule}.${PermissionActionsMenu.VIEW}`,
@@ -58,8 +59,31 @@ export class MedicalAppointmentsController {
   checkAvailability(
     @Query('doctorId') doctorId: string,
     @Query('date') date: string,
+    @Query('medicalCenterId') medicalCenterId?: string,
   ) {
-    return this.appointmentsService.checkAvailability(doctorId, date);
+    return this.appointmentsService.checkAvailability(doctorId, date, medicalCenterId);
+  }
+
+  @ApiOperation({
+    summary: 'Obtener días disponibles de un médico',
+    description:
+      'Retorna los días en un rango de fechas donde el doctor tiene horario y cupos disponibles.',
+  })
+  @ApiQuery({ name: 'doctorId', type: String, required: true })
+  @ApiQuery({ name: 'medicalCenterId', type: String, required: true })
+  @ApiQuery({ name: 'startDate', type: String, required: true, example: '2026-03-01' })
+  @ApiQuery({ name: 'endDate', type: String, required: true, example: '2026-03-31' })
+  @Get('available-dates')
+  @Permission(
+    `${ModuleItemsMenu.MedicalAppointmentsModule}.${PermissionActionsMenu.VIEW}`,
+  )
+  getAvailableDates(
+    @Query('doctorId') doctorId: string,
+    @Query('medicalCenterId') medicalCenterId: string,
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+  ) {
+    return this.appointmentsService.getAvailableDates(doctorId, medicalCenterId, startDate, endDate);
   }
 
   @ApiOperation({

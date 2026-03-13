@@ -16,6 +16,7 @@ import { Medication } from 'src/parameters/entities/medication.entity';
 import { User } from 'src/user/entities/user.entity';
 import { MedicalHistoryModule } from 'src/medical-history/medical-history.module';
 import { RecipeModule } from 'src/recipe/recipe.module';
+import { DoctorsModule } from 'src/doctors/doctors.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { RecipeModule } from 'src/recipe/recipe.module';
     ),
     MedicalHistoryModule,
     RecipeModule,
+    DoctorsModule,
   ],
   controllers: [MedicalAppointmentsController],
   providers: [MedicalAppointmentsService],
