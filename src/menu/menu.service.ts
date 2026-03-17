@@ -265,8 +265,8 @@ export class MenuService {
 
     // 4️⃣ Obtener todos los padres necesarios
     const parentIds = allowedMenus
-      .filter((m) => m.parent)
-      .map((m) => m.parent.id);
+      .map((m) => m.parent?.id)
+      .filter((id): id is string => Boolean(id));
 
     const parents = parentIds.length
       ? await this.menuRepository.find({
@@ -303,6 +303,11 @@ export class MenuService {
       } else {
         rootList.push(menu);
       }
+    });
+
+    // Evitar estructuras circulares al serializar (parent <-> submenu)
+    menus.forEach((menu) => {
+      menu.parent = null;
     });
 
     // Ordenar por order asc

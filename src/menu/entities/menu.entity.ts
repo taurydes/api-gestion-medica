@@ -68,11 +68,12 @@ export class Menu {
   @ManyToOne(() => Menu, (menu) => menu.submenu, {
     onDelete: 'NO ACTION',
     onUpdate: 'CASCADE',
+    nullable: true,
   })
   @JoinColumn({ name: 'menu_id' })
-  parent: Menu;
+  parent: Menu | null;
 
-  @OneToMany(() => Menu, (menu) => menu.submenu)
+  @OneToMany(() => Menu, (menu) => menu.parent)
   submenu: Menu[];
 
   @OneToMany(() => PermissionMenu, (pm) => pm.menu)

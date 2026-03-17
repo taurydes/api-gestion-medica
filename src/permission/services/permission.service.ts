@@ -6,7 +6,7 @@ import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { Menu } from 'src/menu/entities/menu.entity';
 import { Permission } from 'src/permission/entities/permission.entity';
 import { Role } from 'src/role/entities/role.entity';
-import { In, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import {
   AbilityFactoryResult,
   CaslAction,
@@ -39,6 +39,7 @@ import { AuthUser } from 'src/auth/interfaces/User';
 import { User } from 'src/user/entities/user.entity';
 import { QueryPermissionDto } from '../dto/query-permission.dto';
 import { CreatePermissionDto } from '../dto/create-permission.dto';
+import { CreatepermissionsRolesDto } from '../dto/create-permission-role.dto';
 import { ModuleItemsMenu } from 'src/menu/menu.const';
 
 type UpdatePermissionDto = Partial<CreatePermissionDto>;
@@ -1224,138 +1225,163 @@ export class PermissionService {
   }
 
   /**
-   * Asigna uno o varios permisos a un rol.
-   *
-   * @param createpermissionsRolesDto - Contiene el ID del rol y los IDs de los permisos a asignar.
-   * @returns Un mensaje de confirmación de la asignación.
-   * @throws NotFoundException Si el rol o alguno de los permisos no existen.
-   * @throws InternalServerErrorException Si ocurre un error durante la asignación.
-   *
-   * 🧼 Cache: invalida lista y los items de los permisos afectados.
+   * Asigna uno o varios permisos a un rol (estrategia replace-all).
+   * - Crea registros nuevos que no existan.
+   * - Reactiva los que estaban inactivos.
+   * - Desactiva los que ya no están en la nueva lista.
    */
-  // async assignPermissionsToRole(dto: CreatepermissionsRolesDto): Promise<string> {
-  //   const { roleId, assignments } = dto;
+  async assignPermissionsToRole(
+    dto: CreatepermissionsRolesDto,
+    currentUser: AuthUser,
+  ): Promise<{ created: number; skipped: number; deactivated: number }> {
+    const { roleId, assignments } = dto;
 
-  //   // 1. Validar rol
-  //   const role = await this.roleRepo.findOne({
-  //     where: { id: roleId },
-  //   });
-  //   if (!role) throw new NotFoundException(`Rol con ID ${roleId} no existe`);
+    const role = await this.roleRepo.findOne({ where: { id: roleId } });
+    if (!role) throw new NotFoundException(`Rol con ID ${roleId} no existe`);
 
-  //   // 2. Validar permisos & submenu
-  //   for (const item of assignments) {
-  //     const { permissionId, submenuId } = item;
+    // Registros activos actuales del rol
+    const existing = await this.permissionMenuRepo.find({
+      where: { roleId, isActive: true },
+    });
 
-  //     const perm = await this.permissionMenuRepo.findOne({
-  //       where: { id: permissionId },
-  //     });
-  //     if (!perm)
-  //       throw new NotFoundException(
-  //         `Permiso con ID ${permissionId} no existe`,
-  //       );
+    const incomingKeys = new Set(
+      assignments.map(({ permissionId, submenuId }) => `${permissionId}:${submenuId}`),
+    );
+    const existingActiveMap = new Map(
+      existing.map((e) => [`${e.permissionId}:${e.menuId}`, e]),
+    );
 
-  //     const submenu = await this.menuService.findOne(submenuId);
-  //     if (!submenu)
-  //       throw new NotFoundException(
-  //         `Submenú con ID ${submenuId} no existe`,
-  //       );
-  //   }
+    let created = 0;
+    let skipped = 0;
 
-  //   // 3. Crear registros en permisos_roles
-  //   const records = assignments.map((item) =>
-  //     this.rolepermissionMenuRepo.create({
-  //       roleId,
-  //       permissionId: item.permissionId,
-  //       submenuId: item.submenuId,
-  //       isActive: true,
-  //     }),
-  //   );
+    for (const { permissionId, submenuId } of assignments) {
+      const key = `${permissionId}:${submenuId}`;
+      if (existingActiveMap.has(key)) {
+        skipped++;
+        continue;
+      }
 
-  //   await this.rolepermissionMenuRepo.save(records);
+      // Intentar reactivar si existe pero inactivo
+      const inactive = await this.permissionMenuRepo.findOne({
+        where: { roleId, permissionId, menuId: submenuId, isActive: false },
+      });
+      if (inactive) {
+        inactive.isActive = true;
+        inactive.updatedAt = new Date();
+        inactive.deletedAt = null;
+        await this.permissionMenuRepo.save(inactive);
+        created++;
+        continue;
+      }
 
-  //   // 4. Limpiar cache
-  //   await this.invalidateListAndItems();
+      const newRecord = this.permissionMenuRepo.create({
+        roleId,
+        permissionId,
+        menuId: submenuId,
+        isActive: true,
+        userId: String(currentUser.id),
+      });
+      await this.permissionMenuRepo.save(newRecord);
+      created++;
+    }
 
-  //   return 'Permisos asignados correctamente al rol';
-  // }
+    // Desactivar los que ya no están en la nueva lista
+    let deactivated = 0;
+    for (const record of existing) {
+      const key = `${record.permissionId}:${record.menuId}`;
+      if (!incomingKeys.has(key)) {
+        record.isActive = false;
+        record.updatedAt = new Date();
+        record.deletedAt = new Date();
+        await this.permissionMenuRepo.save(record);
+        deactivated++;
+      }
+    }
 
-  //   /**
-  //  * Asignar TODOS los permisos activos a un rol para TODOS los menús cuyos slug estén en ModuleItemsMenu.
-  //  * Crea registros en permisos_roles solo si no existen (evita duplicados).
-  //  * Retorna resumen de la operación.
-  //  */
-  // async assignAllPermissionsToRole(roleId: string): Promise<{
-  //   roleId: string;
-  //   totalMenus: number;
-  //   totalPermissions: number;
-  //   created: number;
-  //   skipped: number;
-  // }> {
-  //   // 1. Validar rol
-  //   const role = await this.roleRepo.findOne({ where: { id: roleId }, relations: ['permissionsRoles'] });
-  //   if (!role) throw new NotFoundException(`Rol con ID ${roleId} no existe`);
+    await this.invalidateRoleCache(roleId);
+    this.logger.log(
+      `assignPermissionsToRole: rol=${roleId} created=${created} skipped=${skipped} deactivated=${deactivated}`,
+    );
+    return { created, skipped, deactivated };
+  }
 
-  //   // 2. Obtener todos los menús (submenús) cuyos slug estén en el enum
-  //   const targetSlugs = Object.values(ModuleItemsMenu).map((v) => String(v).trim());
-  //   const menus = await this.menuService['menuRepository'].find({
-  //     where: { name: In(targetSlugs) },
-  //   });
+  /**
+   * Asigna TODOS los permisos activos a un rol para TODOS los menús activos.
+   * Solo crea/reactiva los que faltan; no toca los que ya existen.
+   */
+  async assignAllPermissionsToRole(
+    roleId: string,
+    currentUser: AuthUser,
+  ): Promise<{ roleId: string; created: number; skipped: number }> {
+    const role = await this.roleRepo.findOne({ where: { id: roleId } });
+    if (!role) throw new NotFoundException(`Rol con ID ${roleId} no existe`);
 
-  //   if (!menus.length) {
-  //     throw new NotFoundException('No se encontraron menús para los slugs definidos en ModuleItemsMenu');
-  //   }
+    const [permissions, menus] = await Promise.all([
+      this.permissionRepo.find({ where: { isActive: true } }),
+      this.menuRepo.find({ where: { isActive: true, deletedAt: IsNull() } }),
+    ]);
 
-  //   const submenuIds = menus.map((m) => m.id);
+    if (!permissions.length) throw new NotFoundException('No hay permisos activos');
+    if (!menus.length) throw new NotFoundException('No hay menús activos');
 
-  //   // 3. Permisos activos
-  //   const permissions = await this.permissionMenuRepo.find({ where: { isActive: true } });
-  //   if (!permissions.length) {
-  //     throw new NotFoundException('No hay permisos activos para asignar');
-  //   }
+    const existingAll = await this.permissionMenuRepo.find({ where: { roleId } });
+    const existingActiveKeys = new Set(
+      existingAll.filter((e) => e.isActive).map((e) => `${e.permissionId}:${e.menuId}`),
+    );
+    const inactiveMap = new Map(
+      existingAll
+        .filter((e) => !e.isActive)
+        .map((e) => [`${e.permissionId}:${e.menuId}`, e]),
+    );
 
-  //   // 4. Existentes (para evitar duplicados)
-  //   const existing = await this.rolepermissionMenuRepo.find({
-  //     where: {
-  //       roleId,
-  //       submenuId: In(submenuIds),
-  //       permissionId: In(permissions.map((p) => p.id)),
-  //     },
-  //   });
-  //   const existingKey = new Set(existing.map((e) => `${e.submenuId}:${e.permissionId}`));
+    let created = 0;
+    let skipped = 0;
 
-  //   // 5. Construir nuevos registros
-  //   const toCreate: PermissionRole[] = [];
-  //   for (const submenuId of submenuIds) {
-  //     for (const perm of permissions) {
-  //       const key = `${submenuId}:${perm.id}`;
-  //       if (existingKey.has(key)) continue;
-  //       toCreate.push(
-  //         this.rolepermissionMenuRepo.create({
-  //           roleId,
-  //           submenuId,
-  //           permissionId: perm.id,
-  //           isActive: true,
-  //         }),
-  //       );
-  //     }
-  //   }
+    const toCreate: PermissionMenu[] = [];
+    const toReactivate: PermissionMenu[] = [];
 
-  //   // 6. Guardar
-  //   let created = 0;
-  //   if (toCreate.length) {
-  //     await this.rolepermissionMenuRepo.save(toCreate);
-  //     created = toCreate.length;
-  //   }
+    for (const menu of menus) {
+      for (const permission of permissions) {
+        const key = `${permission.id}:${menu.id}`;
+        if (existingActiveKeys.has(key)) {
+          skipped++;
+          continue;
+        }
+        const inactiveRecord = inactiveMap.get(key);
+        if (inactiveRecord) {
+          inactiveRecord.isActive = true;
+          inactiveRecord.updatedAt = new Date();
+          inactiveRecord.deletedAt = null;
+          toReactivate.push(inactiveRecord);
+        } else {
+          toCreate.push(
+            this.permissionMenuRepo.create({
+              roleId,
+              permissionId: permission.id,
+              menuId: menu.id,
+              isActive: true,
+              userId: String(currentUser.id),
+            }),
+          );
+        }
+      }
+    }
 
-  //   // 7. Invalidar cache
-  //   await this.invalidateListAndItems();
+    if (toCreate.length) {
+      await this.permissionMenuRepo.save(toCreate);
+      created += toCreate.length;
+    }
+    if (toReactivate.length) {
+      await this.permissionMenuRepo.save(toReactivate);
+      created += toReactivate.length;
+    }
 
-  //   return {
-  //     roleId,
-  //     totalMenus: menus.length,
-  //     totalPermissions: permissions.length,
-  //     created,
-  //     skipped: existingKey.size,
-  //   };
-  // }
+    await this.invalidateRoleCache(roleId);
+    this.logger.log(`assignAllPermissionsToRole: rol=${roleId} created=${created} skipped=${skipped}`);
+    return { roleId, created, skipped };
+  }
+
+  // ===========================================================================
+  // (bloques comentados legacy eliminados)
 }
+
