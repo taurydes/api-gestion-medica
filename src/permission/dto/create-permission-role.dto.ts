@@ -1,40 +1,30 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  ArrayNotEmpty,
-  IsArray,
-  IsInt,
-  IsNumber,
-  ValidateNested,
-} from 'class-validator';
+import { ArrayNotEmpty, IsArray, IsUUID, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class PermissionRoleAssignmentDto {
-  @ApiProperty({ example: 10, description: 'ID del permiso' })
-  @IsNumber()
-  @IsInt()
-  permissionId: number;
+  @ApiProperty({ example: 'uuid', description: 'ID del permiso' })
+  @IsUUID()
+  permissionId: string;
 
-  @ApiProperty({ example: 5, description: 'ID del submenu' })
-  @IsNumber()
-  @IsInt()
-  submenuId: number;
+  @ApiProperty({ example: 'uuid', description: 'ID del submenú (menú)' })
+  @IsUUID()
+  submenuId: string;
 }
 
 export class CreatepermissionsRolesDto {
   @ApiProperty({
     description: 'ID del rol al que se asignarán los permisos',
-    example: 1,
+    example: 'uuid',
   })
-  @IsNumber()
-  @IsInt()
-  roleId: number;
+  @IsUUID()
+  roleId: string;
 
   @ApiProperty({
-    description: 'Lista de asignaciones (permiso + submenu)',
+    description: 'Lista de asignaciones (permiso + submenú)',
     type: [PermissionRoleAssignmentDto],
     example: [
-      { permissionId: 1, submenuId: 5 },
-      { permissionId: 2, submenuId: 5 },
+      { permissionId: 'uuid-permiso', submenuId: 'uuid-menu' },
     ],
   })
   @IsArray()

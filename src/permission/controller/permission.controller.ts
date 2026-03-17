@@ -27,11 +27,10 @@ import {
   HttpCode,
   HttpStatus,
   Param,
-  ParseIntPipe,
   Patch,
   Post,
   Query,
-  UseGuards,
+  UseGuards
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -64,10 +63,10 @@ import {
   BulkAssignPermissionsToRoleByIdDto,
   BulkAssignPermissionsToUserByIdDto,
 } from '../dto/bulk-assign-permissions.dto';
-import { PermissionService } from '../services/permission.service';
 import { QueryPermissionDto } from '../dto/query-permission.dto';
-import { CreatepermissionsRolesDto } from '../dto/create-permission-role.dto';
 import { UpdatePermissionDto } from '../dto/update-permission.dto';
+import { CreatepermissionsRolesDto } from '../dto/create-permission-role.dto';
+import { PermissionService } from '../services/permission.service';
 
 // =============================================================================
 // CONTROLLER
@@ -408,33 +407,36 @@ export class CaslPermissionController {
     return this.permissionService.remove(id);
   }
 
-  // @Post('assign-to-role')
-  // @ApiOperation({ summary: 'Asignar permisos a un rol' })
-  // @ApiResponse({ status: 200, description: 'Permisos asignados correctamente' })
-  // @ApiResponse({ status: 404, description: 'Rol o permisos no encontrados' })
-  // @Permission(
-  //   `${ModuleItemsMenu.PermissionModule}.${PermissionActionsMenu.ASSIGN}`,
-  // )
-  // assignPermissionsToRole(
-  //   @Body() createpermissionsRolesDto: CreatepermissionsRolesDto,
-  // ) {
-  //   return this.permissionService.assignPermissionsToRole(
-  //     createpermissionsRolesDto,
-  //   );
-  // }
+  @Post('assign-to-role')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Asignar permisos a un rol (replace-all por UUID)' })
+  @ApiResponse({ status: 200, description: 'Permisos asignados correctamente' })
+  @ApiResponse({ status: 404, description: 'Rol o permisos no encontrados' })
+  @Permission(
+    `${ModuleItemsMenu.PermissionModule}.${PermissionActionsMenu.ASSIGN}`,
+  )
+  assignPermissionsToRole(
+    @Body() dto: CreatepermissionsRolesDto,
+    @GetUser() user: AuthUser,
+  ) {
+    return this.permissionService.assignPermissionsToRole(dto, user);
+  }
 
-  // @Post('roles/:roleId/assign-all')
-  // @ApiOperation({
-  //   summary:
-  //     'Asignar todos los permisos activos a un rol para todos los menús del sistema',
-  // })
-  // @ApiParam({ name: 'roleId', description: 'ID del rol', example: 1 })
-  // @Permission(
-  //   `${ModuleItemsMenu.PermissionModule}.${PermissionActionsMenu.ASSIGN}`,
-  // )
-  // assignAllToRole(@Param('roleId') roleId: string) {
-  //   return this.permissionService.assignAllPermissionsToRole(roleId);
-  // }
+  @Post('roles/:roleId/assign-all')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Asignar todos los permisos activos a un rol para todos los menús',
+  })
+  @ApiParam({ name: 'roleId', description: 'ID del rol', example: 'uuid' })
+  @Permission(
+    `${ModuleItemsMenu.PermissionModule}.${PermissionActionsMenu.ASSIGN}`,
+  )
+  assignAllToRole(
+    @Param('roleId') roleId: string,
+    @GetUser() user: AuthUser,
+  ) {
+    return this.permissionService.assignAllPermissionsToRole(roleId, user);
+  }
   // ===========================================================================
   // HELPERS
   // ===========================================================================

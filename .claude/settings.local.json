@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc:*)",
+      "Bash(xargs cat:*)",
+      "Bash(find c:/Users/taury/OneDrive/Documentos/Tesis/portal-usuario/gestion-medica/src -name *.interceptor.ts)",
+      "Bash(xargs ls:*)"
+    ]
+  }
+}
