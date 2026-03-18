@@ -304,6 +304,6 @@ export class AuthService {
       doctorId,
     };
 
-    return { data, modules: { ...modules, medicalCenters } };
+    return { ...data, modules: { ...modules, medicalCenters } };
   }
 }
