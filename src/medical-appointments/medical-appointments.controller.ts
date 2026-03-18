@@ -222,7 +222,7 @@ export class MedicalAppointmentsController {
   })
   @Patch(':id/finish-consultation')
   @Permission(
-    `${ModuleItemsMenu.MedicalAppointmentsModule}.${PermissionActionsMenu.UPDATE}`,
+    `${ModuleItemsMenu.MedicalAppointmentsModule}.${PermissionActionsMenu.DIAGNOSTICAR}`,
   )
   finishConsultation(
     @Param('id') id: string,

@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
+import { AuthContextService } from 'src/common/services/auth-context.service';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { MenuService } from 'src/menu/menu.service';
 import { RedisSessionService } from 'src/redis-session/redis-session.service';
@@ -10,6 +11,7 @@ import { Repository } from 'typeorm';
 import { User } from '../user/entities/user.entity';
 import { JwtPayload } from './auth.const';
 import { LoginUserDto } from './dto/login-auth.dto';
+import { MedicalCenterSummaryDto } from './dto/medical-center-summary.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { AuthUser } from './interfaces/User';
 import { PermissionService } from 'src/permission/services/permission.service';
@@ -32,6 +34,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly redisSession: RedisSessionService,
     private readonly permissionService: PermissionService,
+    private readonly authContextService: AuthContextService,
   ) {}
 
   // ======================================================
@@ -247,36 +250,60 @@ export class AuthService {
   /**
    * Retorna datos del usuario autenticado junto con sus permisos
    * en formato 'module.action' para que el frontend construya la UI.
+   * Incluye la lista de centros médicos asociados al usuario cuando
+   * éste tiene un perfil de doctor vinculado.
    */
   async getUserWithPermissions(userId: string) {
     // 1. Obtener módulos y permisos desde el servicio de permisos
     const {
       userId: _,
       email: __,
-      rules: ___, 
+      rules: ___,
       ...modules
     } = await this.permissionService.getUserPermissions(userId);
 
-    // 2. Obtener datos del usuario (buscando en ambos repositorios)
-    let user = await this.userSystemRepository.findOne({
+    // 2. Obtener datos del usuario (buscando en ambos repositorios).
+    //    Los usuarios de seguridad (UserSecurity) se buscan primero;
+    //    si no se encuentran, se busca en el repositorio regular (User).
+    const isSystemUser = !!(await this.userSystemRepository.findOne({
       where: { id: userId },
-    });
-    if (!user) {
-      user = (await this.userRepository.findOne({
-        where: { id: userId },
-      })) as any;
-    }
+    }));
+
+    let user = isSystemUser
+      ? await this.userSystemRepository.findOne({ where: { id: userId } })
+      : (await this.userRepository.findOne({ where: { id: userId } })) as any;
 
     if (!user) {
       throw new UnauthorizedException('Usuario no encontrado');
+    }
+
+    // 3. Resolver centros médicos y doctorId.
+    //    - UserSecurity (superusuarios): no tienen perfil de doctor → array vacío, doctorId null.
+    //    - User regular: se busca el doctor vinculado a través de CommonPerson.
+    let medicalCenters: MedicalCenterSummaryDto[] = [];
+    let doctorId: string | null = null;
+
+    if (!isSystemUser) {
+      doctorId = await this.authContextService.getDoctorIdForUser(userId);
+      if (doctorId) {
+        const centers =
+          await this.authContextService.getMedicalCentersForDoctor(doctorId);
+        medicalCenters = centers.map((mc) => ({
+          id: mc.id,
+          name: mc.name,
+          address: mc.address ?? null,
+          isActive: mc.isActive,
+        }));
+      }
     }
 
     const data = {
       id: user.id,
       name: user.name,
       email: user.email,
+      doctorId,
     };
 
-    return { data, modules };
+    return { data, modules: { ...modules, medicalCenters } };
   }
 }

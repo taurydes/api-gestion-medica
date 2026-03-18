@@ -7,6 +7,7 @@ export enum PermissionActionsMenu {
   VIEW = 'consultar',
   UPDATE = 'actualizar',
   DELETE = 'eliminar',
+  DIAGNOSTICAR = 'diagnosticar',
 }
 
 // =============================================================================

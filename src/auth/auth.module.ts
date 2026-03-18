@@ -4,6 +4,7 @@ import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import * as dotenv from 'dotenv';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
+import { CommonModule } from 'src/common/common.module';
 import { PermissionModule } from 'src/permission/permission.module';
 import { User } from 'src/user/entities/user.entity';
 import { UserSecurity } from 'src/user/entities/user.system.entity';
@@ -24,6 +25,7 @@ dotenv.config();
       signOptions: { expiresIn: process.env.JWT_EXPIRES_IN || '1h' },
     }),
     PermissionModule,
+    CommonModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],
