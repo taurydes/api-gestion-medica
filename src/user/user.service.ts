@@ -211,6 +211,7 @@ export class UserService {
     const qb = this.repo
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.role', 'role')
+      .leftJoinAndSelect('user.commonPerson', 'commonPerson')
       .where('user.deletedAt IS NULL');
 
     if (search) {

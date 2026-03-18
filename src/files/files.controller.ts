@@ -25,6 +25,7 @@ import {
 } from './dto/create-video-publict.dto';
 
 import { FileInterceptor } from '@nestjs/platform-express';
+import * as multer from 'multer';
 import { VideoValidationInterceptor } from 'src/common/interceptors/video.interceptor';
 import { ModuleItemsMenu } from 'src/menu/menu.const';
 import { PermissionActionsMenu } from 'src/permission/permission.const';
@@ -187,5 +188,164 @@ export class FilesController {
     @Query('appointmentId') appointmentId: string,
   ) {
     return this.filesService.getFilesByAppointment(appointmentId);
+  }
+
+  /* ============================================================
+   * 🖼️ MÉTODO 9 – SUBIR FOTO DE PERFIL (multipart)
+   * ============================================================ */
+  @ApiOperation({
+    summary: 'Subir foto de perfil',
+    description:
+      'Recibe una imagen en formato binario (multipart), la almacena en ' +
+      'UPLOADS_PATH/profile-photos/ y retorna la URL pública.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    description: 'Imagen de perfil (PNG, JPEG, JPG o WEBP, máx. 5 MB)',
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+        ownerId: { type: 'string' },
+      },
+      required: ['file'],
+    },
+  })
+  @Post('profile-photo')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: multer.memoryStorage(),
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
+  @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.CREATE}`)
+  async uploadProfilePhoto(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('ownerId') ownerId: string,
+  ): Promise<{ url: string }> {
+    return this.filesService.uploadProfilePhoto(file, ownerId);
+  }
+
+  /* ============================================================
+   * 🖼️ MÉTODO 10 – SERVIR FOTO DE PERFIL
+   * ============================================================ */
+  @ApiOperation({
+    summary: 'Servir foto de perfil por ownerId y nombre de archivo',
+    description: 'Devuelve la imagen de perfil almacenada como stream.',
+  })
+  @Get('profile-photos/:ownerId/:filename')
+  @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.VIEW}`)
+  async serveProfilePhoto(
+    @Param('ownerId') ownerId: string,
+    @Param('filename') filename: string,
+    @Res() res,
+  ): Promise<void> {
+    return this.filesService.serveProfilePhoto(ownerId, filename, res);
+  }
+
+  /* ============================================================
+   * 🏥 MÉTODO 11 – SUBIR FOTO DE CENTRO MÉDICO (multipart)
+   * ============================================================ */
+  @ApiOperation({
+    summary: 'Subir foto de centro médico',
+    description:
+      'Recibe una imagen en formato binario (multipart), la almacena en ' +
+      'UPLOADS_PATH/medical-centers/ y retorna la URL pública.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    description: 'Imagen del centro médico (PNG, JPEG, JPG o WEBP, máx. 5 MB)',
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+        medicalCenterId: { type: 'string' },
+      },
+      required: ['file'],
+    },
+  })
+  @Post('medical-center-photo')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: multer.memoryStorage(),
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
+  @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.CREATE}`)
+  async uploadMedicalCenterPhoto(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('medicalCenterId') medicalCenterId: string,
+  ): Promise<{ url: string }> {
+    return this.filesService.uploadMedicalCenterPhoto(file, medicalCenterId);
+  }
+
+  /* ============================================================
+   * 🏥 MÉTODO 12 – SERVIR FOTO DE CENTRO MÉDICO
+   * ============================================================ */
+  @ApiOperation({
+    summary: 'Servir foto de centro médico por medicalCenterId y nombre de archivo',
+    description: 'Devuelve la imagen del centro médico almacenada como stream.',
+  })
+  @Get('medical-center-photos/:medicalCenterId/:filename')
+  @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.VIEW}`)
+  async serveMedicalCenterPhoto(
+    @Param('medicalCenterId') medicalCenterId: string,
+    @Param('filename') filename: string,
+    @Res() res,
+  ): Promise<void> {
+    return this.filesService.serveMedicalCenterPhoto(medicalCenterId, filename, res);
+  }
+
+  /* ============================================================
+   * 🧑‍⚕️ MÉTODO 13 – SUBIR FOTO DE COMMON PERSON (multipart)
+   * ============================================================ */
+  @ApiOperation({
+    summary: 'Subir foto de CommonPerson (paciente o doctor)',
+    description:
+      'Recibe una imagen en formato binario (multipart), la almacena en ' +
+      'UPLOADS_PATH/common-persons/{personId}/images/ y retorna la URL pública.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    description: 'Imagen de la persona (PNG, JPEG, JPG o WEBP, máx. 5 MB)',
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+        personId: { type: 'string' },
+      },
+      required: ['file'],
+    },
+  })
+  @Post('common-person-photo')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: multer.memoryStorage(),
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
+  @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.CREATE}`)
+  async uploadCommonPersonPhoto(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('personId') personId: string,
+  ): Promise<{ url: string }> {
+    return this.filesService.uploadCommonPersonPhoto(file, personId);
+  }
+
+  /* ============================================================
+   * 🧑‍⚕️ MÉTODO 14 – SERVIR FOTO DE COMMON PERSON
+   * ============================================================ */
+  @ApiOperation({
+    summary: 'Servir foto de CommonPerson por personId y nombre de archivo',
+    description: 'Devuelve la imagen de la persona almacenada como stream.',
+  })
+  @Get('common-person-photos/:personId/:filename')
+  @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.VIEW}`)
+  async serveCommonPersonPhoto(
+    @Param('personId') personId: string,
+    @Param('filename') filename: string,
+    @Res() res,
+  ): Promise<void> {
+    return this.filesService.serveCommonPersonPhoto(personId, filename, res);
   }
 }

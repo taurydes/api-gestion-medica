@@ -93,4 +93,12 @@ export class CreateMedicalCenterDto {
   @IsOptional()
   @IsBoolean()
   hasLaboratory?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'URL de la imagen del centro médico. Opcional.',
+    example: 'http://localhost:3000/uploads/medical-centers/1234567890-abc123.jpg',
+  })
+  @IsOptional()
+  @IsString()
+  imageUrl?: string | null;
 }

@@ -5,7 +5,7 @@ import {
   Query,
   Req,
   Res,
-  UnauthorizedException
+  UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -17,7 +17,6 @@ import { RoleEnum } from 'src/role/role.const';
 import { ModuleItemsMenu } from 'src/menu/menu.const';
 import { Permission } from 'src/auth/decorators/permission.decorator';
 import { PermissionActionsMenu } from 'src/permission/permission.const';
-
 
 @ApiBearerAuth()
 @ApiTags('logs')
@@ -63,8 +62,8 @@ export class LogsController {
       const secret = process.env.JWT_SECRET;
       try {
         const decoded = this.jwtService.verify(token, { secret });
-        const roleId = decoded?.roleId;
-        if (Number(roleId) !== RoleEnum.ADMIN) {
+        const roleName = decoded?.roleName;
+        if (roleName !== RoleEnum.ADMIN) {
           console.warn('Acceso denegado: solo superAdministrador');
           return res.redirect('/logs/ui/login?error=Acceso%20denegado');
         }
@@ -111,7 +110,6 @@ export class LogsController {
   @Public()
   @Get('ui/login')
   getLoginView(@Req() req: Request, @Res() res: Response) {
-
     // 🔹 Detectar automáticamente el protocolo + host + puerto
     const baseUrl = `${req.protocol}://${req.headers.host}`;
 

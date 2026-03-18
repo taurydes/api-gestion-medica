@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsBoolean,
   IsNumber,
@@ -85,5 +85,13 @@ export class CreateCommonPersonDto {
   @IsOptional()
   @IsBoolean({ message: 'isActive debe ser un valor booleano' })
   isActive?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'URL de la foto de perfil de la persona. Opcional.',
+    example: 'http://localhost:3000/uploads/profile-photos/1234567890-abc123.jpg',
+  })
+  @IsOptional()
+  @IsString({ message: 'photoUrl debe ser una cadena de texto' })
+  photoUrl?: string | null;
 
 }

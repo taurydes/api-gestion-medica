@@ -10,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as ffmpeg from 'fluent-ffmpeg';
+import * as sharp from 'sharp';
 
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { IsNull, Repository } from 'typeorm';
@@ -40,6 +41,21 @@ export class FilesService {
     this.publicUrl = `${this.configService.get<string>('URL_HOST')}:${this.configService.get<string>('PORT')}`;
     this.maxSize = Number(this.configService.get<string>('MAX_VIDEO_MB') || 20) * 1024 * 1024;
 
+  }
+
+  /* ============================================================
+   * HELPER: construir URL pública a partir de ruta relativa
+   * ============================================================ */
+
+  /**
+   * @summary Construir URL pública de un archivo en uploads/
+   * @param relativePath Ruta relativa desde la carpeta uploads/
+   *   Ejemplo: 'medical-centers/abc-123/photo.webp'
+   * @returns URL completa accesible vía ServeStaticModule
+   *   Ejemplo: 'http://localhost:8008/uploads/medical-centers/abc-123/photo.webp'
+   */
+  buildFileUrl(relativePath: string): string {
+    return `${this.publicUrl}/uploads/${relativePath}`;
   }
 
   /* ============================================================
@@ -319,21 +335,282 @@ export class FilesService {
 
   /**
    * @summary Listar archivos asociados a una cita médica
+   * @description Retorna los registros enriquecidos con la URL pública de cada archivo.
    */
-  async getFilesByAppointment(appointmentId: string): Promise<AppointmentFile[]> {
-    return this.appointmentFileRepository.find({
+  async getFilesByAppointment(
+    appointmentId: string,
+  ): Promise<(AppointmentFile & { url: string })[]> {
+    const files = await this.appointmentFileRepository.find({
       where: { appointmentId, deletedAt: IsNull() },
       order: { createdAt: 'ASC' },
     });
+
+    return files.map((f) => ({ ...f, url: this.buildFileUrl(f.filePath) }));
   }
 
   /**
    * @summary Listar archivos asociados a un historial médico
+   * @description Retorna los registros enriquecidos con la URL pública de cada archivo.
    */
-  async getFilesByMedicalHistory(medicalHistoryId: string): Promise<AppointmentFile[]> {
-    return this.appointmentFileRepository.find({
+  async getFilesByMedicalHistory(
+    medicalHistoryId: string,
+  ): Promise<(AppointmentFile & { url: string })[]> {
+    const files = await this.appointmentFileRepository.find({
       where: { medicalHistoryId, deletedAt: IsNull() },
       order: { createdAt: 'ASC' },
     });
+
+    return files.map((f) => ({ ...f, url: this.buildFileUrl(f.filePath) }));
+  }
+
+  /* ============================================================
+   * 🖼️  FOTOS DE PERFIL Y CENTROS MÉDICOS
+   * ============================================================ */
+
+  /**
+   * @summary Subir foto de perfil de una persona
+   * @description
+   * - Valida MIME type (PNG, JPEG, JPG, WEBP)
+   * - Valida tamaño máximo (5 MB)
+   * - Convierte a WebP con sharp (calidad 85)
+   * - Si se provee ownerId: guarda en UPLOADS_PATH/{ownerId}/images/profile/
+   * - Si no: guarda en UPLOADS_PATH/images/profile/
+   * - Retorna URL pública completa
+   */
+  async uploadProfilePhoto(
+    file: Express.Multer.File,
+    ownerId?: string,
+  ): Promise<{ url: string }> {
+    if (!file) {
+      throw new BadRequestException('Debe enviar un archivo de imagen.');
+    }
+
+    const allowedMimes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+    if (!allowedMimes.includes(file.mimetype)) {
+      throw new BadRequestException(
+        `Tipo de archivo no permitido: ${file.mimetype}. Solo se aceptan PNG, JPEG, JPG o WEBP.`,
+      );
+    }
+
+    const maxSize = 5 * 1024 * 1024; // 5 MB
+    if (file.size > maxSize) {
+      throw new BadRequestException('La imagen no puede superar los 5 MB.');
+    }
+
+    const webpBuffer = await sharp(file.buffer).webp({ quality: 85 }).toBuffer();
+
+    const folder = ownerId ?? 'general';
+    const dir = path.join(process.cwd(), this.uploadsDir, 'users', folder, 'profile');
+
+    fs.mkdirSync(dir, { recursive: true });
+
+    const storedName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`;
+    const filePath = path.join(dir, storedName);
+
+    fs.writeFileSync(filePath, webpBuffer);
+
+    const url = this.buildFileUrl(`users/${folder}/profile/${storedName}`);
+    return { url };
+  }
+
+  /**
+   * @summary Servir foto de perfil por ownerId y nombre de archivo
+   * @description Devuelve un stream de la imagen con las cabeceras MIME correctas.
+   */
+  async serveProfilePhoto(ownerId: string, filename: string, res: any): Promise<void> {
+    const baseDir = path.join(
+      process.cwd(),
+      this.uploadsDir,
+      'users',
+      ownerId,
+      'profile',
+    );
+
+    const fullPath = path.join(baseDir, filename);
+
+    if (!fs.existsSync(fullPath)) {
+      throw new NotFoundException('Foto de perfil no encontrada en el servidor.');
+    }
+
+    const ext = path.extname(filename).toLowerCase().replace('.', '');
+    const mimeMap: Record<string, string> = {
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      png: 'image/png',
+      webp: 'image/webp',
+    };
+    const contentType = mimeMap[ext] ?? 'application/octet-stream';
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    fs.createReadStream(fullPath).pipe(res);
+  }
+
+  /**
+   * @summary Subir foto de un centro médico
+   * @description
+   * - Valida MIME type (PNG, JPEG, JPG, WEBP)
+   * - Valida tamaño máximo (5 MB)
+   * - Convierte a WebP con sharp (calidad 85)
+   * - Si se provee medicalCenterId: guarda en UPLOADS_PATH/{medicalCenterId}/images/
+   * - Si no: guarda en UPLOADS_PATH/images/medical-centers/
+   * - Retorna URL pública completa
+   */
+  async uploadMedicalCenterPhoto(
+    file: Express.Multer.File,
+    medicalCenterId?: string,
+  ): Promise<{ url: string }> {
+    if (!file) {
+      throw new BadRequestException('Debe enviar un archivo de imagen.');
+    }
+
+    const allowedMimes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+    if (!allowedMimes.includes(file.mimetype)) {
+      throw new BadRequestException(
+        `Tipo de archivo no permitido: ${file.mimetype}. Solo se aceptan PNG, JPEG, JPG o WEBP.`,
+      );
+    }
+
+    const maxSize = 5 * 1024 * 1024; // 5 MB
+    if (file.size > maxSize) {
+      throw new BadRequestException('La imagen no puede superar los 5 MB.');
+    }
+
+    const webpBuffer = await sharp(file.buffer).webp({ quality: 85 }).toBuffer();
+
+    const folder = medicalCenterId ?? 'general';
+    const dir = path.join(process.cwd(), this.uploadsDir, 'medical-centers', folder);
+
+    fs.mkdirSync(dir, { recursive: true });
+
+    const storedName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`;
+    const filePath = path.join(dir, storedName);
+
+    fs.writeFileSync(filePath, webpBuffer);
+
+    const url = this.buildFileUrl(`medical-centers/${folder}/${storedName}`);
+    return { url };
+  }
+
+  /**
+   * @summary Servir foto de centro médico por medicalCenterId y nombre de archivo
+   * @description Devuelve un stream de la imagen con las cabeceras MIME correctas.
+   */
+  async serveMedicalCenterPhoto(
+    medicalCenterId: string,
+    filename: string,
+    res: any,
+  ): Promise<void> {
+    const baseDir = path.join(
+      process.cwd(),
+      this.uploadsDir,
+      'medical-centers',
+      medicalCenterId,
+    );
+
+    const fullPath = path.join(baseDir, filename);
+
+    if (!fs.existsSync(fullPath)) {
+      throw new NotFoundException('Foto de centro médico no encontrada en el servidor.');
+    }
+
+    const ext = path.extname(filename).toLowerCase().replace('.', '');
+    const mimeMap: Record<string, string> = {
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      png: 'image/png',
+      webp: 'image/webp',
+    };
+    const contentType = mimeMap[ext] ?? 'application/octet-stream';
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    fs.createReadStream(fullPath).pipe(res);
+  }
+
+  /* ============================================================
+   * 🧑‍⚕️ FOTOS DE COMMON PERSON (PACIENTES / DOCTORES)
+   * ============================================================ */
+
+  /**
+   * @summary Subir foto de CommonPerson (paciente o doctor)
+   * @description
+   * - Valida MIME type (PNG, JPEG, JPG, WEBP)
+   * - Valida tamaño máximo (5 MB)
+   * - Convierte a WebP con sharp (calidad 85)
+   * - Si se provee personId: guarda en UPLOADS_PATH/common-persons/{personId}/images/
+   * - Si no: guarda en UPLOADS_PATH/common-persons/general/images/
+   * - Retorna URL pública completa
+   */
+  async uploadCommonPersonPhoto(
+    file: Express.Multer.File,
+    personId?: string,
+  ): Promise<{ url: string }> {
+    if (!file) {
+      throw new BadRequestException('Debe enviar un archivo de imagen.');
+    }
+
+    const allowedMimes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+    if (!allowedMimes.includes(file.mimetype)) {
+      throw new BadRequestException(
+        `Tipo de archivo no permitido: ${file.mimetype}. Solo se aceptan PNG, JPEG, JPG o WEBP.`,
+      );
+    }
+
+    const maxSize = 5 * 1024 * 1024; // 5 MB
+    if (file.size > maxSize) {
+      throw new BadRequestException('La imagen no puede superar los 5 MB.');
+    }
+
+    const webpBuffer = await sharp(file.buffer).webp({ quality: 85 }).toBuffer();
+
+    const folder = personId ?? 'general';
+    const dir = path.join(process.cwd(), this.uploadsDir, 'common-persons', folder);
+
+    fs.mkdirSync(dir, { recursive: true });
+
+    const storedName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`;
+    const filePath = path.join(dir, storedName);
+
+    fs.writeFileSync(filePath, webpBuffer);
+
+    const url = this.buildFileUrl(`common-persons/${folder}/${storedName}`);
+    return { url };
+  }
+
+  /**
+   * @summary Servir foto de CommonPerson por personId y nombre de archivo
+   * @description Devuelve un stream de la imagen con las cabeceras MIME correctas.
+   */
+  async serveCommonPersonPhoto(
+    personId: string,
+    filename: string,
+    res: any,
+  ): Promise<void> {
+    const baseDir = path.join(
+      process.cwd(),
+      this.uploadsDir,
+      'common-persons',
+      personId,
+    );
+
+    const fullPath = path.join(baseDir, filename);
+
+    if (!fs.existsSync(fullPath)) {
+      throw new NotFoundException('Foto de persona no encontrada en el servidor.');
+    }
+
+    const ext = path.extname(filename).toLowerCase().replace('.', '');
+    const mimeMap: Record<string, string> = {
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      png: 'image/png',
+      webp: 'image/webp',
+    };
+    const contentType = mimeMap[ext] ?? 'application/octet-stream';
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    fs.createReadStream(fullPath).pipe(res);
   }
 }
