@@ -315,7 +315,7 @@ export class PatientService {
     // IDOR: doctor solo ve pacientes con los que tiene citas
     if (doctorId) {
       qb.andWhere(
-        `patient.id IN (SELECT ma."patientId" FROM medical_appointments ma WHERE ma."doctorId" = :doctorId AND ma."deletedAt" IS NULL)`,
+        `patient.id IN (SELECT ma."patient_id" FROM medical_appointments ma WHERE ma."doctor_id" = :doctorId)`,
         { doctorId },
       );
     }
@@ -401,8 +401,7 @@ export class PatientService {
         .leftJoinAndSelect('patient.allergies', 'allergies')
         .leftJoinAndSelect('patient.chronicDiseases', 'chronicDiseases')
         .leftJoinAndSelect('patient.medications', 'medications')
-        .where('patient.deletedAt IS NULL')
-        .andWhere('commonPerson.documentNumber = :documentNumber', {
+        .where('commonPerson.documentNumber = :documentNumber', {
           documentNumber,
         });
 

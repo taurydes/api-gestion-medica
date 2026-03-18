@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { User } from 'src/user/entities/user.entity';
 import { Doctor } from 'src/doctors/entities/doctor.entity';
+import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity';
 
 export interface AuthContext {
   userId: string;
@@ -67,5 +68,17 @@ export class AuthContextService {
       relations: ['medicalCenters'],
     });
     return doctor?.medicalCenters?.map((mc) => mc.id) ?? [];
+  }
+
+  /**
+   * Retorna los centros médicos completos asociados a un doctor.
+   * Útil para construir el resumen de centros médicos en /auth/me.
+   */
+  async getMedicalCentersForDoctor(doctorId: string): Promise<MedicalCenter[]> {
+    const doctor = await this.doctorRepo.findOne({
+      where: { id: doctorId },
+      relations: ['medicalCenters'],
+    });
+    return doctor?.medicalCenters ?? [];
   }
 }

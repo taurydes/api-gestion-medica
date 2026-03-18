@@ -4,7 +4,8 @@
       "Bash(npx tsc:*)",
       "Bash(xargs cat:*)",
       "Bash(find c:/Users/taury/OneDrive/Documentos/Tesis/portal-usuario/gestion-medica/src -name *.interceptor.ts)",
-      "Bash(xargs ls:*)"
+      "Bash(xargs ls:*)",
+      "Bash(find c:UserstauryOneDriveDocumentosTesisportal-usuariogestion-medica -path */src/app/* -type f \\\\\\(-name *workspace* -o -name *clinic* -o -name *center* -o -name *selector* \\\\\\))"
     ]
   }
 }
