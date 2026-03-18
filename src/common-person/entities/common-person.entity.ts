@@ -68,6 +68,9 @@ export class CommonPerson {
   @Column({ name: 'deleted_at', type: 'timestamp', nullable: true })
   deletedAt: Date | null;
 
+  @Column({ name: 'photo_url', nullable: true, type: 'varchar', length: 500 })
+  photoUrl: string | null;
+
   // RELATIONS
 
   @OneToOne(() => User, (user) => user.commonPerson)

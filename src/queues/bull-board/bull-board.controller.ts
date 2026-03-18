@@ -120,6 +120,7 @@ export class BullBoardController {
         id: number;
         name: string;
         roleId: number;
+        roleName: string;
         iat: number;
         exp: number;
       };
@@ -135,8 +136,8 @@ export class BullBoardController {
       }
 
       try {
-        const roleId = decoded?.roleId;
-        if (Number(roleId) !== RoleEnum.ADMIN) {
+        const roleName = decoded?.roleName;
+        if (roleName !== RoleEnum.ADMIN) {
           console.warn('Acceso denegado: solo superAdministrador');
           return res.redirect('/logs/ui/login?error=Acceso%20denegado');
         }

@@ -51,6 +51,9 @@ export class MedicalCenter {
   @Column({ name: 'deleted_at', type: 'timestamp', nullable: true })
   deletedAt: Date | null;
 
+  @Column({ name: 'image_url', nullable: true, type: 'varchar', length: 500 })
+  imageUrl: string | null;
+
   // Infrastructure fields
   @Column({ name: 'num_beds', type: 'int', default: 0 })
   numBeds: number;

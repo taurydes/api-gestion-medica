@@ -1,9 +1,9 @@
-import { PermissionResult } from 'src/permission/permission.const';
 import { AuthUser } from './interfaces/User';
 
 export type UserSecurityPayload = {
   id: number;
   roleId?: number;
+  roleName: string;
 };
 
 export interface JwtPayload {
