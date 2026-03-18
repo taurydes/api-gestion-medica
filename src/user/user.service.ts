@@ -257,11 +257,14 @@ export class UserService {
 
     const user = await this.repo.findOne({
       where: { id },
-      relations: [
-        'role',
-        'role.permissionMenus',
-        'role.permissionMenus.permission',
-      ],
+      relations: {
+        commonPerson: true,
+        role: {
+          permissionMenus: {
+            permission: true,
+          },
+        },
+      },
     });
 
     if (!user) {
