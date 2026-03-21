@@ -21,6 +21,7 @@ import { AppointmentFile } from './entities/appointment-file.entity';
 import { CreateVideoBase64Dto, CreateVideoMultipartDto } from './dto/create-video-publict.dto';
 import { MedicalCenterImage } from 'src/medical-center/entities/medical-center-image.entity';
 import { DoctorImage } from 'src/doctors/entities/doctor-image.entity';
+import { CommonPersonImage } from 'src/common-person/entities/common-person-image.entity';
 
 
 @Injectable()
@@ -42,6 +43,9 @@ export class FilesService {
 
     @InjectRepository(DoctorImage, DatabaseConnectionName.DB_MAIN)
     private readonly doctorImageRepository: Repository<DoctorImage>,
+
+    @InjectRepository(CommonPersonImage, DatabaseConnectionName.DB_MAIN)
+    private readonly commonPersonImageRepository: Repository<CommonPersonImage>,
 
     private readonly configService: ConfigService,
   ) {
@@ -782,6 +786,90 @@ export class FilesService {
 
     res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    fs.createReadStream(fullPath).pipe(res);
+  }
+
+  /* ============================================================
+   * FOTOS DE PERSONAS COMUNES (PACIENTES) — DB backed
+   * ============================================================ */
+
+  getCommonPersonImageUrl(imageId: string): string {
+    return `${this.publicUrl}/files/common-person-images/${imageId}`;
+  }
+
+  /**
+   * Sube foto de CommonPerson, deactiva la anterior y crea registro en BD.
+   */
+  async uploadCommonPersonImage(
+    file: Express.Multer.File,
+    data: { commonPersonId: string; uploadedBy?: string },
+  ): Promise<{ url: string }> {
+    if (!file) throw new BadRequestException('Debe enviar un archivo de imagen.');
+
+    const allowedMimes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+    if (!allowedMimes.includes(file.mimetype)) {
+      throw new BadRequestException(
+        `Tipo de archivo no permitido: ${file.mimetype}. Solo se aceptan PNG, JPEG, JPG o WEBP.`,
+      );
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      throw new BadRequestException('La imagen no puede superar los 5 MB.');
+    }
+
+    const webpBuffer = await sharp(file.buffer).webp({ quality: 85 }).toBuffer();
+
+    const dir = path.join(
+      process.cwd(),
+      this.uploadsDir,
+      'common-persons',
+      data.commonPersonId,
+    );
+    fs.mkdirSync(dir, { recursive: true });
+
+    const storedName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`;
+    const filePath = path.join(dir, storedName);
+    fs.writeFileSync(filePath, webpBuffer);
+
+    // Desactivar imagen previa
+    await this.commonPersonImageRepository.update(
+      { commonPersonId: data.commonPersonId, isActive: true },
+      { isActive: false },
+    );
+
+    // Crear registro en BD
+    const record = this.commonPersonImageRepository.create({
+      commonPersonId: data.commonPersonId,
+      uploadedBy: data.uploadedBy ?? null,
+      originalName: file.originalname,
+      storedName,
+      mimeType: 'image/webp',
+      fileSize: webpBuffer.length,
+      filePath: `common-persons/${data.commonPersonId}/${storedName}`,
+      isActive: true,
+    });
+    const saved = await this.commonPersonImageRepository.save(record);
+
+    return { url: this.getCommonPersonImageUrl(saved.id) };
+  }
+
+  /**
+   * Sirve imagen de CommonPerson por imageId (desde BD).
+   */
+  async serveCommonPersonImage(imageId: string, res: any): Promise<void> {
+    const record = await this.commonPersonImageRepository.findOne({
+      where: { id: imageId, deletedAt: null as any },
+    });
+    if (!record) {
+      throw new NotFoundException('Imagen de persona no encontrada.');
+    }
+
+    const fullPath = path.join(process.cwd(), this.uploadsDir, record.filePath);
+    if (!fs.existsSync(fullPath)) {
+      throw new NotFoundException('Archivo de imagen no encontrado en el servidor.');
+    }
+
+    res.setHeader('Content-Type', record.mimeType);
+    res.setHeader('Content-Disposition', `inline; filename="${record.storedName}"`);
     fs.createReadStream(fullPath).pipe(res);
   }
 }

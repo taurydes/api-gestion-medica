@@ -430,4 +430,46 @@ export class FilesController {
   ): Promise<void> {
     return this.filesService.serveDoctorImage(imageId, res);
   }
+
+  /* ============================================================
+   * MÉTODO – SUBIR FOTO DE COMMON PERSON (DB-backed, stream)
+   * ============================================================ */
+  @ApiOperation({
+    summary: 'Subir foto de CommonPerson (con registro en BD)',
+    description: 'Recibe una imagen multipart, la almacena en UPLOADS_PATH/common-persons/{personId}/ y crea un registro en common_person_images.',
+  })
+  @Post('common-person-image')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: multer.memoryStorage(),
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
+  @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.CREATE}`)
+  async uploadCommonPersonImage(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('commonPersonId') commonPersonId: string,
+    @GetUser('id') userId: string,
+  ): Promise<{ url: string }> {
+    return this.filesService.uploadCommonPersonImage(file, {
+      commonPersonId,
+      uploadedBy: userId,
+    });
+  }
+
+  /* ============================================================
+   * MÉTODO – SERVIR IMAGEN DE COMMON PERSON POR ID
+   * ============================================================ */
+  @ApiOperation({
+    summary: 'Servir imagen de CommonPerson por ID',
+    description: 'Devuelve la imagen como stream buscándola por su ID en BD.',
+  })
+  @Get('common-person-images/:imageId')
+  @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.VIEW}`)
+  async serveCommonPersonImage(
+    @Param('imageId') imageId: string,
+    @Res() res,
+  ): Promise<void> {
+    return this.filesService.serveCommonPersonImage(imageId, res);
+  }
 }

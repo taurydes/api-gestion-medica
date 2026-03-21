@@ -19,6 +19,8 @@ import { ChronicDisease } from 'src/parameters/entities/chronic-disease.entity';
 import { Medication } from 'src/parameters/entities/medication.entity';
 import { User } from 'src/user/entities/user.entity';
 import { Doctor } from 'src/doctors/entities/doctor.entity';
+import { CommonPersonImage } from 'src/common-person/entities/common-person-image.entity';
+import { FilesService } from 'src/files/files.service';
 
 /**
  * Servicio para gestionar los pacientes del sistema
@@ -47,6 +49,11 @@ export class PatientService {
 
     @InjectRepository(Doctor, DatabaseConnectionName.DB_MAIN)
     private readonly doctorRepository: Repository<Doctor>,
+
+    @InjectRepository(CommonPersonImage, DatabaseConnectionName.DB_MAIN)
+    private readonly commonPersonImageRepository: Repository<CommonPersonImage>,
+
+    private readonly filesService: FilesService,
 
     @Inject(CACHE_MANAGER)
     private readonly cacheManager: Cache,
@@ -85,6 +92,14 @@ export class PatientService {
 
     // Finalmente limpiamos la lista de claves
     await this.cacheManager.del(listKey);
+  }
+
+  private async getPatientImageUrl(commonPersonId: string): Promise<string | null> {
+    const img = await this.commonPersonImageRepository.findOne({
+      where: { commonPersonId, isActive: true, deletedAt: IsNull() },
+      order: { createdAt: 'DESC' },
+    });
+    return img ? this.filesService.getCommonPersonImageUrl(img.id) : null;
   }
 
   /**
@@ -325,7 +340,16 @@ export class PatientService {
 
     const [items, total] = await qb.getManyAndCount();
 
-    const result = { data: items, total, page, limit };
+    const enrichedItems = await Promise.all(
+      items.map(async (patient) => ({
+        ...patient,
+        imageUrl: patient.commonPersonId
+          ? await this.getPatientImageUrl(patient.commonPersonId)
+          : null,
+      })),
+    );
+
+    const result = { data: enrichedItems, total, page, limit };
 
     // 3️⃣ Guardar en cache por 5 min
     await this.cacheManager.set(cacheKey, result, 300);
@@ -368,10 +392,15 @@ export class PatientService {
         throw new NotFoundException(`Paciente con ID ${id} no encontrado.`);
       }
 
-      // Guardar en cache por 10 min
-      await this.cacheManager.set(cacheKey, patient, 600);
+      const imageUrl = patient.commonPersonId
+        ? await this.getPatientImageUrl(patient.commonPersonId)
+        : null;
+      const result = { ...patient, imageUrl } as any;
 
-      return patient;
+      // Guardar en cache por 10 min
+      await this.cacheManager.set(cacheKey, result, 600);
+
+      return result;
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
       throw new NotFoundException(

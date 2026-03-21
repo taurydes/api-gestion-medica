@@ -11,6 +11,8 @@ import { ChronicDisease } from 'src/parameters/entities/chronic-disease.entity';
 import { Medication } from 'src/parameters/entities/medication.entity';
 import { User } from 'src/user/entities/user.entity';
 import { Doctor } from 'src/doctors/entities/doctor.entity';
+import { CommonPersonImage } from 'src/common-person/entities/common-person-image.entity';
+import { FilesModule } from 'src/files/files.module';
 
 /**
  * Módulo de Pacientes
@@ -19,9 +21,10 @@ import { Doctor } from 'src/doctors/entities/doctor.entity';
 @Module({
   imports: [
     TypeOrmModule.forFeature(
-      [Patient, CommonPerson, Allergy, ChronicDisease, Medication, User, Doctor],
+      [Patient, CommonPerson, Allergy, ChronicDisease, Medication, User, Doctor, CommonPersonImage],
       DatabaseConnectionName.DB_MAIN,
     ),
+    FilesModule,
   ],
   controllers: [PatientController],
   providers: [PatientService],

@@ -4,9 +4,11 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   OneToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
+import { CommonPersonImage } from './common-person-image.entity';
 import { User } from '../../user/entities/user.entity';
 
 // Si algún día mapeas parametro.documento_identidad:
@@ -83,4 +85,7 @@ export class CommonPerson {
   })
   @JoinColumn({ name: 'letra', referencedColumnName: 'letter' })
   identityDocument: IdentityDocument;
+
+  @OneToMany(() => CommonPersonImage, (img) => img.commonPerson)
+  images: CommonPersonImage[];
 }
