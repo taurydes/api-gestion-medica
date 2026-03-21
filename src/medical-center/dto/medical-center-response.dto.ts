@@ -116,7 +116,11 @@ export function mapMedicalCenterDoctor(doctor: any): MedicalCenterDoctorDto {
  * Solo expone el payload mínimo necesario para el listado.
  * Los conteos de doctores y departamentos se calculan desde las relaciones cargadas.
  */
-export function mapToMedicalCenterListItem(mc: any): MedicalCenterListItemDto {
+export function mapToMedicalCenterListItem(
+  mc: any,
+  buildImageUrl: (imageId: string) => string,
+): MedicalCenterListItemDto {
+  const firstImage = mc.images?.[0];
   return {
     id: mc.id,
     name: mc.name,
@@ -124,7 +128,7 @@ export function mapToMedicalCenterListItem(mc: any): MedicalCenterListItemDto {
     phone: mc.phone ?? null,
     email: mc.email ?? null,
     isActive: mc.isActive,
-    imageUrl: `http://localhost:8008/uploads/${mc.images?.[0]?.filePath ?? ''}`,
+    imageUrl: firstImage ? buildImageUrl(firstImage.id) : null,
     doctorCount: mc.doctors?.length ?? 0,
     departmentCount: mc.departments?.length ?? 0,
   };
@@ -134,7 +138,11 @@ export function mapToMedicalCenterListItem(mc: any): MedicalCenterListItemDto {
  * Convierte un centro médico crudo (con todas las relaciones cargadas) a MedicalCenterDetailDto.
  * Incluye campos de infraestructura, doctores completos, departamentos e imágenes activas.
  */
-export function mapToMedicalCenterDetail(mc: any): MedicalCenterDetailDto {
+export function mapToMedicalCenterDetail(
+  mc: any,
+  buildImageUrl: (imageId: string) => string,
+): MedicalCenterDetailDto {
+  const firstImage = mc.images?.[0];
   return {
     id: mc.id,
     name: mc.name,
@@ -142,7 +150,7 @@ export function mapToMedicalCenterDetail(mc: any): MedicalCenterDetailDto {
     phone: mc.phone ?? null,
     email: mc.email ?? null,
     isActive: mc.isActive,
-    imageUrl: `http://localhost:8008/uploads/${mc.images?.[0]?.filePath ?? ''}`,
+    imageUrl: firstImage ? buildImageUrl(firstImage.id) : null,
     hasEmergency: mc.hasEmergency ?? false,
     hasHospitalization: mc.hasHospitalization ?? false,
     hasIntensiveCare: mc.hasIntensiveCare ?? false,
@@ -158,7 +166,7 @@ export function mapToMedicalCenterDetail(mc: any): MedicalCenterDetailDto {
     })),
     images: (mc.images ?? []).map((img: any) => ({
       id: img.id,
-      filePath: img.filePath,
+      filePath: buildImageUrl(img.id),
       imageType: img.imageType,
       description: img.description ?? null,
       uploadedAt: img.createdAt,

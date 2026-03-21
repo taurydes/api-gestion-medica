@@ -503,6 +503,12 @@ export class FilesService {
     const filePathRelative = `medical-centers/${folder}/${storedName}`;
     const url = this.buildFileUrl(filePathRelative);
 
+    // Desactivar todas las imágenes activas previas del centro
+    await this.medicalCenterImageRepository.update(
+      { medicalCenterId: data.medicalCenterId, isActive: true },
+      { isActive: false },
+    );
+
     // Persistir registro en BD
     const record = this.medicalCenterImageRepository.create({
       medicalCenterId: data.medicalCenterId,
@@ -554,9 +560,8 @@ export class FilesService {
   /**
    * @summary Obtener URL pública de una imagen de centro médico por ID
    */
-  getMedicalCenterImageUrl(path: string): string {
-    const url = this.buildFileUrl(`/uploads/medical-centers/${path}`);
-    return `${this.publicUrl}${path}`;
+  getMedicalCenterImageUrl(imageId: string): string {
+    return `${this.publicUrl}/files/medical-center-images/${imageId}`;
   }
 
   /**

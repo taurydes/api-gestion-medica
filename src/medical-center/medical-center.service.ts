@@ -219,7 +219,9 @@ export class MedicalCenterService {
     const [items, total] = await qb.getManyAndCount();
 
     const result: MedicalCenterPaginatedResponseDto = {
-      data: items.map(mapToMedicalCenterListItem),
+      data: items.map((mc) =>
+        mapToMedicalCenterListItem(mc, (id) => this.filesService.getMedicalCenterImageUrl(id))
+      ),
       total,
       page,
       limit,
@@ -282,7 +284,10 @@ export class MedicalCenterService {
       // IDOR: validar acceso antes de cachear y retornar
       await this.assertFindOneAccess(id, authUser);
 
-      const dto = mapToMedicalCenterDetail(center);
+      const dto = mapToMedicalCenterDetail(
+        center,
+        (id) => this.filesService.getMedicalCenterImageUrl(id),
+      );
 
       await this.cacheManager.set(cacheKey, dto, 600);
 
@@ -346,6 +351,7 @@ export class MedicalCenterService {
       if (!updated) {
         throw new NotFoundException('Error al actualizar el centro médico.');
       }
+      
 
       // Limpiar caches
       await this.cacheManager.del(`medicalCenter:${id}`);
