@@ -1,6 +1,7 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import {
   BadRequestException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -8,14 +9,17 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
-import { FindOptions, FindOptionsWhere, In, Repository } from 'typeorm';
+import { FindOptions, FindOptionsWhere, In, IsNull, Repository } from 'typeorm';
 import { CreateDoctorDto } from './dto/create-doctor.dto';
 import { UpdateDoctorDto } from './dto/update-doctor.dto';
 import { DoctorQueryDto } from './dto/doctor-query.dto';
 import { Doctor } from './entities/doctor.entity';
+import { DoctorImage } from './entities/doctor-image.entity';
 import { CommonPerson } from 'src/common-person/entities/common-person.entity';
 import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity';
 import { Specialty } from 'src/parameters/entities/specialty.entity';
+import { User } from 'src/user/entities/user.entity';
+import { FilesService } from 'src/files/files.service';
 
 @Injectable()
 export class DoctorsService {
@@ -32,9 +36,58 @@ export class DoctorsService {
     @InjectRepository(MedicalCenter, DatabaseConnectionName.DB_MAIN)
     private readonly medicalCenterRepository: Repository<MedicalCenter>,
 
+    @InjectRepository(DoctorImage, DatabaseConnectionName.DB_MAIN)
+    private readonly doctorImageRepository: Repository<DoctorImage>,
+
+    @InjectRepository(User, DatabaseConnectionName.DB_MAIN)
+    private readonly userRepository: Repository<User>,
+
     @Inject(CACHE_MANAGER)
     private readonly cacheManager: Cache,
+
+    private readonly filesService: FilesService,
   ) {}
+
+  // ─── IDOR helpers ──────────────────────────────────────────────────────────
+
+  private async getDoctorIdForUser(userId: string): Promise<string | null> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['commonPerson'],
+    });
+    if (!user?.commonPerson) return null;
+    const doctor = await this.doctorRepository.findOne({
+      where: { commonPersonId: user.commonPerson.id },
+    });
+    return doctor?.id ?? null;
+  }
+
+  private async isAdminUser(userId: string): Promise<boolean> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['role'],
+    });
+    const roleName = (user?.role?.name ?? '').toLowerCase();
+    return roleName.includes('admin') || roleName.includes('super');
+  }
+
+  private async assertDoctorAccess(doctorId: string, authUser?: any): Promise<void> {
+    if (!authUser?.id) return;
+    const isAdmin = await this.isAdminUser(authUser.id);
+    if (isAdmin) return;
+    const myDoctorId = await this.getDoctorIdForUser(authUser.id);
+    if (myDoctorId && myDoctorId !== doctorId) {
+      throw new ForbiddenException('No tiene acceso a este perfil de doctor.');
+    }
+  }
+
+  private async getDoctorImageUrl(doctorId: string): Promise<string | null> {
+    const img = await this.doctorImageRepository.findOne({
+      where: { doctorId, isActive: true, deletedAt: IsNull() },
+      order: { createdAt: 'DESC' },
+    });
+    return img ? this.filesService.getDoctorImageUrl(img.id) : null;
+  }
 
   /**
    * Método para limpiar cache de paginaciones dinámicas
@@ -148,7 +201,7 @@ export class DoctorsService {
   /**
    * Listar doctores con filtros + paginación + cache
    */
-  async findAll(query: DoctorQueryDto) {
+  async findAll(query: DoctorQueryDto, authUser?: any) {
     const {
       page,
       limit,
@@ -160,7 +213,16 @@ export class DoctorsService {
       documentNumber,
     } = query;
 
-    const cacheKey = `doctor:query:${JSON.stringify(query)}`;
+    // ── IDOR ──────────────────────────────────────────────────────────────────
+    let myDoctorId: string | null = null;
+    if (authUser?.id) {
+      const isAdmin = await this.isAdminUser(authUser.id);
+      if (!isAdmin) {
+        myDoctorId = await this.getDoctorIdForUser(authUser.id);
+      }
+    }
+
+    const cacheKey = `doctor:query:${JSON.stringify({ ...query, myDoctorId })}`;
     const listKey = 'doctor:query:keys';
 
     // Consultar cache
@@ -205,12 +267,24 @@ export class DoctorsService {
       });
     }
 
+    // IDOR: si el usuario es doctor, solo ve su propio perfil
+    if (myDoctorId) {
+      qb.andWhere('doctor.id = :myDoctorId', { myDoctorId });
+    }
+
     qb.orderBy('doctor.id', order);
     qb.skip((page - 1) * limit).take(limit);
 
     const [items, total] = await qb.getManyAndCount();
 
-    const result = { data: items, total, page, limit };
+    const enrichedItems = await Promise.all(
+      items.map(async (doctor) => ({
+        ...doctor,
+        imageUrl: await this.getDoctorImageUrl(doctor.id),
+      })),
+    );
+
+    const result = { data: enrichedItems, total, page, limit };
 
     // Guardar en cache por 5 min
     await this.cacheManager.set(cacheKey, result, 300);
@@ -228,11 +302,13 @@ export class DoctorsService {
   /**
    * Obtener doctor por ID con cache
    */
-  async findOne(id: string): Promise<Doctor> {
+  async findOne(id: string, authUser?: any): Promise<Doctor & { imageUrl: string | null }> {
     const cacheKey = `doctor:${id}`;
 
     try {
-      const cached = await this.cacheManager.get<Doctor>(cacheKey);
+      await this.assertDoctorAccess(id, authUser);
+
+      const cached = await this.cacheManager.get<Doctor & { imageUrl: string | null }>(cacheKey);
       if (cached) return cached;
 
       const doctor = await this.doctorRepository.findOne({
@@ -244,10 +320,16 @@ export class DoctorsService {
         throw new NotFoundException(`Doctor con ID ${id} no encontrado.`);
       }
 
-      await this.cacheManager.set(cacheKey, doctor, 600);
+      const imageUrl = await this.getDoctorImageUrl(id);
+      const result = { ...doctor, imageUrl };
 
-      return doctor;
+      await this.cacheManager.set(cacheKey, result, 600);
+
+      return result;
     } catch (error) {
+      if (error instanceof NotFoundException || error instanceof ForbiddenException) {
+        throw error;
+      }
       throw new NotFoundException(
         `Error al obtener el doctor: ${error.message}`,
       );
@@ -257,7 +339,8 @@ export class DoctorsService {
   /**
    * Actualizar doctor
    */
-  async update(id: string, dto: UpdateDoctorDto): Promise<Doctor> {
+  async update(id: string, dto: UpdateDoctorDto, authUser?: any): Promise<Doctor> {
+    await this.assertDoctorAccess(id, authUser);
     try {
       const doctor = await this.doctorRepository.findOne({
         where: { id },

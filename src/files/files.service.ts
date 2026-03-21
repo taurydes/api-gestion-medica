@@ -20,6 +20,7 @@ import { VideoPublicity } from './entities/video-publicy.entity';
 import { AppointmentFile } from './entities/appointment-file.entity';
 import { CreateVideoBase64Dto, CreateVideoMultipartDto } from './dto/create-video-publict.dto';
 import { MedicalCenterImage } from 'src/medical-center/entities/medical-center-image.entity';
+import { DoctorImage } from 'src/doctors/entities/doctor-image.entity';
 
 
 @Injectable()
@@ -38,6 +39,9 @@ export class FilesService {
 
     @InjectRepository(MedicalCenterImage, DatabaseConnectionName.DB_MAIN)
     private readonly medicalCenterImageRepository: Repository<MedicalCenterImage>,
+
+    @InjectRepository(DoctorImage, DatabaseConnectionName.DB_MAIN)
+    private readonly doctorImageRepository: Repository<DoctorImage>,
 
     private readonly configService: ConfigService,
   ) {
@@ -581,6 +585,79 @@ export class FilesService {
       throw new NotFoundException('Archivo físico no encontrado en el servidor.');
     }
 
+    res.setHeader('Content-Type', record.mimeType);
+    res.setHeader('Content-Disposition', `inline; filename="${record.originalName}"`);
+    fs.createReadStream(fullPath).pipe(res);
+  }
+
+  /* ============================================================
+   * FOTOS DE DOCTOR
+   * ============================================================ */
+
+  /**
+   * @summary Obtener URL pública de una imagen de doctor por ID
+   */
+  getDoctorImageUrl(imageId: string): string {
+    return `${this.publicUrl}/files/doctor-images/${imageId}`;
+  }
+
+  /**
+   * @summary Subir foto de doctor
+   * - Desactiva imágenes previas activas del doctor
+   * - Convierte a WebP con sharp
+   * - Guarda en UPLOADS_PATH/doctors/{doctorId}/
+   * - Persiste registro en doctor_images
+   */
+  async uploadDoctorPhoto(
+    file: Express.Multer.File,
+    data: { doctorId: string; uploadedBy?: string },
+  ): Promise<{ url: string; image: DoctorImage }> {
+    if (!file) throw new BadRequestException('Debe enviar un archivo de imagen.');
+    const allowedMimes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+    if (!allowedMimes.includes(file.mimetype))
+      throw new BadRequestException(`Tipo no permitido: ${file.mimetype}.`);
+    if (file.size > 5 * 1024 * 1024)
+      throw new BadRequestException('La imagen no puede superar los 5 MB.');
+
+    const webpBuffer = await sharp(file.buffer).webp({ quality: 85 }).toBuffer();
+    const dir = path.join(process.cwd(), this.uploadsDir, 'doctors', data.doctorId);
+    fs.mkdirSync(dir, { recursive: true });
+
+    const storedName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`;
+    fs.writeFileSync(path.join(dir, storedName), webpBuffer);
+
+    const filePathRelative = `doctors/${data.doctorId}/${storedName}`;
+    const url = this.buildFileUrl(filePathRelative);
+
+    // Desactivar imágenes previas
+    await this.doctorImageRepository.update(
+      { doctorId: data.doctorId, isActive: true },
+      { isActive: false },
+    );
+
+    const record = this.doctorImageRepository.create({
+      doctorId: data.doctorId,
+      uploadedBy: data.uploadedBy ?? null,
+      originalName: file.originalname,
+      storedName,
+      mimeType: 'image/webp',
+      fileSize: webpBuffer.length,
+      filePath: filePathRelative,
+    });
+    const image = await this.doctorImageRepository.save(record);
+    return { url, image };
+  }
+
+  /**
+   * @summary Servir imagen de doctor por ID (stream)
+   */
+  async serveDoctorImage(imageId: string, res: any): Promise<void> {
+    const record = await this.doctorImageRepository.findOne({
+      where: { id: imageId, deletedAt: IsNull() },
+    });
+    if (!record) throw new NotFoundException('Imagen no encontrada.');
+    const fullPath = path.join(process.cwd(), this.uploadsDir, record.filePath);
+    if (!fs.existsSync(fullPath)) throw new NotFoundException('Archivo físico no encontrado.');
     res.setHeader('Content-Type', record.mimeType);
     res.setHeader('Content-Disposition', `inline; filename="${record.originalName}"`);
     fs.createReadStream(fullPath).pipe(res);
