@@ -24,6 +24,13 @@ import { Department } from 'src/departments/entities/department.entity';
 import { CreateMedicalAppointmentDto } from './dto/create-medical-appointment.dto';
 import { UpdateMedicalAppointmentDto } from './dto/update-medical-appointment.dto';
 import { QueryMedicalAppointmentDto } from './dto/query-medical-appointment.dto';
+import {
+  AppointmentDetailDto,
+  AppointmentListItemDto,
+  AppointmentPaginatedResponseDto,
+  mapToDetail,
+  mapToListItem,
+} from './dto/appointment-response.dto';
 import { Allergy } from 'src/parameters/entities/allergy.entity';
 import { ChronicDisease } from 'src/parameters/entities/chronic-disease.entity';
 import { Medication } from 'src/parameters/entities/medication.entity';
@@ -114,6 +121,23 @@ export class MedicalAppointmentsService {
     if (!doctor) return null;
 
     return doctor.medicalCenters?.map((mc) => mc.id) ?? [];
+  }
+
+  /**
+   * Resuelve el patientId vinculado al usuario autenticado.
+   * Retorna null si el usuario no tiene perfil de paciente.
+   */
+  private async getPatientIdForUser(userId: string): Promise<string | null> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['commonPerson'],
+    });
+    if (!user?.commonPerson) return null;
+
+    const patient = await this.patientRepository.findOne({
+      where: { commonPersonId: user.commonPerson.id },
+    });
+    return patient?.id ?? null;
   }
 
   /**
@@ -411,6 +435,8 @@ export class MedicalAppointmentsService {
       .leftJoinAndSelect('apt.recipes', 'recipes')
       .leftJoinAndSelect('recipes.items', 'recipeItems')
       .leftJoinAndSelect('recipeItems.medication', 'itemMedication')
+      .leftJoinAndSelect('apt.appointmentFiles', 'appointmentFiles')
+      
       .where('apt.id = :id', { id })
       .andWhere('apt.deletedAt IS NULL')
       .getOne();
@@ -576,9 +602,15 @@ export class MedicalAppointmentsService {
 
   /**
    * Listar citas con filtros y paginación.
-   * IDOR: si el usuario es doctor, solo ve sus propias citas.
+   * IDOR:
+   *  - Usuario con rol paciente → solo ve sus propias citas (filtro por patientId).
+   *  - Usuario con rol doctor   → solo ve las citas asignadas a él (filtro por doctorId).
+   *  - Admin / enfermero / recepcionista → ve todas.
    */
-  async findAll(query: QueryMedicalAppointmentDto, authUser?: any) {
+  async findAll(
+    query: QueryMedicalAppointmentDto,
+    authUser?: any,
+  ): Promise<AppointmentPaginatedResponseDto> {
     const {
       page,
       limit,
@@ -595,30 +627,37 @@ export class MedicalAppointmentsService {
       dateTo,
     } = query;
 
-    // IDOR: forzar filtro por doctorId solo si el usuario es doctor Y no es admin
+    // ── IDOR ──────────────────────────────────────────────────────────────────
     let effectiveDoctorId = doctorId;
-    let effectiveMedicalCenterId = medicalCenterId;
+    let effectivePatientId = patientId;
+
     if (authUser?.id) {
-      const myDoctorId = await this.getDoctorIdForUser(authUser.id);
-      if (myDoctorId) {
-        const isAdmin = await this.isAdminUser(authUser.id);
-        if (!isAdmin) {
+      const isAdmin = await this.isAdminUser(authUser.id);
+
+      if (!isAdmin) {
+        // Caso doctor: forzar su propio doctorId
+        const myDoctorId = await this.getDoctorIdForUser(authUser.id);
+        if (myDoctorId) {
           effectiveDoctorId = myDoctorId;
-          // Filtrar por centro médico: si pidió uno, validar que sea suyo
+          // Si pidió un centro médico, validar que le pertenezca
           const myCenterIds = await this.getMedicalCenterIdsForUser(authUser.id);
-          if (myCenterIds?.length) {
-            if (medicalCenterId && !myCenterIds.includes(medicalCenterId)) {
-              throw new ForbiddenException('No tiene acceso a este centro médico.');
-            }
+          if (myCenterIds?.length && medicalCenterId && !myCenterIds.includes(medicalCenterId)) {
+            throw new ForbiddenException('No tiene acceso a este centro médico.');
+          }
+        } else {
+          // Caso paciente: forzar su propio patientId
+          const myPatientId = await this.getPatientIdForUser(authUser.id);
+          if (myPatientId) {
+            effectivePatientId = myPatientId;
           }
         }
       }
     }
 
-    const cacheKey = `appointment:query:${JSON.stringify({ ...query, effectiveDoctorId })}`;
+    const cacheKey = `appointment:query:${JSON.stringify({ ...query, effectiveDoctorId, effectivePatientId })}`;
     const listKey = 'appointment:query:keys';
 
-    const cached = await this.cacheManager.get(cacheKey);
+    const cached = await this.cacheManager.get<AppointmentPaginatedResponseDto>(cacheKey);
     if (cached) return cached;
 
     const qb = this.appointmentRepository
@@ -639,16 +678,11 @@ export class MedicalAppointmentsService {
       );
     }
 
-    if (patientId) qb.andWhere('apt.patientId = :patientId', { patientId });
+    if (effectivePatientId) qb.andWhere('apt.patientId = :patientId', { patientId: effectivePatientId });
     if (effectiveDoctorId) qb.andWhere('apt.doctorId = :doctorId', { doctorId: effectiveDoctorId });
-    if (specialtyId)
-      qb.andWhere('apt.specialtyId = :specialtyId', { specialtyId });
-    if (medicalCenterId)
-      qb.andWhere('apt.medicalCenterId = :medicalCenterId', {
-        medicalCenterId,
-      });
-    if (departmentId)
-      qb.andWhere('apt.departmentId = :departmentId', { departmentId });
+    if (specialtyId) qb.andWhere('apt.specialtyId = :specialtyId', { specialtyId });
+    if (medicalCenterId) qb.andWhere('apt.medicalCenterId = :medicalCenterId', { medicalCenterId });
+    if (departmentId) qb.andWhere('apt.departmentId = :departmentId', { departmentId });
     if (status) qb.andWhere('apt.status = :status', { status });
     if (type) qb.andWhere('apt.type = :type', { type });
     if (dateFrom) qb.andWhere('apt.appointmentDate >= :dateFrom', { dateFrom });
@@ -659,10 +693,15 @@ export class MedicalAppointmentsService {
       .take(limit);
 
     const [items, total] = await qb.getManyAndCount();
-    const result = { data: items, total, page, limit };
+
+    const result: AppointmentPaginatedResponseDto = {
+      data: items.map(mapToListItem),
+      total,
+      page,
+      limit,
+    };
 
     await this.cacheManager.set(cacheKey, result, 300);
-
     const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
     if (!keys.includes(cacheKey)) {
       keys.push(cacheKey);
@@ -674,29 +713,69 @@ export class MedicalAppointmentsService {
 
   /**
    * Obtener una cita por ID con todas sus relaciones.
-   * IDOR: si el usuario es doctor, solo puede ver sus propias citas.
+   * IDOR:
+   *  - Usuario con rol paciente → solo puede ver sus propias citas (403 si no le pertenece).
+   *  - Usuario con rol doctor   → solo puede ver las citas asignadas a él.
+   *  - Admin / enfermero / recepcionista → puede ver cualquier cita.
+   *
+   * Retorna AppointmentDetailDto con los files integrados, sin campos de auditoría
+   * ni datos sensibles internos.
    */
-  async findOne(id: string, authUser?: any): Promise<MedicalAppointment> {
-    const cacheKey = `appointment:${id}`;
-    const cached = await this.cacheManager.get<MedicalAppointment>(cacheKey);
+  async findOne(id: string, authUser?: any): Promise<AppointmentDetailDto> {
+    const cacheKey = `appointment:detail:${id}`;
+    const cached = await this.cacheManager.get<AppointmentDetailDto>(cacheKey);
+    if (cached) {
+      // Aplicar validación IDOR sobre el caché antes de devolver
+      await this.assertFindOneAccess(cached, authUser);
+      return cached;
+    }
 
-    const apt = cached ?? await this.loadFullAppointment(id);
+    const apt = await this.loadFullAppointment(id);
 
-    // IDOR: validar que doctor solo acceda a sus citas (los admins pueden ver cualquiera)
-    if (authUser?.id) {
-      const myDoctorId = await this.getDoctorIdForUser(authUser.id);
-      if (myDoctorId && apt.doctorId !== myDoctorId) {
-        const isAdmin = await this.isAdminUser(authUser.id);
-        if (!isAdmin) {
-          throw new ForbiddenException('No tiene acceso a esta cita médica.');
-        }
+    // IDOR sobre entidad cruda (tiene doctorId y patientId como propiedades)
+    await this.assertFindOneAccess(apt, authUser);
+
+    const dto = mapToDetail(apt);
+
+    await this.cacheManager.set(cacheKey, dto, 600);
+    return dto;
+  }
+
+  /**
+   * Valida el acceso IDOR para findOne.
+   * Acepta tanto la entidad cruda (MedicalAppointment) como el DTO cacheado
+   * (AppointmentDetailDto), ya que ambos exponen patientId / doctorId o
+   * patient.id / doctor.id respectivamente.
+   */
+  private async assertFindOneAccess(aptOrDto: any, authUser?: any): Promise<void> {
+    if (!authUser?.id) return;
+
+    const isAdmin = await this.isAdminUser(authUser.id);
+    if (isAdmin) return;
+
+    // Obtener IDs de la entidad cruda (doctorId / patientId) o del DTO (doctor.id / patient.id)
+    const aptDoctorId: string = aptOrDto.doctorId ?? aptOrDto.doctor?.id;
+    const aptPatientId: string = aptOrDto.patientId ?? aptOrDto.patient?.id;
+
+    // Validar acceso de doctor
+    const myDoctorId = await this.getDoctorIdForUser(authUser.id);
+    if (myDoctorId) {
+      if (aptDoctorId !== myDoctorId) {
+        throw new ForbiddenException('No tiene acceso a esta cita médica.');
       }
+      return;
     }
 
-    if (!cached) {
-      await this.cacheManager.set(cacheKey, apt, 600);
+    // Validar acceso de paciente
+    const myPatientId = await this.getPatientIdForUser(authUser.id);
+    if (myPatientId) {
+      if (aptPatientId !== myPatientId) {
+        throw new ForbiddenException('No tiene acceso a esta cita médica.');
+      }
+      return;
     }
-    return apt;
+
+    // Enfermeros / recepcionistas sin perfil de doctor ni paciente → acceso permitido
   }
 
   /**

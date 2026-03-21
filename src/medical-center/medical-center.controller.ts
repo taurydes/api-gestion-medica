@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
@@ -45,8 +46,8 @@ export class MedicalCenterController {
   @Permission(
     `${ModuleItemsMenu.MedicalCenterModule}.${PermissionActionsMenu.VIEW}`,
   )
-  findAll(@Query() query: MedicalCenterQueryDto) {
-    return this.medicalCenterService.findAll(query);
+  findAll(@Query() query: MedicalCenterQueryDto, @Req() req: any) {
+    return this.medicalCenterService.findAll(query, req.user);
   }
 
   @ApiOperation({
@@ -57,8 +58,8 @@ export class MedicalCenterController {
   @Permission(
     `${ModuleItemsMenu.MedicalCenterModule}.${PermissionActionsMenu.VIEW}`,
   )
-  findOne(@Param('id') id: string) {
-    return this.medicalCenterService.findOne(id);
+  findOne(@Param('id') id: string, @Req() req: any) {
+    return this.medicalCenterService.findOne(id, req.user);
   }
 
   @ApiOperation({
@@ -84,6 +85,20 @@ export class MedicalCenterController {
   remove(@Param('id') id: string) {
     return this.medicalCenterService.remove(id);
   }
+
+  @ApiOperation({
+    summary: 'Listar imágenes de un centro médico',
+    description:
+      'Devuelve todas las imágenes activas asociadas al centro médico.',
+  })
+  @Get(':id/images')
+  @Permission(
+    `${ModuleItemsMenu.MedicalCenterModule}.${PermissionActionsMenu.VIEW}`,
+  )
+  getImages(@Param('id') id: string) {
+    return this.medicalCenterService.getImages(id);
+  }
+
   @ApiOperation({
     summary: 'Asignar doctor a centro médico',
     description: 'Asigna un doctor existente a un centro médico.',

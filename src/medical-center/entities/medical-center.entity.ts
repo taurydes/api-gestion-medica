@@ -10,6 +10,7 @@ import {
 import { Department } from 'src/departments/entities/department.entity';
 import { Doctor } from 'src/doctors/entities/doctor.entity';
 import { Parish } from 'src/parameters/entities/parish.entity';
+import { MedicalCenterImage } from './medical-center-image.entity';
 
 @Entity({ schema: 'parametro', name: 'medical_centers' })
 export class MedicalCenter {
@@ -90,4 +91,8 @@ export class MedicalCenter {
   // Relación con departamentos (1:N)
   @OneToMany(() => Department, (dept) => dept.medicalCenter)
   departments: Department[];
+
+  // Relación con imágenes del centro médico (1:N)
+  @OneToMany(() => MedicalCenterImage, (img) => img.medicalCenter)
+  images: MedicalCenterImage[];
 }

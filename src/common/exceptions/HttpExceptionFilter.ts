@@ -48,7 +48,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     };
 
     // Extrae el ID de usuario si está disponible
-    const userId = req.user?.payload?.id ?? req.user?.id ?? 0;
+    const userId = req.user?.payload?.id ?? req.user?.id ?? 'Unknown';
 
     // Datos adicionales del request
     const hostHeader = req.headers['host'] as string | undefined;
