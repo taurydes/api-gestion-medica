@@ -1,8 +1,11 @@
 import {
   Controller,
+  Delete,
   Post,
   Body,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   UploadedFile,
   UseInterceptors,
@@ -275,8 +278,48 @@ export class FilesController {
   async uploadMedicalCenterPhoto(
     @UploadedFile() file: Express.Multer.File,
     @Body('medicalCenterId') medicalCenterId: string,
-  ): Promise<{ url: string }> {
-    return this.filesService.uploadMedicalCenterPhoto(file, medicalCenterId);
+    @Body('imageType') imageType: string,
+    @Body('description') description: string,
+    @GetUser('id') userId: string,
+  ) {
+    return this.filesService.uploadMedicalCenterPhoto(file, {
+      medicalCenterId,
+      uploadedBy: userId,
+      imageType: imageType || undefined,
+      description: description || undefined,
+    });
+  }
+
+  /* ============================================================
+   * 🏥 MÉTODO 11b – ELIMINAR IMAGEN DE CENTRO MÉDICO
+   * ============================================================ */
+  @ApiOperation({
+    summary: 'Eliminar imagen de centro médico',
+    description: 'Soft delete de una imagen registrada en medical_center_images.',
+  })
+  @Delete('medical-center-images/:imageId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.DELETE}`)
+  async deleteMedicalCenterImage(
+    @Param('imageId') imageId: string,
+  ): Promise<void> {
+    return this.filesService.deleteMedicalCenterImage(imageId);
+  }
+
+  /* ============================================================
+   * 🏥 MÉTODO 11c – SERVIR IMAGEN DE CENTRO MÉDICO POR ID
+   * ============================================================ */
+  @ApiOperation({
+    summary: 'Servir imagen de centro médico por ID',
+    description: 'Devuelve la imagen del centro médico como stream buscándola por su ID en BD.',
+  })
+  @Get('medical-center-images/:imageId')
+  @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.VIEW}`)
+  async serveMedicalCenterImage(
+    @Param('imageId') imageId: string,
+    @Res() res,
+  ): Promise<void> {
+    return this.filesService.serveMedicalCenterImage(imageId, res);
   }
 
   /* ============================================================

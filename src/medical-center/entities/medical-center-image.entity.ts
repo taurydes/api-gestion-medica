@@ -1,5 +1,3 @@
-import { MedicalAppointment } from 'src/medical-appointments/entities/medical-appointment.entity';
-import { MedicalHistory } from 'src/medical-history/entities/medical-history.entity';
 import {
   Column,
   CreateDateColumn,
@@ -9,30 +7,25 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { MedicalCenter } from './medical-center.entity';
 
 /**
- * Entidad AppointmentFile (Archivo de cita médica)
- * Schema: public
- * Tabla: appointment_files
+ * Entidad MedicalCenterImage (Imagen de centro médico)
+ * Schema: parametro
+ * Tabla: medical_center_images
  *
- * Almacena referencias a archivos asociados a citas médicas,
- * como imágenes de mamografía u otros estudios diagnósticos.
+ * Almacena referencias a imágenes asociadas a centros médicos
+ * (logo, fachada, interior, equipamiento, etc.).
  * Los archivos se guardan en el sistema de archivos del servidor
- * en la ruta: UPLOADS_PATH/userId/medicalCenterId/appointmentId/
+ * en la ruta: UPLOADS_PATH/medical-centers/{medicalCenterId}/
  */
-@Entity({ schema: 'public', name: 'appointment_files' })
-export class AppointmentFile {
+@Entity({ schema: 'parametro', name: 'medical_center_images' })
+export class MedicalCenterImage {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ name: 'appointment_id', type: 'uuid' })
-  appointmentId: string;
-
-  @Column({ name: 'medical_history_id', type: 'uuid', nullable: true })
-  medicalHistoryId: string | null;
-
-  @Column({ name: 'patient_id', type: 'uuid' })
-  patientId: string;
+  @Column({ name: 'medical_center_id', type: 'uuid' })
+  medicalCenterId: string;
 
   @Column({ name: 'uploaded_by', type: 'uuid', nullable: true })
   uploadedBy: string | null;
@@ -41,11 +34,11 @@ export class AppointmentFile {
   @Column({ name: 'original_name', type: 'varchar', length: 255 })
   originalName: string;
 
-  /** Nombre almacenado en el servidor (puede incluir UUID para evitar colisiones) */
+  /** Nombre almacenado en el servidor (incluye timestamp y sufijo aleatorio para evitar colisiones) */
   @Column({ name: 'stored_name', type: 'varchar', length: 255 })
   storedName: string;
 
-  /** MIME type del archivo (ej: image/png, image/jpeg) */
+  /** MIME type del archivo (ej: image/webp, image/png, image/jpeg) */
   @Column({ name: 'mime_type', type: 'varchar', length: 100 })
   mimeType: string;
 
@@ -57,11 +50,16 @@ export class AppointmentFile {
   @Column({ name: 'file_path', type: 'varchar', length: 500 })
   filePath: string;
 
-  /** Tipo de archivo: mammography, exam, report, other */
-  @Column({ name: 'file_type', type: 'varchar', length: 50, default: 'other' })
-  fileType: string;
+  /** Tipo de imagen: logo, facade, interior, equipment, general, other */
+  @Column({
+    name: 'image_type',
+    type: 'varchar',
+    length: 50,
+    default: 'general',
+  })
+  imageType: string;
 
-  /** Descripción o notas sobre el archivo */
+  /** Descripción o notas sobre la imagen */
   @Column({ name: 'description', type: 'text', nullable: true })
   description: string | null;
 
@@ -78,7 +76,7 @@ export class AppointmentFile {
   deletedAt: Date | null;
 
   // ─── Relaciones ───────────────────────────────────────────────────────────
-  @ManyToOne(() => MedicalAppointment, (appointment) => appointment.appointmentFiles)
-  @JoinColumn({ name: 'appointment_id' })
-  medicalAppointment: MedicalAppointment;
+  @ManyToOne(() => MedicalCenter, (mc) => mc.images)
+  @JoinColumn({ name: 'medical_center_id' })
+  medicalCenter: MedicalCenter;
 }

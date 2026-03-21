@@ -19,6 +19,7 @@ import { UploadFileDto } from './dto/create-file.dto';
 import { VideoPublicity } from './entities/video-publicy.entity';
 import { AppointmentFile } from './entities/appointment-file.entity';
 import { CreateVideoBase64Dto, CreateVideoMultipartDto } from './dto/create-video-publict.dto';
+import { MedicalCenterImage } from 'src/medical-center/entities/medical-center-image.entity';
 
 
 @Injectable()
@@ -35,10 +36,16 @@ export class FilesService {
     @InjectRepository(AppointmentFile, DatabaseConnectionName.DB_MAIN)
     private readonly appointmentFileRepository: Repository<AppointmentFile>,
 
+    @InjectRepository(MedicalCenterImage, DatabaseConnectionName.DB_MAIN)
+    private readonly medicalCenterImageRepository: Repository<MedicalCenterImage>,
+
     private readonly configService: ConfigService,
   ) {
     this.uploadsDir = this.configService.get<string>('UPLOADS_PATH') || 'uploads';
-    this.publicUrl = `${this.configService.get<string>('URL_HOST')}:${this.configService.get<string>('PORT')}`;
+    const host = this.configService.get<string>('URL_HOST') || 'localhost';
+    const port = this.configService.get<string>('PORT') || '8008';
+    const baseHost = host.startsWith('http') ? host : `http://${host}`;
+    this.publicUrl = `${baseHost}:${port}`;
     this.maxSize = Number(this.configService.get<string>('MAX_VIDEO_MB') || 20) * 1024 * 1024;
 
   }
@@ -89,7 +96,7 @@ export class FilesService {
    * @description Construye URL usando PUBLIC_URL del .env.
    */
   async getFileUrl(name: string): Promise<{ url: string }> {
-    return { url: `${this.publicUrl}/${this.uploadsDir}/${name}` };
+    return { url: this.buildFileUrl(name) };
   }
 
   /**
@@ -452,14 +459,19 @@ export class FilesService {
    * - Valida MIME type (PNG, JPEG, JPG, WEBP)
    * - Valida tamaño máximo (5 MB)
    * - Convierte a WebP con sharp (calidad 85)
-   * - Si se provee medicalCenterId: guarda en UPLOADS_PATH/{medicalCenterId}/images/
-   * - Si no: guarda en UPLOADS_PATH/images/medical-centers/
-   * - Retorna URL pública completa
+   * - Guarda en UPLOADS_PATH/medical-centers/{medicalCenterId}/
+   * - Persiste registro en medical_center_images
+   * - Retorna URL pública y registro de la imagen
    */
   async uploadMedicalCenterPhoto(
     file: Express.Multer.File,
-    medicalCenterId?: string,
-  ): Promise<{ url: string }> {
+    data: {
+      medicalCenterId: string;
+      uploadedBy?: string;
+      imageType?: string;
+      description?: string;
+    },
+  ): Promise<{ url: string; image: MedicalCenterImage }> {
     if (!file) {
       throw new BadRequestException('Debe enviar un archivo de imagen.');
     }
@@ -478,18 +490,95 @@ export class FilesService {
 
     const webpBuffer = await sharp(file.buffer).webp({ quality: 85 }).toBuffer();
 
-    const folder = medicalCenterId ?? 'general';
+    const folder = data.medicalCenterId;
     const dir = path.join(process.cwd(), this.uploadsDir, 'medical-centers', folder);
 
     fs.mkdirSync(dir, { recursive: true });
 
     const storedName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`;
-    const filePath = path.join(dir, storedName);
+    const fullFilePath = path.join(dir, storedName);
 
-    fs.writeFileSync(filePath, webpBuffer);
+    fs.writeFileSync(fullFilePath, webpBuffer);
 
-    const url = this.buildFileUrl(`medical-centers/${folder}/${storedName}`);
-    return { url };
+    const filePathRelative = `medical-centers/${folder}/${storedName}`;
+    const url = this.buildFileUrl(filePathRelative);
+
+    // Persistir registro en BD
+    const record = this.medicalCenterImageRepository.create({
+      medicalCenterId: data.medicalCenterId,
+      uploadedBy: data.uploadedBy ?? null,
+      originalName: file.originalname,
+      storedName,
+      mimeType: 'image/webp',
+      fileSize: webpBuffer.length,
+      filePath: filePathRelative,
+      imageType: data.imageType ?? 'general',
+      description: data.description ?? null,
+    });
+
+    const image = await this.medicalCenterImageRepository.save(record);
+
+    return { url, image };
+  }
+
+  /**
+   * @summary Eliminar imagen de centro médico (soft delete + borrado físico)
+   * @description
+   * - Verifica que el registro exista (404 si no)
+   * - Soft delete: isActive = false, deletedAt = now
+   * - Borra el archivo físico del disco si existe
+   */
+  async deleteMedicalCenterImage(imageId: string): Promise<void> {
+    const record = await this.medicalCenterImageRepository.findOne({
+      where: { id: imageId, deletedAt: IsNull() },
+    });
+
+    if (!record) {
+      throw new NotFoundException(
+        `Imagen con ID ${imageId} no encontrada o ya fue eliminada.`,
+      );
+    }
+
+    // Soft delete
+    record.isActive = false;
+    record.deletedAt = new Date();
+    await this.medicalCenterImageRepository.save(record);
+
+    // Borrar archivo físico si existe
+    const fullPath = path.join(process.cwd(), this.uploadsDir, record.filePath);
+    if (fs.existsSync(fullPath)) {
+      fs.unlinkSync(fullPath);
+    }
+  }
+
+  /**
+   * @summary Obtener URL pública de una imagen de centro médico por ID
+   */
+  getMedicalCenterImageUrl(path: string): string {
+    const url = this.buildFileUrl(`/uploads/medical-centers/${path}`);
+    return `${this.publicUrl}${path}`;
+  }
+
+  /**
+   * @summary Servir imagen de centro médico por ID (stream)
+   * @description Busca el registro en BD por ID y devuelve el archivo como stream.
+   */
+  async serveMedicalCenterImage(imageId: string, res: any): Promise<void> {
+    const record = await this.medicalCenterImageRepository.findOne({
+      where: { id: imageId, deletedAt: IsNull() },
+    });
+    if (!record) {
+      throw new NotFoundException('Imagen no encontrada.');
+    }
+
+    const fullPath = path.join(process.cwd(), this.uploadsDir, record.filePath);
+    if (!fs.existsSync(fullPath)) {
+      throw new NotFoundException('Archivo físico no encontrado en el servidor.');
+    }
+
+    res.setHeader('Content-Type', record.mimeType);
+    res.setHeader('Content-Disposition', `inline; filename="${record.originalName}"`);
+    fs.createReadStream(fullPath).pipe(res);
   }
 
   /**

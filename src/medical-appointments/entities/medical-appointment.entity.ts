@@ -16,6 +16,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { AppointmentFile } from 'src/files/entities/appointment-file.entity';
 
 export enum AppointmentStatus {
   PENDING = 'pending',
@@ -168,4 +169,7 @@ export class MedicalAppointment {
   // Relación inversa con recetas (1:N)
   @OneToMany(() => Recipe, (recipe) => recipe.medicalAppointment)
   recipes: Recipe[];
+
+  @OneToMany(() => AppointmentFile, (file) => file.medicalAppointment)
+  appointmentFiles: AppointmentFile[];
 }

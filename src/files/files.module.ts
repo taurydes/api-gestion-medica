@@ -5,11 +5,12 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { VideoPublicity } from './entities/video-publicy.entity';
 import { AppointmentFile } from './entities/appointment-file.entity';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
+import { MedicalCenterImage } from 'src/medical-center/entities/medical-center-image.entity';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature(
-      [VideoPublicity, AppointmentFile],
+      [VideoPublicity, AppointmentFile, MedicalCenterImage],
       DatabaseConnectionName.DB_MAIN,
     ),
   ],

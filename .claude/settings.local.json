@@ -6,7 +6,9 @@
       "Bash(find c:/Users/taury/OneDrive/Documentos/Tesis/portal-usuario/gestion-medica/src -name *.interceptor.ts)",
       "Bash(xargs ls:*)",
       "Bash(find c:UserstauryOneDriveDocumentosTesisportal-usuariogestion-medica -path */src/app/* -type f \\\\\\(-name *workspace* -o -name *clinic* -o -name *center* -o -name *selector* \\\\\\))",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(find c:/Users/taury/OneDrive/Documentos/Tesis/portal-usuario/gestion-medica/src/app/core/models -name *.ts)",
+      "Bash(grep -r \"class-transformer\\\\|plainToInstance\\\\|@Exclude\\\\|@Expose\" c:/Users/taury/OneDrive/Documentos/Tesis/api-gestion-medica/src --include=*.ts -l)"
     ]
   }
 }
