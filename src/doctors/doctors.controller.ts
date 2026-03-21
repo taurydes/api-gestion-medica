@@ -8,6 +8,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { GetUser } from 'src/auth/decorators/get-user.decorator';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { DoctorsService } from './doctors.service';
@@ -49,8 +50,8 @@ export class DoctorsController {
   })
   @Get()
   @Permission(`${ModuleItemsMenu.DoctorsModule}.${PermissionActionsMenu.VIEW}`)
-  findAll(@Query() query: DoctorQueryDto) {
-    return this.doctorsService.findAll(query);
+  findAll(@Query() query: DoctorQueryDto, @GetUser() authUser: any) {
+    return this.doctorsService.findAll(query, authUser);
   }
 
   @ApiOperation({
@@ -59,8 +60,8 @@ export class DoctorsController {
   })
   @Get(':id')
   @Permission(`${ModuleItemsMenu.DoctorsModule}.${PermissionActionsMenu.VIEW}`)
-  findOne(@Param('id') id: string) {
-    return this.doctorsService.findOne(id);
+  findOne(@Param('id') id: string, @GetUser() authUser: any) {
+    return this.doctorsService.findOne(id, authUser);
   }
 
   @ApiOperation({
@@ -69,8 +70,8 @@ export class DoctorsController {
   })
   @Patch(':id')
   @Permission(`${ModuleItemsMenu.DoctorsModule}.${PermissionActionsMenu.UPDATE}`)
-  update(@Param('id') id: string, @Body() dto: UpdateDoctorDto) {
-    return this.doctorsService.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateDoctorDto, @GetUser() authUser: any) {
+    return this.doctorsService.update(id, dto, authUser);
   }
 
   @ApiOperation({

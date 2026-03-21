@@ -7,7 +7,9 @@ import {
   JoinColumn,
   JoinTable,
   OneToOne,
+  OneToMany,
 } from 'typeorm';
+import { DoctorImage } from './doctor-image.entity';
 import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity';
 import { CommonPerson } from 'src/common-person/entities/common-person.entity';
 import { Specialty } from 'src/parameters/entities/specialty.entity';
@@ -111,4 +113,8 @@ export class Doctor {
     },
   })
   departments: Department[];
+
+  // Relación con imágenes de perfil del doctor (1:N)
+  @OneToMany(() => DoctorImage, (img) => img.doctor)
+  images: DoctorImage[];
 }

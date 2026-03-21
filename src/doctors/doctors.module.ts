@@ -11,14 +11,18 @@ import { Specialty } from 'src/parameters/entities/specialty.entity';
 import { Department } from 'src/departments/entities/department.entity';
 import { DoctorSchedule } from './entities/doctor-schedule.entity';
 import { DoctorScheduleService } from './doctor-schedule.service';
+import { DoctorImage } from './entities/doctor-image.entity';
+import { User } from 'src/user/entities/user.entity';
+import { FilesModule } from 'src/files/files.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature(
-      [Doctor, CommonPerson, MedicalCenter, Specialty, Department, DoctorSchedule],
+      [Doctor, CommonPerson, MedicalCenter, Specialty, Department, DoctorSchedule, DoctorImage, User],
       DatabaseConnectionName.DB_MAIN,
     ),
     CommonPersonModule,
+    FilesModule,
   ],
   controllers: [DoctorsController],
   providers: [DoctorsService, DoctorScheduleService],

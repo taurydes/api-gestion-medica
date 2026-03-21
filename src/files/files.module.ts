@@ -6,11 +6,12 @@ import { VideoPublicity } from './entities/video-publicy.entity';
 import { AppointmentFile } from './entities/appointment-file.entity';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { MedicalCenterImage } from 'src/medical-center/entities/medical-center-image.entity';
+import { DoctorImage } from 'src/doctors/entities/doctor-image.entity';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature(
-      [VideoPublicity, AppointmentFile, MedicalCenterImage],
+      [VideoPublicity, AppointmentFile, MedicalCenterImage, DoctorImage],
       DatabaseConnectionName.DB_MAIN,
     ),
   ],

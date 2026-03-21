@@ -391,4 +391,43 @@ export class FilesController {
   ): Promise<void> {
     return this.filesService.serveCommonPersonPhoto(personId, filename, res);
   }
+
+  /* ============================================================
+   * 👨‍⚕️ MÉTODO – SUBIR FOTO DE DOCTOR (multipart)
+   * ============================================================ */
+  @ApiOperation({
+    summary: 'Subir foto de doctor',
+    description: 'Recibe una imagen en formato binario, la almacena en UPLOADS_PATH/doctors/{doctorId}/ y crea un registro en doctor_images.',
+  })
+  @Post('doctor-photo')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: multer.memoryStorage(),
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
+  @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.CREATE}`)
+  async uploadDoctorPhoto(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('doctorId') doctorId: string,
+    @GetUser('id') userId: string,
+  ): Promise<{ url: string }> {
+    return this.filesService.uploadDoctorPhoto(file, { doctorId, uploadedBy: userId });
+  }
+
+  /* ============================================================
+   * 👨‍⚕️ MÉTODO – SERVIR IMAGEN DE DOCTOR POR ID
+   * ============================================================ */
+  @ApiOperation({
+    summary: 'Servir imagen de doctor por ID',
+    description: 'Devuelve la imagen del doctor como stream buscándola por su ID en BD.',
+  })
+  @Get('doctor-images/:imageId')
+  @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.VIEW}`)
+  async serveDoctorImage(
+    @Param('imageId') imageId: string,
+    @Res() res,
+  ): Promise<void> {
+    return this.filesService.serveDoctorImage(imageId, res);
+  }
 }
