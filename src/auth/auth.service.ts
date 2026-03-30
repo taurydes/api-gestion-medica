@@ -15,6 +15,7 @@ import { MedicalCenterSummaryDto } from './dto/medical-center-summary.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { AuthUser } from './interfaces/User';
 import { PermissionService } from 'src/permission/services/permission.service';
+import { encryptModules } from './utils/permissions-cipher.util';
 
 /**
  * @summary Servicio de autenticación principal de la aplicación.
@@ -304,6 +305,7 @@ export class AuthService {
       doctorId,
     };
 
-    return { ...data, modules: { ...modules, medicalCenters } };
+    const modulesPayload = { ...modules, medicalCenters };
+    return { ...data, modules: encryptModules(modulesPayload) };
   }
 }
