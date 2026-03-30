@@ -36,12 +36,12 @@ export class RedisSessionService {
     const existing = await this.redisClient.exists(key);
     if (existing) {
       await this.redisClient.del(key);
-      this.logger.debug(`Sesión previa eliminada para el usuario ${userId}`);
+      // this.logger.debug(`Sesión previa eliminada para el usuario ${userId}`);
     }
 
     // Guardar la nueva sesión
     await this.redisClient.set(key, JSON.stringify(data), { EX: ttl });
-    this.logger.debug(`Nueva sesión creada para el usuario ${userId}`);
+    // this.logger.debug(`Nueva sesión creada para el usuario ${userId}`);
   }
 
   /**
