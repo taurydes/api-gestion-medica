@@ -9,16 +9,18 @@ import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { Cache } from 'cache-manager';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
-import { DataSource, In, Repository } from 'typeorm';
+import { DataSource, In, IsNull, Repository } from 'typeorm';
 
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserQueryDto } from './dto/user-query.dto copy';
 import { User } from './entities/user.entity';
 import { CommonPerson } from '../common-person/entities/common-person.entity';
+import { CommonPersonImage } from '../common-person/entities/common-person-image.entity';
 import { Doctor } from 'src/doctors/entities/doctor.entity';
 import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity';
 import { Specialty } from 'src/parameters/entities/specialty.entity';
+import { FilesService } from 'src/files/files.service';
 
 @Injectable()
 export class UserService {
@@ -29,11 +31,24 @@ export class UserService {
     @InjectRepository(CommonPerson, DatabaseConnectionName.DB_MAIN)
     private readonly commonPersonrepo: Repository<CommonPerson>,
 
+    @InjectRepository(CommonPersonImage, DatabaseConnectionName.DB_MAIN)
+    private readonly commonPersonImageRepo: Repository<CommonPersonImage>,
+
+    private readonly filesService: FilesService,
+
     @Inject(CACHE_MANAGER)
     private readonly cacheManager: Cache,
     @InjectDataSource(DatabaseConnectionName.DB_MAIN)
     private readonly dataSource: DataSource,
   ) {}
+
+  private async getUserImageUrl(commonPersonId: string): Promise<string | null> {
+    const img = await this.commonPersonImageRepo.findOne({
+      where: { commonPersonId, isActive: true, deletedAt: IsNull() },
+      order: { createdAt: 'DESC' },
+    });
+    return img ? this.filesService.getCommonPersonImageUrl(img.id) : null;
+  }
 
   // ============================================================
   // 🔥 Limpiar todas las keys generadas por paginación
@@ -126,6 +141,7 @@ export class UserService {
       await queryRunner.manager.save(commonPerson);
 
       // 4. Crear Doctor (si aplica)
+      let savedDoctor: Doctor | null = null;
       if (doctorDto) {
         // Validar Especialidades
         let specialties: Specialty[] = [];
@@ -174,18 +190,33 @@ export class UserService {
           medicalCenters: medicalCenters,
           specialties: specialties,
         });
-        await queryRunner.manager.save(doctor);
+        savedDoctor = await queryRunner.manager.save(doctor);
       }
 
       await queryRunner.commitTransaction();
       await queryRunner.release();
 
       const { password, ...rest } = user;
+      const result = {
+        ...rest,
+        ...(savedDoctor ? { doctor: { id: savedDoctor.id } } : {}),
+      };
 
       await this.cacheManager.del('user:all');
       await this.clearQueryCache();
 
-      return rest;
+      // Si se creó un doctor, limpiar también el caché de doctores
+      if (doctorDto) {
+        await this.cacheManager.del('doctor:all');
+        const doctorListKey = 'doctor:query:keys';
+        const doctorKeys = (await this.cacheManager.get<string[]>(doctorListKey)) ?? [];
+        for (const key of doctorKeys) {
+          await this.cacheManager.del(key);
+        }
+        await this.cacheManager.del(doctorListKey);
+      }
+
+      return result;
     } catch (error) {
       await queryRunner.rollbackTransaction();
       await queryRunner.release(); // Ensure release on error
@@ -229,9 +260,16 @@ export class UserService {
 
     const [items, total] = await qb.getManyAndCount();
 
-    const sanitized = items.map(({ password, ...rest }) => rest);
+    const enriched = await Promise.all(
+      items.map(async ({ password, ...rest }) => ({
+        ...rest,
+        imageUrl: rest.commonPerson?.id
+          ? await this.getUserImageUrl(rest.commonPerson.id)
+          : null,
+      })),
+    );
 
-    const result = { data: sanitized, total, page, limit };
+    const result = { data: enriched, total, page, limit };
 
     await this.cacheManager.set(cacheKey, result, 300);
 
@@ -274,9 +312,15 @@ export class UserService {
 
     const { password, ...rest } = user;
 
-    await this.cacheManager.set(cacheKey, rest, 600);
+    const imageUrl = rest.commonPerson?.id
+      ? await this.getUserImageUrl(rest.commonPerson.id)
+      : null;
 
-    return rest;
+    const result = { ...rest, imageUrl } as any;
+
+    await this.cacheManager.set(cacheKey, result, 600);
+
+    return result;
   }
 
   // ============================================================
@@ -288,17 +332,28 @@ export class UserService {
     dto: UpdateUserDto,
   ): Promise<Omit<User, 'password'> | null> {
     try {
-      const exists = await this.repo.findOneBy({ id });
+      const exists = await this.repo.findOne({
+        where: { id },
+        relations: { commonPerson: true },
+      });
 
       if (!exists) {
         throw new NotFoundException(`Usuario con ID ${id} no encontrado.`);
       }
 
-      if (dto.password) {
-        dto.password = await bcrypt.hash(dto.password, 10);
+      // Separar commonPerson del DTO — repo.update() no acepta relaciones anidadas
+      const { commonPerson: commonPersonDto, ...userFields } = dto as any;
+
+      if (userFields.password) {
+        userFields.password = await bcrypt.hash(userFields.password, 10);
       }
 
-      await this.repo.update(id, dto);
+      await this.repo.update(id, userFields);
+
+      // Actualizar CommonPerson por separado si se envió
+      if (commonPersonDto && exists.commonPerson?.id) {
+        await this.commonPersonrepo.update(exists.commonPerson.id, commonPersonDto);
+      }
 
       const updated = await this.repo.findOneBy({ id });
 

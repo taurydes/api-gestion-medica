@@ -15,7 +15,7 @@ services:
       - REDIS_SESSION_HOST=redis-api
       - TZ=America/Caracas
     volumes:
-      - ${UPLOADS_PATH:-./uploads}:/app/uploads
+      - ./uploads:/app/uploads
     ports:
       - "8008:8008"
     networks:
