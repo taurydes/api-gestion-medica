@@ -61,7 +61,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
         //los segundos son en milisegundos
         name: 'short',
         ttl: 1000, // 1 segundo
-        limit: 100, // 3 peticiones por 1000 milisegundos
+        limit: 100, // 100 peticiones por 1 segundo
         blockDuration: 30000, // Bloquea por 30 segundos si se excede el límite
       },
       {

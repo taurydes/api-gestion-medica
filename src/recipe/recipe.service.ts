@@ -19,6 +19,7 @@ import { Patient } from 'src/patient/entities/patient.entity';
 import { Doctor } from 'src/doctors/entities/doctor.entity';
 import { MedicalHistory } from 'src/medical-history/entities/medical-history.entity';
 import { User } from 'src/user/entities/user.entity';
+import { FilesService } from 'src/files/files.service';
 
 /**
  * Servicio para gestionar las recetas médicas
@@ -47,7 +48,25 @@ export class RecipeService {
 
     @InjectRepository(User, DatabaseConnectionName.DB_MAIN)
     private readonly userRepository: Repository<User>,
+
+    private readonly filesService: FilesService,
   ) {}
+
+  private async enrichWithImages(record: any): Promise<any> {
+    const [patientImageUrl, doctorImageUrl] = await Promise.all([
+      record.patient?.commonPersonId
+        ? this.filesService.getLatestCommonPersonImageUrl(record.patient.commonPersonId)
+        : Promise.resolve(null),
+      record.doctor?.id
+        ? this.filesService.getLatestDoctorImageUrl(record.doctor.id)
+        : Promise.resolve(null),
+    ]);
+    return {
+      ...record,
+      patient: record.patient ? { ...record.patient, imageUrl: patientImageUrl } : null,
+      doctor: record.doctor ? { ...record.doctor, imageUrl: doctorImageUrl } : null,
+    };
+  }
 
   // ─── IDOR helper ───────────────────────────────────────────────────────────
 
@@ -247,7 +266,8 @@ export class RecipeService {
     qb.skip((page - 1) * limit).take(limit);
 
     const [items, total] = await qb.getManyAndCount();
-    const result = { data: items, total, page, limit };
+    const enriched = await Promise.all(items.map((r) => this.enrichWithImages(r)));
+    const result = { data: enriched, total, page, limit };
 
     await this.cacheManager.set(cacheKey, result, 300);
     const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
@@ -295,7 +315,9 @@ export class RecipeService {
       }
 
       if (!cached) {
-        await this.cacheManager.set(cacheKey, recipe, 600);
+        const enrichedRecipe = await this.enrichWithImages(recipe);
+        await this.cacheManager.set(cacheKey, enrichedRecipe, 600);
+        return enrichedRecipe;
       }
 
       return recipe;

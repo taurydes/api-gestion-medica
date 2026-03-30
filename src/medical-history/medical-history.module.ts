@@ -9,6 +9,7 @@ import { Doctor } from 'src/doctors/entities/doctor.entity';
 import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity';
 import { Specialty } from 'src/parameters/entities/specialty.entity';
 import { User } from 'src/user/entities/user.entity';
+import { FilesModule } from 'src/files/files.module';
 
 /**
  * Módulo de Historial Médico
@@ -21,6 +22,7 @@ import { User } from 'src/user/entities/user.entity';
       [MedicalHistory, Patient, Doctor, MedicalCenter, Specialty, User],
       DatabaseConnectionName.DB_MAIN,
     ),
+    FilesModule,
   ],
   controllers: [MedicalHistoryController],
   providers: [MedicalHistoryService],

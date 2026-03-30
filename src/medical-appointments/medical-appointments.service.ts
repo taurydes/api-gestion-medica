@@ -39,6 +39,7 @@ import { RecipeService } from 'src/recipe/recipe.service';
 import { CompleteConsultationDto } from './dto/complete-consultation.dto';
 import { User } from 'src/user/entities/user.entity';
 import { DoctorScheduleService } from 'src/doctors/doctor-schedule.service';
+import { FilesService } from 'src/files/files.service';
 
 @Injectable()
 export class MedicalAppointmentsService {
@@ -82,6 +83,7 @@ export class MedicalAppointmentsService {
     private readonly historyService: MedicalHistoryService,
     private readonly recipeService: RecipeService,
     private readonly scheduleService: DoctorScheduleService,
+    private readonly filesService: FilesService,
   ) {}
 
   // ─── IDOR helper ───────────────────────────────────────────────────────────
@@ -162,6 +164,24 @@ export class MedicalAppointmentsService {
       await this.cacheManager.del(key);
     }
     await this.cacheManager.del(listKey);
+  }
+
+  // ─── Image enrichment ──────────────────────────────────────────────────────
+
+  private async enrichWithImages(apt: any): Promise<any> {
+    const [patientImageUrl, doctorImageUrl] = await Promise.all([
+      apt.patient?.commonPersonId
+        ? this.filesService.getLatestCommonPersonImageUrl(apt.patient.commonPersonId)
+        : Promise.resolve(null),
+      apt.doctor?.id
+        ? this.filesService.getLatestDoctorImageUrl(apt.doctor.id)
+        : Promise.resolve(null),
+    ]);
+    return {
+      ...apt,
+      patient: apt.patient ? { ...apt.patient, imageUrl: patientImageUrl } : null,
+      doctor: apt.doctor ? { ...apt.doctor, imageUrl: doctorImageUrl } : null,
+    };
   }
 
   // ─── Private helpers ───────────────────────────────────────────────────────
@@ -694,8 +714,9 @@ export class MedicalAppointmentsService {
 
     const [items, total] = await qb.getManyAndCount();
 
+    const enriched = await Promise.all(items.map((apt) => this.enrichWithImages(apt)));
     const result: AppointmentPaginatedResponseDto = {
-      data: items.map(mapToListItem),
+      data: enriched.map(mapToListItem),
       total,
       page,
       limit,
@@ -735,7 +756,8 @@ export class MedicalAppointmentsService {
     // IDOR sobre entidad cruda (tiene doctorId y patientId como propiedades)
     await this.assertFindOneAccess(apt, authUser);
 
-    const dto = mapToDetail(apt);
+    const enriched = await this.enrichWithImages(apt);
+    const dto = mapToDetail(enriched);
 
     await this.cacheManager.set(cacheKey, dto, 600);
     return dto;

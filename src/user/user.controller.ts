@@ -10,7 +10,9 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { Public } from 'src/auth/decorators/public.decorator';
+import { Permission } from 'src/auth/decorators/permission.decorator';
+import { ModuleItemsMenu } from 'src/menu/menu.const';
+import { PermissionActionsMenu } from 'src/permission/permission.const';
 import { CreateUserSecurityDto } from './dto/create-user-security.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserSecurityQueryDto } from './dto/user-security-query.dto';
@@ -33,6 +35,7 @@ export class UserController {
     description: 'Crea un nuevo usuario en el sistema.',
   })
   @Post()
+  @Permission(`${ModuleItemsMenu.UserModule}.${PermissionActionsMenu.CREATE}`)
   create(@Body() createUserDto: CreateUserDto) {
     return this.userService.create(createUserDto);
   }
@@ -45,8 +48,8 @@ export class UserController {
     summary: 'Listar usuarios',
     description: 'Retorna todos los usuarios registrados. Ruta pública.',
   })
-  @Public()
   @Get()
+  @Permission(`${ModuleItemsMenu.UserModule}.${PermissionActionsMenu.VIEW}`)
   findAll(@Query() query: UserSecurityQueryDto) {
     return this.userService.findAll(query);
   }
@@ -60,6 +63,7 @@ export class UserController {
     description: 'Recupera un usuario mediante su ID numérico.',
   })
   @Get(':id')
+  @Permission(`${ModuleItemsMenu.UserModule}.${PermissionActionsMenu.VIEW}`)
   findOne(@Param('id') id: string) {
     return this.userService.findOne(id);
   }
@@ -73,6 +77,7 @@ export class UserController {
     description: 'Actualiza campos del usuario identificado por su ID.',
   })
   @Patch(':id')
+  @Permission(`${ModuleItemsMenu.UserModule}.${PermissionActionsMenu.UPDATE}`)
   update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
     return this.userService.update(id, updateUserDto);
   }
@@ -86,6 +91,7 @@ export class UserController {
     description: 'Elimina un usuario existente usando su ID.',
   })
   @Delete(':id')
+  @Permission(`${ModuleItemsMenu.UserModule}.${PermissionActionsMenu.DELETE}`)
   remove(@Param('id') id: string) {
     return this.userService.remove(id);
   }

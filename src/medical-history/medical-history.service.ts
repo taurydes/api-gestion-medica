@@ -20,6 +20,7 @@ import { Doctor } from 'src/doctors/entities/doctor.entity';
 import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity';
 import { Specialty } from 'src/parameters/entities/specialty.entity';
 import { User } from 'src/user/entities/user.entity';
+import { FilesService } from 'src/files/files.service';
 
 /**
  * Servicio para gestionar el historial médico de los pacientes
@@ -48,7 +49,25 @@ export class MedicalHistoryService {
 
     @Inject(CACHE_MANAGER)
     private readonly cacheManager: Cache,
+
+    private readonly filesService: FilesService,
   ) {}
+
+  private async enrichWithImages(record: any): Promise<any> {
+    const [patientImageUrl, doctorImageUrl] = await Promise.all([
+      record.patient?.commonPersonId
+        ? this.filesService.getLatestCommonPersonImageUrl(record.patient.commonPersonId)
+        : Promise.resolve(null),
+      record.doctor?.id
+        ? this.filesService.getLatestDoctorImageUrl(record.doctor.id)
+        : Promise.resolve(null),
+    ]);
+    return {
+      ...record,
+      patient: record.patient ? { ...record.patient, imageUrl: patientImageUrl } : null,
+      doctor: record.doctor ? { ...record.doctor, imageUrl: doctorImageUrl } : null,
+    };
+  }
 
   /**
    * Obtiene el doctorId vinculado al usuario autenticado (si es doctor).
@@ -285,7 +304,8 @@ export class MedicalHistoryService {
 
     const [items, total] = await qb.getManyAndCount();
 
-    const result = { data: items, total, page, limit };
+    const enriched = await Promise.all(items.map((h) => this.enrichWithImages(h)));
+    const result = { data: enriched, total, page, limit };
 
     // 3️⃣ Guardar en cache por 5 min
     await this.cacheManager.set(cacheKey, result, 300);
@@ -349,10 +369,12 @@ export class MedicalHistoryService {
         }
       }
 
-      // Guardar en cache por 10 min
-      await this.cacheManager.set(cacheKey, history, 600);
+      const enrichedHistory = await this.enrichWithImages(history);
 
-      return history;
+      // Guardar en cache por 10 min
+      await this.cacheManager.set(cacheKey, enrichedHistory, 600);
+
+      return enrichedHistory;
     } catch (error) {
       if (error instanceof NotFoundException || error instanceof ForbiddenException) throw error;
       throw new NotFoundException(

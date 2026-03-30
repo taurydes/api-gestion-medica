@@ -17,6 +17,7 @@ import { User } from 'src/user/entities/user.entity';
 import { MedicalHistoryModule } from 'src/medical-history/medical-history.module';
 import { RecipeModule } from 'src/recipe/recipe.module';
 import { DoctorsModule } from 'src/doctors/doctors.module';
+import { FilesModule } from 'src/files/files.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { DoctorsModule } from 'src/doctors/doctors.module';
     MedicalHistoryModule,
     RecipeModule,
     DoctorsModule,
+    FilesModule,
   ],
   controllers: [MedicalAppointmentsController],
   providers: [MedicalAppointmentsService],

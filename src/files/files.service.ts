@@ -797,6 +797,22 @@ export class FilesService {
     return `${this.publicUrl}/files/common-person-images/${imageId}`;
   }
 
+  async getLatestCommonPersonImageUrl(commonPersonId: string): Promise<string | null> {
+    const img = await this.commonPersonImageRepository.findOne({
+      where: { commonPersonId, isActive: true, deletedAt: IsNull() },
+      order: { createdAt: 'DESC' },
+    });
+    return img ? this.getCommonPersonImageUrl(img.id) : null;
+  }
+
+  async getLatestDoctorImageUrl(doctorId: string): Promise<string | null> {
+    const img = await this.doctorImageRepository.findOne({
+      where: { doctorId, isActive: true, deletedAt: IsNull() },
+      order: { createdAt: 'DESC' },
+    });
+    return img ? this.getDoctorImageUrl(img.id) : null;
+  }
+
   /**
    * Sube foto de CommonPerson, deactiva la anterior y crea registro en BD.
    */

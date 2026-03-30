@@ -151,7 +151,7 @@ export function mapPatientSummary(patient: any): PatientSummaryDto | null {
     patientCode: patient.patientCode,
     fullName: buildFullName(cp),
     documentNumber: buildDocumentNumber(cp),
-    photoUrl: cp.photoUrl ?? null,
+    photoUrl: patient.imageUrl ?? cp.photoUrl ?? null,
   };
 }
 
@@ -166,7 +166,7 @@ export function mapPatientDetail(patient: any): PatientDetailDto | null {
     patientCode: patient.patientCode,
     fullName: buildFullName(cp),
     documentNumber: buildDocumentNumber(cp),
-    photoUrl: cp.photoUrl ?? null,
+    photoUrl: patient.imageUrl ?? cp.photoUrl ?? null,
     bloodType: patient.bloodType ?? null,
     insuranceCompany: patient.insuranceCompany ?? null,
     insurancePolicyNumber: patient.insurancePolicyNumber ?? null,
@@ -191,7 +191,7 @@ export function mapDoctorSummary(doctor: any): DoctorSummaryDto | null {
     id: doctor.id,
     licenseNumber: doctor.licenseNumber,
     fullName: buildFullName(cp),
-    photoUrl: cp.photoUrl ?? null,
+    photoUrl: doctor.imageUrl ?? cp.photoUrl ?? null,
   };
 }
 
@@ -205,7 +205,7 @@ export function mapDoctorDetail(doctor: any): DoctorDetailDto | null {
     id: doctor.id,
     licenseNumber: doctor.licenseNumber,
     fullName: buildFullName(cp),
-    photoUrl: cp.photoUrl ?? null,
+    photoUrl: doctor.imageUrl ?? cp.photoUrl ?? null,
     specialties: (doctor.specialties ?? []).map((s: any) => ({
       id: s.id,
       name: s.name,

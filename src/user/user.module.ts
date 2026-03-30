@@ -12,9 +12,11 @@ import { UserController } from './user.controller';
 import { UserService } from './user.service';
 
 import { CommonPerson } from 'src/common-person/entities/common-person.entity';
+import { CommonPersonImage } from 'src/common-person/entities/common-person-image.entity';
 import { Doctor } from 'src/doctors/entities/doctor.entity';
 import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity';
 import { Specialty } from 'src/parameters/entities/specialty.entity';
+import { FilesModule } from 'src/files/files.module';
 
 @Module({
   imports: [
@@ -24,6 +26,7 @@ import { Specialty } from 'src/parameters/entities/specialty.entity';
         UserSecurity,
         IdentityDocument,
         CommonPerson,
+        CommonPersonImage,
         Doctor,
         MedicalCenter,
         Specialty,
@@ -31,6 +34,7 @@ import { Specialty } from 'src/parameters/entities/specialty.entity';
       DatabaseConnectionName.DB_MAIN,
     ),
     forwardRef(() => RoleModule),
+    FilesModule,
   ],
   controllers: [UserSecurityController, UserController],
   providers: [UserSecurityService, UserService],
