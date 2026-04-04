@@ -9,6 +9,7 @@ import { Department } from 'src/departments/entities/department.entity';
 import { Recipe } from 'src/recipe/entities/recipe.entity';
 import { MedicalHistory } from 'src/medical-history/entities/medical-history.entity';
 import { User } from 'src/user/entities/user.entity';
+import { AppointmentFile } from 'src/files/entities/appointment-file.entity';
 import { DashboardController } from './dashboard.controller';
 import { DashboardService } from './dashboard.service';
 
@@ -25,6 +26,7 @@ import { DashboardService } from './dashboard.service';
         Recipe,
         MedicalHistory,
         User,
+        AppointmentFile,
       ],
       DatabaseConnectionName.DB_MAIN,
     ),
