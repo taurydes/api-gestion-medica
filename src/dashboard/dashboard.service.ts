@@ -10,6 +10,7 @@ import { Department } from 'src/departments/entities/department.entity';
 import { Recipe } from 'src/recipe/entities/recipe.entity';
 import { MedicalHistory } from 'src/medical-history/entities/medical-history.entity';
 import { User } from 'src/user/entities/user.entity';
+import { AppointmentFile } from 'src/files/entities/appointment-file.entity';
 
 /**
  * Servicio de dashboard con estadísticas reales.
@@ -41,6 +42,9 @@ export class DashboardService {
 
     @InjectRepository(User, DatabaseConnectionName.DB_MAIN)
     private readonly userRepo: Repository<User>,
+
+    @InjectRepository(AppointmentFile, DatabaseConnectionName.DB_MAIN)
+    private readonly appointmentFileRepo: Repository<AppointmentFile>,
   ) {}
 
   /**
@@ -109,6 +113,17 @@ export class DashboardService {
     }
 
     // Conteos
+    const mlQb = this.appointmentFileRepo
+      .createQueryBuilder('af')
+      .where('af.deletedAt IS NULL')
+      .andWhere("af.fileType = 'mammography'");
+
+    if (doctorId) {
+      mlQb
+        .innerJoin('af.medicalAppointment', 'apt')
+        .andWhere('apt.doctorId = :doctorId', { doctorId });
+    }
+
     const [
       totalAppointments,
       pendingAppointments,
@@ -120,6 +135,7 @@ export class DashboardService {
       totalDepartments,
       totalRecipes,
       totalHistories,
+      totalMlAnalyses,
     ] = await Promise.all([
       appointmentQb.clone().getCount(),
       appointmentQb.clone().andWhere("a.status = 'pending'").getCount(),
@@ -131,6 +147,7 @@ export class DashboardService {
       this.departmentRepo.createQueryBuilder('dp').where('dp.deletedAt IS NULL').getCount(),
       recipeQb.getCount(),
       historyQb.getCount(),
+      mlQb.getCount(),
     ]);
 
     // Citas de hoy
@@ -163,6 +180,7 @@ export class DashboardService {
       totalDepartments,
       totalRecipes,
       totalHistories,
+      totalMlAnalyses,
       // Indicar si el usuario es doctor (para que frontend ajuste la vista)
       isDoctor: !!doctorId,
       doctorId,
