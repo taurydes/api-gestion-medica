@@ -105,6 +105,23 @@ export class MammographyAnalysisController {
   }
 
   /* ============================================================
+   * RANKING PAGINADO (lista plana para tablas de dashboard)
+   * ============================================================ */
+  @ApiOperation({
+    summary: 'Ranking paginado de análisis del día',
+    description:
+      'Lista plana de análisis del día ordenados por probabilidad descendente, ' +
+      'con info de cita y paciente. Pensado para el widget del dashboard.',
+  })
+  @Get('recent')
+  @Permission(
+    `${ModuleItemsMenu.MammographyAnalysisModule}.${PermissionActionsMenu.VIEW}`,
+  )
+  recent(@Query() query: QueryMammographyAnalysisDto) {
+    return this.service.findRecent(query);
+  }
+
+  /* ============================================================
    * STATS DEL DÍA
    * ============================================================ */
   @ApiOperation({
@@ -116,8 +133,8 @@ export class MammographyAnalysisController {
   @Permission(
     `${ModuleItemsMenu.MammographyAnalysisModule}.${PermissionActionsMenu.VIEW}`,
   )
-  dailyStats(@Query('date') date?: string) {
-    return this.service.getDailyStats(date);
+  dailyStats(@Query() query: QueryMammographyAnalysisDto) {
+    return this.service.getDailyStats(query);
   }
 
   /* ============================================================

@@ -107,8 +107,13 @@ export class DoctorsController {
   getSchedules(
     @Param('doctorId') doctorId: string,
     @Query('medicalCenterId') medicalCenterId?: string,
+    @Query('includeInactive') includeInactive?: string,
   ) {
-    return this.scheduleService.getSchedulesByDoctor(doctorId, medicalCenterId);
+    return this.scheduleService.getSchedulesByDoctor(
+      doctorId,
+      medicalCenterId,
+      includeInactive === 'true',
+    );
   }
 
   @ApiOperation({

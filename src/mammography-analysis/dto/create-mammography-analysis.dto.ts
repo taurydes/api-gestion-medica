@@ -7,12 +7,45 @@ import {
   Max,
   Min,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   MammographyAnalysisPrediction,
   MammographyAnalysisStatus,
 } from '../entities/mammography-analysis.entity';
+
+/**
+ * Algunos modelos ML devuelven la predicción en español o como POSITIVE/NEGATIVE.
+ * Normalizamos a los enums internos antes de validar.
+ */
+function normalizePrediction(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  const v = value.trim().toUpperCase();
+  if (
+    v === 'MALIGNANT' ||
+    v === 'MALIGNO' ||
+    v === 'MALIGNA' ||
+    v === 'POSITIVE' ||
+    v === 'POSITIVO'
+  ) {
+    return MammographyAnalysisPrediction.MALIGNANT;
+  }
+  if (
+    v === 'BENIGN' ||
+    v === 'BENIGNO' ||
+    v === 'BENIGNA' ||
+    v === 'NEGATIVE' ||
+    v === 'NEGATIVO'
+  ) {
+    return MammographyAnalysisPrediction.BENIGN;
+  }
+  return value;
+}
+
+function normalizeStatus(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  return value.trim().toLowerCase();
+}
 
 /**
  * DTO para registrar un análisis ML de mamografía.
@@ -23,6 +56,7 @@ import {
  */
 export class CreateMammographyAnalysisDto {
   @ApiProperty({ enum: MammographyAnalysisPrediction })
+  @Transform(({ value }) => normalizePrediction(value))
   @IsEnum(MammographyAnalysisPrediction)
   prediction: MammographyAnalysisPrediction;
 
@@ -34,6 +68,7 @@ export class CreateMammographyAnalysisDto {
   probability: number;
 
   @ApiProperty({ enum: MammographyAnalysisStatus })
+  @Transform(({ value }) => normalizeStatus(value))
   @IsEnum(MammographyAnalysisStatus)
   status: MammographyAnalysisStatus;
 
