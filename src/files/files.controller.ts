@@ -21,6 +21,7 @@ import {
 } from '@nestjs/swagger';
 
 import { FilesService } from './files.service';
+import { DicomConverterService } from './dicom-converter.service';
 import { UploadFileDto } from './dto/create-file.dto';
 import {
   CreateVideoBase64Dto,
@@ -39,7 +40,10 @@ import { GetUser } from 'src/auth/decorators/get-user.decorator';
 @ApiBearerAuth()
 @Controller('files')
 export class FilesController {
-  constructor(private readonly filesService: FilesService) {}
+  constructor(
+    private readonly filesService: FilesService,
+    private readonly dicomConverterService: DicomConverterService,
+  ) {}
 
   /* ============================================================
    * 📌 MÉTODO 1 – Subir archivo BASE64
@@ -137,7 +141,7 @@ export class FilesController {
   @Post('appointment-upload')
   @UseInterceptors(
     FileInterceptor('file', {
-      limits: { fileSize: 50 * 1024 * 1024 }, // 50MB límite
+      limits: { fileSize: 300 * 1024 * 1024 }, // 300MB límite (DICOM/tomosíntesis)
     }),
   )
   @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.CREATE}`)
@@ -471,5 +475,40 @@ export class FilesController {
     @Res() res,
   ): Promise<void> {
     return this.filesService.serveCommonPersonImage(imageId, res);
+  }
+
+  /* ============================================================
+   * 🧬 MÉTODO – CONVERTIR ARCHIVO DICOM A IMÁGENES PNG
+   * ============================================================ */
+  @ApiOperation({
+    summary: 'Convertir archivo DICOM a imágenes PNG',
+    description:
+      'Recibe un archivo DICOM (.dcm) en multipart, extrae cada frame, ' +
+      'aplica Window/Level y retorna las imágenes en base64 (PNG) listas para ' +
+      'previsualización en el frontend.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    description: 'Archivo DICOM (.dcm) sin compresión, máx. 300 MB',
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+      },
+      required: ['file'],
+    },
+  })
+  @Post('dicom-convert')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: multer.memoryStorage(),
+      limits: { fileSize: 300 * 1024 * 1024 },
+    }),
+  )
+  @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.VIEW}`)
+  async convertDicom(
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.dicomConverterService.convert(file);
   }
 }
