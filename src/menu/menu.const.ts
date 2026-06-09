@@ -22,4 +22,5 @@ export enum ModuleItemsMenu {
   RecipeModule = 'recipe',
   DepartmentsModule = 'departments',
   MedicalAppointmentsModule = 'appointments',
+  MammographyAnalysisModule = 'mammography-analysis',
 }

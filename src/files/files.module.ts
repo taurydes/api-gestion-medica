@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { FilesService } from './files.service';
 import { FilesController } from './files.controller';
+import { DicomConverterService } from './dicom-converter.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { VideoPublicity } from './entities/video-publicy.entity';
 import { AppointmentFile } from './entities/appointment-file.entity';
@@ -17,7 +18,7 @@ import { CommonPersonImage } from 'src/common-person/entities/common-person-imag
     ),
   ],
   controllers: [FilesController],
-  providers: [FilesService],
-  exports: [FilesService],
+  providers: [FilesService, DicomConverterService],
+  exports: [FilesService, DicomConverterService],
 })
 export class FilesModule {}
