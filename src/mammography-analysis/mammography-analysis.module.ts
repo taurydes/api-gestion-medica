@@ -7,11 +7,12 @@ import { MammographyAnalysisService } from './mammography-analysis.service';
 import { MammographyAnalysisController } from './mammography-analysis.controller';
 import { AppointmentFile } from 'src/files/entities/appointment-file.entity';
 import { MedicalAppointment } from 'src/medical-appointments/entities/medical-appointment.entity';
+import { User } from 'src/user/entities/user.entity';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature(
-      [MammographyAnalysis, AppointmentFile, MedicalAppointment],
+      [MammographyAnalysis, AppointmentFile, MedicalAppointment, User],
       DatabaseConnectionName.DB_MAIN,
     ),
   ],

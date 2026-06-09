@@ -104,20 +104,15 @@ export class DoctorScheduleService {
   async getSchedulesByDoctor(
     doctorId: string,
     medicalCenterId?: string,
+    includeInactive = false,
   ): Promise<DoctorSchedule[]> {
-    const cacheKey = `doctor-schedules:${doctorId}:${medicalCenterId || 'all'}`;
+    const cacheKey = `doctor-schedules:${doctorId}:${medicalCenterId || 'all'}:${includeInactive ? 'all-states' : 'active'}`;
     const cached = await this.cacheManager.get<DoctorSchedule[]>(cacheKey);
     if (cached) return cached;
 
-    const where: any = {
-      doctorId,
-      deletedAt: IsNull(),
-      isActive: true,
-    };
-
-    if (medicalCenterId) {
-      where.medicalCenterId = medicalCenterId;
-    }
+    const where: any = { doctorId, deletedAt: IsNull() };
+    if (!includeInactive) where.isActive = true;
+    if (medicalCenterId) where.medicalCenterId = medicalCenterId;
 
     const schedules = await this.scheduleRepo.find({
       where,

@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
   IsDateString,
@@ -17,6 +17,20 @@ export class QueryMammographyAnalysisDto {
   @IsDateString()
   date?: string;
 
+  @ApiPropertyOptional({
+    description: 'YYYY-MM-DD. Inicio del rango (inclusive). Tiene precedencia sobre `date`.',
+  })
+  @IsOptional()
+  @IsDateString()
+  dateFrom?: string;
+
+  @ApiPropertyOptional({
+    description: 'YYYY-MM-DD. Fin del rango (inclusive). Tiene precedencia sobre `date`.',
+  })
+  @IsOptional()
+  @IsDateString()
+  dateTo?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsUUID()
@@ -32,6 +46,22 @@ export class QueryMammographyAnalysisDto {
   @Type(() => Boolean)
   @IsBoolean()
   onlyUnreviewed?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Filtrar por estado de revisión: `true` solo revisados, `false` solo pendientes. Omitir para mostrar todos.',
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === undefined || value === null || value === '') return undefined;
+    if (typeof value === 'boolean') return value;
+    const v = String(value).toLowerCase();
+    if (v === 'true' || v === '1') return true;
+    if (v === 'false' || v === '0') return false;
+    return undefined;
+  })
+  @IsBoolean()
+  isReviewed?: boolean;
 
   @ApiPropertyOptional({ description: 'Probabilidad mínima (0-100)' })
   @IsOptional()

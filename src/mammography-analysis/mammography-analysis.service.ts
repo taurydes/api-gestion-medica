@@ -1,17 +1,19 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
-import { Between, IsNull, Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import * as fs from 'fs';
 import * as path from 'path';
 
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { AppointmentFile } from 'src/files/entities/appointment-file.entity';
 import { MedicalAppointment } from 'src/medical-appointments/entities/medical-appointment.entity';
+import { User } from 'src/user/entities/user.entity';
 
 import { MammographyAnalysis } from './entities/mammography-analysis.entity';
 import { CreateMammographyAnalysisDto } from './dto/create-mammography-analysis.dto';
@@ -20,6 +22,7 @@ import { ReviewMammographyAnalysisDto } from './dto/review-mammography-analysis.
 
 @Injectable()
 export class MammographyAnalysisService {
+  private readonly logger = new Logger(MammographyAnalysisService.name);
   private readonly uploadsDir: string;
   private readonly publicUrl: string;
 
@@ -32,6 +35,9 @@ export class MammographyAnalysisService {
 
     @InjectRepository(MedicalAppointment, DatabaseConnectionName.DB_MAIN)
     private readonly appointmentRepo: Repository<MedicalAppointment>,
+
+    @InjectRepository(User, DatabaseConnectionName.DB_MAIN)
+    private readonly userRepo: Repository<User>,
 
     private readonly configService: ConfigService,
   ) {
@@ -112,11 +118,16 @@ export class MammographyAnalysisService {
       }
     }
 
+    // Defensa de FK: el id del JWT podría no estar en public.users (admin,
+    // super-admin u otra identidad externa). Validamos antes de asignarlo
+    // para no reventar la FK; si no existe, se guarda como null y se loguea.
+    const resolvedAnalyzedBy = await this.resolveAnalyzedBy(userId);
+
     const record = this.analysisRepo.create({
       appointmentId: resolvedAppointmentId,
       appointmentFileId: dto.appointmentFileId ?? null,
       patientId: resolvedPatientId,
-      analyzedBy: userId,
+      analyzedBy: resolvedAnalyzedBy,
       prediction: dto.prediction,
       probability: dto.probability,
       status: dto.status,
@@ -131,6 +142,21 @@ export class MammographyAnalysisService {
     return this.analysisRepo.save(record);
   }
 
+  /**
+   * Devuelve el `userId` solo si existe en `public.users`; en caso contrario
+   * deja la auditoría en null para no violar la FK. Útil para identidades
+   * que viven fuera de la tabla `users` (admin/super-admin con otro origen).
+   */
+  private async resolveAnalyzedBy(userId: string | null): Promise<string | null> {
+    if (!userId) return null;
+    const exists = await this.userRepo.exists({ where: { id: userId } });
+    if (exists) return userId;
+    this.logger.warn(
+      `El id "${userId}" no existe en public.users; el análisis se guardará con analyzed_by = null.`,
+    );
+    return null;
+  }
+
   /* ============================================================
    * READ
    * ============================================================ */
@@ -142,9 +168,7 @@ export class MammographyAnalysisService {
    * especial con appointment = null.
    */
   async findTodayInbox(query: QueryMammographyAnalysisDto) {
-    const date = query.date ?? this.todayIsoDate();
-    const start = new Date(`${date}T00:00:00.000`);
-    const end = new Date(`${date}T23:59:59.999`);
+    const { start, end } = this.resolveDateRange(query);
 
     const qb = this.analysisRepo
       .createQueryBuilder('analysis')
@@ -157,7 +181,15 @@ export class MammographyAnalysisService {
       .leftJoinAndSelect('patient.commonPerson', 'patientPerson')
       .leftJoinAndSelect('analysis.appointmentFile', 'appointmentFile')
       .where('analysis.deletedAt IS NULL')
-      .andWhere('analysis.createdAt BETWEEN :start AND :end', { start, end });
+      // Filtramos por la fecha CLÍNICA de la cita; los análisis sin cita
+      // usan su propio createdAt como referencia.
+      .andWhere(
+        `(
+          (appointment.appointmentDate IS NOT NULL AND appointment.appointmentDate BETWEEN :start AND :end)
+          OR (appointment.appointmentDate IS NULL AND analysis.createdAt BETWEEN :start AND :end)
+        )`,
+        { start, end },
+      );
 
     if (query.appointmentId) {
       qb.andWhere('analysis.appointmentId = :appointmentId', {
@@ -172,6 +204,11 @@ export class MammographyAnalysisService {
     if (query.onlyUnreviewed) {
       qb.andWhere('analysis.isReviewed = false');
     }
+    if (query.isReviewed !== undefined) {
+      qb.andWhere('analysis.isReviewed = :reviewed', {
+        reviewed: query.isReviewed,
+      });
+    }
     if (query.minProbability !== undefined) {
       qb.andWhere('analysis.probability >= :minProbability', {
         minProbability: query.minProbability,
@@ -181,15 +218,14 @@ export class MammographyAnalysisService {
       qb.andWhere('analysis.status = :status', { status: query.status });
     }
 
-    qb.orderBy('analysis.probability', 'DESC')
-      .addOrderBy('analysis.createdAt', 'DESC')
-      .limit(query.limit ?? 200)
-      .offset(query.offset ?? 0);
+    this.applyUrgencyOrder(qb);
+    qb.limit(query.limit ?? 200).offset(query.offset ?? 0);
 
     const rows = await qb.getMany();
 
-    // Agrupamos por appointmentId para que el frontend pueda dibujar
-    // tarjetas por cita ordenadas por la gravedad máxima dentro del grupo.
+    // Agrupamos por appointmentId. Cada grupo expone su score de urgencia
+    // máximo (mayor = más urgente) calculado con la misma lógica que el orden
+    // del ranking: malignos por probabilidad DESC, benignos por ASC.
     const groupsMap = new Map<
       string,
       {
@@ -197,12 +233,14 @@ export class MammographyAnalysisService {
         appointment: any;
         maxProbability: number;
         hasDanger: boolean;
+        maxUrgency: number;
         analyses: any[];
       }
     >();
 
     for (const r of rows) {
       const key = r.appointmentId ?? '__standalone__';
+      const score = this.urgencyScore(Number(r.probability), r.status);
       if (!groupsMap.has(key)) {
         groupsMap.set(key, {
           appointmentId: r.appointmentId,
@@ -211,27 +249,100 @@ export class MammographyAnalysisService {
             : null,
           maxProbability: Number(r.probability),
           hasDanger: r.status === 'danger',
+          maxUrgency: score,
           analyses: [],
         });
       }
       const g = groupsMap.get(key)!;
       g.maxProbability = Math.max(g.maxProbability, Number(r.probability));
       g.hasDanger = g.hasDanger || r.status === 'danger';
+      g.maxUrgency = Math.max(g.maxUrgency, score);
       g.analyses.push(this.serialize(r));
     }
 
-    return Array.from(groupsMap.values()).sort((a, b) => {
-      if (a.hasDanger !== b.hasDanger) return a.hasDanger ? -1 : 1;
-      return b.maxProbability - a.maxProbability;
-    });
+    return Array.from(groupsMap.values()).sort(
+      (a, b) => b.maxUrgency - a.maxUrgency,
+    );
+  }
+
+  /**
+   * Lista plana paginada de análisis ML ordenada por probabilidad
+   * descendente. Pensada para tablas de dashboard donde se quiere
+   * "los N más graves del día" con info enriquecida de cita/paciente.
+   */
+  async findRecent(query: QueryMammographyAnalysisDto) {
+    const { start, end } = this.resolveDateRange(query);
+    const limit = query.limit ?? 10;
+    const offset = query.offset ?? 0;
+
+    const qb = this.analysisRepo
+      .createQueryBuilder('analysis')
+      .leftJoinAndSelect('analysis.appointment', 'appointment')
+      .leftJoinAndSelect('appointment.patient', 'apptPatient')
+      .leftJoinAndSelect('apptPatient.commonPerson', 'apptCommonPerson')
+      .leftJoinAndSelect('appointment.doctor', 'apptDoctor')
+      .leftJoinAndSelect('apptDoctor.commonPerson', 'apptDoctorPerson')
+      .where('analysis.deletedAt IS NULL')
+      .andWhere(
+        `(
+          (appointment.appointmentDate IS NOT NULL AND appointment.appointmentDate BETWEEN :start AND :end)
+          OR (appointment.appointmentDate IS NULL AND analysis.createdAt BETWEEN :start AND :end)
+        )`,
+        { start, end },
+      );
+
+    if (query.onlyUnreviewed) {
+      qb.andWhere('analysis.isReviewed = false');
+    }
+    if (query.isReviewed !== undefined) {
+      qb.andWhere('analysis.isReviewed = :reviewed', {
+        reviewed: query.isReviewed,
+      });
+    }
+    if (query.status) {
+      qb.andWhere('analysis.status = :status', { status: query.status });
+    }
+    if (query.minProbability !== undefined) {
+      qb.andWhere('analysis.probability >= :minProbability', {
+        minProbability: query.minProbability,
+      });
+    }
+
+    this.applyUrgencyOrder(qb);
+
+    const [rows, total] = await qb
+      .clone()
+      .limit(limit)
+      .offset(offset)
+      .getManyAndCount();
+
+    const data = rows.map((r) => ({
+      ...this.serialize(r),
+      appointment: r.appointment
+        ? this.serializeAppointment(r.appointment)
+        : null,
+    }));
+
+    return {
+      data,
+      total,
+      limit,
+      offset,
+      dateFrom: query.dateFrom ?? query.date ?? this.todayIsoDate(),
+      dateTo: query.dateTo ?? query.date ?? this.todayIsoDate(),
+    };
   }
 
   async findByAppointment(appointmentId: string) {
-    const items = await this.analysisRepo.find({
-      where: { appointmentId, deletedAt: IsNull() },
-      relations: ['appointmentFile'],
-      order: { probability: 'DESC', createdAt: 'DESC' },
-    });
+    // Misma ordenación de "urgencia" que la bandeja/ranking: malignos primero
+    // (probability DESC), benignos después (probability ASC).
+    const qb = this.analysisRepo
+      .createQueryBuilder('analysis')
+      .leftJoinAndSelect('analysis.appointmentFile', 'appointmentFile')
+      .where('analysis.deletedAt IS NULL')
+      .andWhere('analysis.appointmentId = :appointmentId', { appointmentId });
+    this.applyUrgencyOrder(qb);
+    const items = await qb.getMany();
     return items.map((r) => this.serialize(r));
   }
 
@@ -297,27 +408,98 @@ export class MammographyAnalysisService {
    * STATS
    * ============================================================ */
 
-  async getDailyStats(date?: string) {
-    const target = date ?? this.todayIsoDate();
-    const start = new Date(`${target}T00:00:00.000`);
-    const end = new Date(`${target}T23:59:59.999`);
+  async getDailyStats(query: { date?: string; dateFrom?: string; dateTo?: string } = {}) {
+    const { start, end } = this.resolveDateRange(query as QueryMammographyAnalysisDto);
 
-    const all = await this.analysisRepo.find({
-      where: { createdAt: Between(start, end), deletedAt: IsNull() },
-      select: ['id', 'status', 'probability', 'isReviewed'],
-    });
+    // Mismo criterio que la bandeja: fecha de la cita o, en su defecto,
+    // fecha de creación del análisis (para análisis standalone).
+    const all = await this.analysisRepo
+      .createQueryBuilder('analysis')
+      .leftJoin('analysis.appointment', 'appointment')
+      .where('analysis.deletedAt IS NULL')
+      .andWhere(
+        `(
+          (appointment.appointmentDate IS NOT NULL AND appointment.appointmentDate BETWEEN :start AND :end)
+          OR (appointment.appointmentDate IS NULL AND analysis.createdAt BETWEEN :start AND :end)
+        )`,
+        { start, end },
+      )
+      .select([
+        'analysis.id',
+        'analysis.status',
+        'analysis.probability',
+        'analysis.isReviewed',
+      ])
+      .getMany();
 
     const total = all.length;
     const danger = all.filter((a) => a.status === 'danger').length;
     const pending = all.filter((a) => !a.isReviewed).length;
     const highRisk = all.filter((a) => Number(a.probability) >= 80).length;
 
-    return { date: target, total, danger, pending, highRisk };
+    return {
+      dateFrom: query.dateFrom ?? query.date ?? this.todayIsoDate(),
+      dateTo: query.dateTo ?? query.date ?? this.todayIsoDate(),
+      total,
+      danger,
+      pending,
+      highRisk,
+    };
   }
 
   /* ============================================================
    * HELPERS
    * ============================================================ */
+
+  /**
+   * Resuelve el rango temporal de la query. Si vienen `dateFrom`/`dateTo`
+   * los usa (rango inclusivo); si no, cae al `date` único; si tampoco hay,
+   * usa hoy. Útil para que los tres flujos (bandeja, ranking y stats)
+   * compartan el mismo criterio.
+   */
+  private resolveDateRange(query: QueryMammographyAnalysisDto): {
+    start: Date;
+    end: Date;
+  } {
+    const fromIso = query.dateFrom ?? query.date ?? this.todayIsoDate();
+    const toIso = query.dateTo ?? query.date ?? this.todayIsoDate();
+    return {
+      start: new Date(`${fromIso}T00:00:00.000`),
+      end: new Date(`${toIso}T23:59:59.999`),
+    };
+  }
+
+  /**
+   * Aplica el orden por "urgencia clínica" al QueryBuilder de análisis:
+   *  1) Malignos antes que benignos (`status = 'danger'` primero).
+   *  2) Dentro de malignos: probabilidad DESC (más certeza = más urgente).
+   *  3) Dentro de benignos: probabilidad ASC (menos certeza = más urgente,
+   *     porque un benigno con baja confianza puede ser falso negativo).
+   *  4) Empate: más reciente primero.
+   *
+   * Se usa en bandeja, ranking y listado por cita para mantener consistencia.
+   */
+  private applyUrgencyOrder(
+    qb: ReturnType<Repository<MammographyAnalysis>['createQueryBuilder']>,
+    alias = 'analysis',
+  ): void {
+    qb.orderBy(`CASE WHEN ${alias}.status = 'danger' THEN 0 ELSE 1 END`, 'ASC')
+      .addOrderBy(
+        `CASE WHEN ${alias}.status = 'danger' THEN ${alias}.probability ELSE -${alias}.probability END`,
+        'DESC',
+      )
+      .addOrderBy(`${alias}.createdAt`, 'DESC');
+  }
+
+  /**
+   * Score numérico de urgencia para ordenar en memoria (grupos de bandeja).
+   * Mayor score = más urgente.
+   *   - Maligno: 100 + probability  (rango 100-200)
+   *   - Benigno: 100 - probability  (rango 0-100, menos seguro = mayor score)
+   */
+  private urgencyScore(probability: number, status: string): number {
+    return status === 'danger' ? 100 + probability : 100 - probability;
+  }
 
   private serialize(r: MammographyAnalysis) {
     return {

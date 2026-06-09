@@ -1,5 +1,5 @@
 import { Patient } from 'src/patient/entities/patient.entity';
-import { Doctor } from 'src/doctors/entities/doctor.entity';
+import { User } from 'src/user/entities/user.entity';
 import { MedicalAppointment } from 'src/medical-appointments/entities/medical-appointment.entity';
 import { AppointmentFile } from 'src/files/entities/appointment-file.entity';
 import {
@@ -156,11 +156,16 @@ export class MammographyAnalysis {
   @JoinColumn({ name: 'patient_id' })
   patient: Patient | null;
 
-  @ManyToOne(() => Doctor, {
+  /**
+   * Usuario que disparó el análisis (FK a `public.users`). El service valida
+   * que el id realmente exista antes de asignarlo; si no, guarda `null` y
+   * deja constancia en logs.
+   */
+  @ManyToOne(() => User, {
     onDelete: 'SET NULL',
     onUpdate: 'CASCADE',
     nullable: true,
   })
   @JoinColumn({ name: 'analyzed_by' })
-  analyst: Doctor | null;
+  analyst: User | null;
 }
