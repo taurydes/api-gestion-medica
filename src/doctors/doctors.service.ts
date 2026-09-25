@@ -6,6 +6,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { AuthContextService } from 'src/common/services/auth-context.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
@@ -46,6 +47,8 @@ export class DoctorsService {
     private readonly cacheManager: Cache,
 
     private readonly filesService: FilesService,
+
+    private readonly authContextService: AuthContextService,
   ) {}
 
   // ─── IDOR helpers ──────────────────────────────────────────────────────────
@@ -63,12 +66,8 @@ export class DoctorsService {
   }
 
   private async isAdminUser(userId: string): Promise<boolean> {
-    const user = await this.userRepository.findOne({
-      where: { id: userId },
-      relations: ['role'],
-    });
-    const roleName = (user?.role?.name ?? '').toLowerCase();
-    return roleName.includes('admin') || roleName.includes('super');
+    // Por permiso del rol, no por subcadena del nombre ("Administrativo" no queda exento)
+    return this.authContextService.isAdmin(userId);
   }
 
   private async assertDoctorAccess(doctorId: string, authUser?: any): Promise<void> {

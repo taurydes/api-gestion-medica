@@ -11,7 +11,7 @@ export default () => ({
     host: process.env.DB_HOST || 'localhost', // Valor predeterminado: localhost
     port: parseInt(process.env.DB_PORT || '5432', 10), // Valor predeterminado: 5432
     user: process.env.DB_USER || 'postgres', // Valor predeterminado: postgres
-    pass: process.env.DB_PASS || '123456', // Valor predeterminado: password
+    pass: process.env.DB_PASS,
     name: process.env.DB_NAME || 'bd_gestion_medica', // Valor predeterminado: my_database
   },
 });

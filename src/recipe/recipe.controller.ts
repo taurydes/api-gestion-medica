@@ -38,7 +38,7 @@ export class RecipeController {
   @ApiOperation({ summary: 'Crear una nueva receta médica' })
   @ApiResponse({ status: 201, description: 'Receta creada exitosamente' })
   @ApiResponse({ status: 400, description: 'Datos inválidos o entidades no encontradas' })
-  @Permission(`${ModuleItemsMenu.RecipeModule}.${PermissionActionsMenu.VIEW}`)
+  @Permission(`${ModuleItemsMenu.RecipeModule}.${PermissionActionsMenu.CREATE}`)
   create(
     @Body() createDto: CreateRecipeDto,
     @GetUser('id') userId: string,
@@ -89,8 +89,9 @@ export class RecipeController {
   @Permission(`${ModuleItemsMenu.RecipeModule}.${PermissionActionsMenu.VIEW}`)
   findByMedicalHistory(
     @Param('medicalHistoryId') medicalHistoryId: string,
+    @Req() req: any,
   ) {
-    return this.recipeService.findByMedicalHistory(medicalHistoryId);
+    return this.recipeService.findByMedicalHistory(medicalHistoryId, req.user);
   }
 
   /**

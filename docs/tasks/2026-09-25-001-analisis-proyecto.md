@@ -133,3 +133,19 @@ Arranque autorizado de forma explícita por el usuario, aun sabiendo que `Schema
 | H22 mensajes crudos | Reforzado: el 404 del estático revela la ruta absoluta. |
 | H23 `/health` detrás del guard | Confirmado. |
 | Verbos roles/permisos | Confirmado también en la instancia local. |
+
+## Verificación de afirmaciones (2026-09-25)
+
+- **Qué se pidió:** auditar la brecha entre lo que el código afirma y lo que hace el sistema. Seis ejes: unicidad, tests, atomicidad, relaciones, validación y drift. Además: permisos, guards, caché, borrado lógico y mensajes de error.
+- **Qué se hizo:** consultas de solo lectura a `bd_gestion_medica` (índices, FKs, datos). Diez pruebas de INSERT duplicado en `BEGIN/ROLLBACK`, sin cambios en la base. Los DTO compilados se pasaron por el `ValidationPipe` real. Se leyó el código de `@nestjs/cache-manager` y de `cache-manager`.
+- **Resultado:** `docs/plans/2026-09-25-backend-verificacion-afirmaciones.md`. 6 ALTA (4 nuevas; H6 y H4 pendientes, H6 reclasificado), 9 MEDIA, 10 BAJA y 1 INFO.
+- **Resuelto de lo pendiente:**
+  - Se confirmó en `pg_indexes` el índice único de `medical_histories.medical_appointment_id` (p9 falla con 23505).
+  - Un reintento de `finishConsultation` tras una falla parcial choca con ese índice: la cita no se puede cerrar.
+- **Decisiones:**
+  - No se imprimieron datos personales ni credenciales: los duplicados se identifican solo por id y conteo.
+  - Los hallazgos del documento anterior que no se volvieron a probar no se recalificaron.
+- **Pendiente:**
+  - Depurar el grupo duplicado de `persona_comun` y la especialidad `MT` antes de crear índices únicos.
+  - Probar con credenciales la escalada por `PATCH /users/:id` y el login de un usuario borrado.
+  - Revisar en el frontend qué endpoints de permisos usa.

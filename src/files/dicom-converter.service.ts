@@ -2,6 +2,7 @@ import {
   Injectable,
   BadRequestException,
   InternalServerErrorException,
+  NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as dicomParser from 'dicom-parser';
@@ -9,6 +10,11 @@ import * as sharp from 'sharp';
 import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
+import {
+  assertFolderId,
+  assertSafeFileName,
+  resolveUploadPath,
+} from './upload-path.util';
 
 /**
  * @summary Representación de una imagen producida a partir de un archivo DICOM.
@@ -179,7 +185,7 @@ export class DicomConverterService {
           height: rows,
           mimeType: 'image/jpeg',
           relativePath: relativeFile,
-          url: `${this.publicUrl}/uploads/${relativeFile}`,
+          url: `${this.publicUrl}/files/${this.tmpFolder}/${sessionId}/${fileName}`,
         });
       }
     } catch (err) {
@@ -200,6 +206,24 @@ export class DicomConverterService {
       modality: dataSet.string('x00080060')?.trim(),
       images,
     };
+  }
+
+  /** Sirve un frame convertido; la URL la devuelve `convert` y exige `file.consultar`. */
+  serveFrame(sessionId: string, filename: string, res: any): void {
+    assertFolderId(sessionId, 'sessionId');
+    assertSafeFileName(filename);
+    const fullPath = resolveUploadPath(
+      this.uploadsDir,
+      this.tmpFolder,
+      sessionId,
+      filename,
+    );
+    if (!fs.existsSync(fullPath)) {
+      throw new NotFoundException('Imagen convertida no encontrada.');
+    }
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    fs.createReadStream(fullPath).pipe(res);
   }
 
   /* ============================================================

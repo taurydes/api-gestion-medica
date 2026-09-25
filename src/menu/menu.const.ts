@@ -6,7 +6,7 @@ export enum ModuleItemsMenu {
   PermissionModule = 'permission',
   LogsModule = 'logs',
   QueuesModule = 'queues',
-  BullBoardModule = 'bull-board',
+  BullBoardModule = 'bullboard',
   RedisSessionModule = 'redis-session',
   HealthModule = 'health',
   ParametersModule = 'parameters',

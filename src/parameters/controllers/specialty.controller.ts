@@ -13,6 +13,9 @@ import { SpecialtyService } from '../services/specialty.service';
 import { CreateSpecialtyDto } from '../dto/specialty/create-specialty.dto';
 import { UpdateSpecialtyDto } from '../dto/specialty/update-specialty.dto';
 import { SpecialtyQueryDto } from '../dto/specialty/specialty-query.dto';
+import { Permission } from 'src/auth/decorators/permission.decorator';
+import { ModuleItemsMenu } from 'src/menu/menu.const';
+import { PermissionActionsMenu } from 'src/permission/permission.const';
 
 /**
  * Controlador para gestionar las especialidades médicas
@@ -27,6 +30,7 @@ export class SpecialtyController {
    * Crear una nueva especialidad médica
    */
   @Post()
+  @Permission(`${ModuleItemsMenu.ParametersModule}.${PermissionActionsMenu.CREATE}`)
   @ApiOperation({ summary: 'Crear una nueva especialidad médica' })
   @ApiResponse({ status: 201, description: 'Especialidad creada exitosamente' })
   @ApiResponse({ status: 400, description: 'Datos inválidos o duplicados' })
@@ -38,6 +42,7 @@ export class SpecialtyController {
    * Listar especialidades con filtros y paginación
    */
   @Get()
+  @Permission(`${ModuleItemsMenu.ParametersModule}.${PermissionActionsMenu.VIEW}`)
   @ApiOperation({ summary: 'Listar especialidades médicas con filtros y paginación' })
   @ApiResponse({ status: 200, description: 'Lista de especialidades' })
   findAll(@Query() query: SpecialtyQueryDto) {
@@ -48,6 +53,7 @@ export class SpecialtyController {
    * Obtener una especialidad por ID
    */
   @Get(':id')
+  @Permission(`${ModuleItemsMenu.ParametersModule}.${PermissionActionsMenu.VIEW}`)
   @ApiOperation({ summary: 'Obtener una especialidad por ID' })
   @ApiResponse({ status: 200, description: 'Especialidad encontrada' })
   @ApiResponse({ status: 404, description: 'Especialidad no encontrada' })
@@ -59,6 +65,7 @@ export class SpecialtyController {
    * Actualizar una especialidad existente
    */
   @Patch(':id')
+  @Permission(`${ModuleItemsMenu.ParametersModule}.${PermissionActionsMenu.UPDATE}`)
   @ApiOperation({ summary: 'Actualizar una especialidad existente' })
   @ApiResponse({ status: 200, description: 'Especialidad actualizada exitosamente' })
   @ApiResponse({ status: 404, description: 'Especialidad no encontrada' })
@@ -74,6 +81,7 @@ export class SpecialtyController {
    * Eliminar una especialidad (soft delete)
    */
   @Delete(':id')
+  @Permission(`${ModuleItemsMenu.ParametersModule}.${PermissionActionsMenu.DELETE}`)
   @ApiOperation({ summary: 'Eliminar una especialidad (soft delete)' })
   @ApiResponse({ status: 200, description: 'Especialidad eliminada exitosamente' })
   @ApiResponse({ status: 404, description: 'Especialidad no encontrada' })

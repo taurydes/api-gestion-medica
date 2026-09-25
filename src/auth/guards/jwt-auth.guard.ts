@@ -65,7 +65,7 @@ export class JwtAuthGuard implements CanActivate {
     // Verificar y decodificar JWT
     try {
       const decoded = this.jwtService.verify(token, {
-        secret: process.env.JWT_SECRET || process.env.JWTKEY_VALIDATOR,
+        secret: process.env.JWT_SECRET,
       });
       (request as any).user = decoded; // Añadir payload al request
       (request as any).accessToken = token; 

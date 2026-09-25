@@ -505,10 +505,28 @@ export class FilesController {
       limits: { fileSize: 300 * 1024 * 1024 },
     }),
   )
-  @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.VIEW}`)
+  // Escribe los frames en disco: es una acción de creación, no de consulta
+  @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.CREATE}`)
   async convertDicom(
     @UploadedFile() file: Express.Multer.File,
   ) {
     return this.dicomConverterService.convert(file);
+  }
+
+  /* ============================================================
+   * 🧬 MÉTODO – SERVIR FRAME DICOM CONVERTIDO
+   * ============================================================ */
+  @ApiOperation({
+    summary: 'Servir un frame DICOM convertido',
+    description: 'Devuelve el JPEG de un frame generado por /files/dicom-convert.',
+  })
+  @Get('dicom-conversions/:sessionId/:filename')
+  @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.VIEW}`)
+  serveDicomFrame(
+    @Param('sessionId') sessionId: string,
+    @Param('filename') filename: string,
+    @Res() res,
+  ): void {
+    return this.dicomConverterService.serveFrame(sessionId, filename, res);
   }
 }

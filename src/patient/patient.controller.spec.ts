@@ -9,7 +9,10 @@ describe('PatientController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [PatientController],
       providers: [PatientService],
-    }).compile();
+    })
+      // Dependencias sin implementación: estas specs solo comprueban la inyección
+      .useMocker(() => ({}))
+      .compile();
 
     controller = module.get<PatientController>(PatientController);
   });

@@ -5,6 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { UserAccessService } from 'src/common/services/user-access.service';
 import { RedisSessionService } from 'src/redis-session/redis-session.service';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 
@@ -29,6 +30,7 @@ export class SessionGuard implements CanActivate {
   constructor(
     private readonly redisSession: RedisSessionService,
     private readonly reflector: Reflector,
+    private readonly userAccessService: UserAccessService,
   ) {}
 
   /**
@@ -69,6 +71,14 @@ export class SessionGuard implements CanActivate {
     if (!isValid) {
       throw new UnauthorizedException('Sesión expirada o cerrada');
     }
+
+    // 🔹 4. Rechazar usuarios borrados o desactivados aunque su sesión siga en Redis
+    const access = await this.userAccessService.resolve(user.id);
+    if (!access || !access.isActive) {
+      throw new UnauthorizedException('Sesión inválida: usuario inactivo o eliminado');
+    }
+    // PermissionsGuard lo reutiliza para no repetir la consulta
+    req.userAccess = access;
 
     return true;
   }

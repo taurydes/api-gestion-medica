@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
@@ -34,7 +35,7 @@ export class UserSecurityController {
     description: 'Crea un nuevo usuario en el sistema.',
   })
   @Post()
-  @Permission(`${ModuleItemsMenu.UserModule}.${PermissionActionsMenu.CREATE}`)
+  @Permission(`${ModuleItemsMenu.UserSecurityModule}.${PermissionActionsMenu.CREATE}`)
   create(@Body() createUserSecurityDto: CreateUserSecurityDto) {
     return this.userSecurityService.create(createUserSecurityDto);
   }
@@ -48,7 +49,7 @@ export class UserSecurityController {
     description: 'Retorna todos los usuarios registrados. Ruta pública.',
   })
   @Get()
-  @Permission(`${ModuleItemsMenu.UserModule}.${PermissionActionsMenu.VIEW}`)
+  @Permission(`${ModuleItemsMenu.UserSecurityModule}.${PermissionActionsMenu.VIEW}`)
   findAll(@Query() query: UserSecurityQueryDto) {
     return this.userSecurityService.findAll(query);
   }
@@ -62,7 +63,7 @@ export class UserSecurityController {
     description: 'Recupera un usuario mediante su ID numérico.',
   })
   @Get(':id')
-  @Permission(`${ModuleItemsMenu.UserModule}.${PermissionActionsMenu.VIEW}`)
+  @Permission(`${ModuleItemsMenu.UserSecurityModule}.${PermissionActionsMenu.VIEW}`)
   findOne(@Param('id') id: string) {
     return this.userSecurityService.findOne(id);
   }
@@ -76,9 +77,18 @@ export class UserSecurityController {
     description: 'Actualiza campos del usuario identificado por su ID.',
   })
   @Patch(':id')
-  @Permission(`${ModuleItemsMenu.UserModule}.${PermissionActionsMenu.UPDATE}`)
-  update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
-    return this.userSecurityService.update(id, updateUserDto);
+  @Permission(`${ModuleItemsMenu.UserSecurityModule}.${PermissionActionsMenu.UPDATE}`)
+  update(
+    @Param('id') id: string,
+    @Body() updateUserDto: UpdateUserDto,
+    @Req() req: any,
+  ) {
+    // PermissionsGuard deja en la request los permisos del actor
+    return this.userSecurityService.update(
+      id,
+      updateUserDto,
+      req.userPermissions ?? [],
+    );
   }
 
   /**
@@ -90,7 +100,7 @@ export class UserSecurityController {
     description: 'Elimina un usuario existente usando su ID.',
   })
   @Delete(':id')
-  @Permission(`${ModuleItemsMenu.UserModule}.${PermissionActionsMenu.DELETE}`)
+  @Permission(`${ModuleItemsMenu.UserSecurityModule}.${PermissionActionsMenu.DELETE}`)
   remove(@Param('id') id: string) {
     return this.userSecurityService.remove(id);
   }

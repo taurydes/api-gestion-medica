@@ -1,42 +1,17 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Req,
-  Res,
-  Body,
-  UnauthorizedException,
-  Render,
-} from '@nestjs/common';
+import { Body, Controller, Get, Post, Render, Req, Res } from '@nestjs/common';
 import { Request, Response } from 'express';
-import { createBullBoard } from '@bull-board/api';
-import { ExpressAdapter } from '@bull-board/express';
 import { Throttle } from '@nestjs/throttler';
 import { Public } from 'src/auth/decorators/public.decorator';
-import { QueuesService } from '../queues.service';
 import { AuthService } from 'src/auth/auth.service';
-import { JwtService } from '@nestjs/jwt';
-import { RedisSessionService } from 'src/redis-session/redis-session.service';
-import { RoleEnum } from 'src/role/role.const';
 
+/**
+ * Login del panel Bull Board. El panel (`/admin/queues`) se monta en `main.ts`
+ * detrás de `PanelAccessService`, no en este controlador.
+ */
 @Controller('admin')
 @Throttle({ short: {} })
 export class BullBoardController {
-  private serverAdapter = new ExpressAdapter();
-
-  constructor(
-    private readonly queuesService: QueuesService,
-    private readonly authService: AuthService,
-    private readonly jwtService: JwtService,
-    private readonly redisSession: RedisSessionService,
-  ) {
-    this.serverAdapter.setBasePath('/admin/queues');
-
-    createBullBoard({
-      queues: this.queuesService.getBullAdapters(),
-      serverAdapter: this.serverAdapter,
-    });
-  }
+  constructor(private readonly authService: AuthService) {}
 
   // ======================================================
   // 🔹 VISTA DE LOGIN (FORM)
@@ -84,72 +59,5 @@ export class BullBoardController {
       message: 'Login exitoso',
       data: { access_token },
     });
-  }
-
-  // ======================================================
-  // 🔹 RUTAS DEL PANEL PRINCIPAL
-  // ======================================================
-  @Get('queues')
-  async renderQueues(@Req() req: Request, @Res() res: Response) {
-    return this.handleBullBoard(req, res);
-  }
-
-  @Get('queues/*')
-  async renderSubRoutes(@Req() req: Request, @Res() res: Response) {
-    return this.handleBullBoard(req, res);
-  }
-
-  // ======================================================
-  // 🧠 VALIDACIÓN: JWT + Sesión en Redis
-  // ======================================================
-  private async handleBullBoard(req: Request, res: Response) {
-    // 1) Tomamos token de cookie o Authorization
-    const token =
-      req.cookies?.access_token ||
-      req.headers.authorization?.replace('Bearer ', '');
-
-    if (!token) {
-      return res.redirect('/admin/login?error=Token%20requerido');
-    }
-
-    try {
-      // 2) Verificamos JWT con el mismo secreto de la app
-      const decoded = this.jwtService.verify(token, {
-        secret: process.env.JWT_SECRET,
-      }) as {
-        id: number;
-        name: string;
-        roleId: number;
-        roleName: string;
-        iat: number;
-        exp: number;
-      };
-
-      // 3) Validamos sesión en Redis (single-session / aún activa)
-      const isActive = await this.redisSession.isValidSession(
-        decoded.id.toString(),
-      );
-      if (!isActive) {
-        return res.redirect(
-          '/admin/login?error=Sesion%20invalida%20o%20expirada',
-        );
-      }
-
-      try {
-        const roleName = decoded?.roleName;
-        if (roleName !== RoleEnum.ADMIN) {
-          console.warn('Acceso denegado: solo superAdministrador');
-          return res.redirect('/logs/ui/login?error=Acceso%20denegado');
-        }
-      } catch (err) {
-        throw new UnauthorizedException(err.message);
-      }
-
-      // 4) Delegamos a Bull Board
-      const router = this.serverAdapter.getRouter();
-      return router(req, res);
-    } catch {
-      return res.redirect('/admin/login?error=Token%20invalido%20o%20expirado');
-    }
   }
 }

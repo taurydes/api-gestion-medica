@@ -7,7 +7,7 @@ import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { MenuService } from 'src/menu/menu.service';
 import { RedisSessionService } from 'src/redis-session/redis-session.service';
 import { UserSecurity } from 'src/user/entities/user.system.entity';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { User } from '../user/entities/user.entity';
 import { JwtPayload } from './auth.const';
 import { LoginUserDto } from './dto/login-auth.dto';
@@ -47,8 +47,13 @@ export class AuthService {
    * @throws UnauthorizedException Si las credenciales son inválidas.
    */
   async validateUser(credential: string, password: string): Promise<AuthUser> {
+    // Usuarios borrados o desactivados no inician sesión
+    const active = { deletedAt: IsNull(), status: true };
     const user = await this.userRepository.findOne({
-      where: [{ email: credential }, { name: credential }],
+      where: [
+        { email: credential, ...active },
+        { name: credential, ...active },
+      ],
     });
 
     if (!user) throw new UnauthorizedException('Usuario no encontrado');
@@ -72,8 +77,12 @@ export class AuthService {
     credential: string,
     password: string,
   ): Promise<AuthUser> {
+    const active = { deletedAt: IsNull(), status: true };
     const user = await this.userSystemRepository.findOne({
-      where: [{ email: credential }, { name: credential }],
+      where: [
+        { email: credential, ...active },
+        { name: credential, ...active },
+      ],
     });
 
     if (!user)
@@ -183,6 +192,10 @@ export class AuthService {
     }
     if (!user) {
       throw new UnauthorizedException('Usuario no encontrado');
+    }
+    if (user.deletedAt || user.status === false) {
+      await this.redisSession.deleteSession(userId);
+      throw new UnauthorizedException('Usuario inactivo o eliminado');
     }
 
     // 4. Regenerar tokens con datos frescos

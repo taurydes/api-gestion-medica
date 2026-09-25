@@ -6,6 +6,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { AuthContextService } from 'src/common/services/auth-context.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
@@ -84,6 +85,8 @@ export class MedicalAppointmentsService {
     private readonly recipeService: RecipeService,
     private readonly scheduleService: DoctorScheduleService,
     private readonly filesService: FilesService,
+
+    private readonly authContextService: AuthContextService,
   ) {}
 
   // ─── IDOR helper ───────────────────────────────────────────────────────────
@@ -147,12 +150,8 @@ export class MedicalAppointmentsService {
    * Los admins no están sujetos a restricciones IDOR aunque tengan perfil de doctor.
    */
   private async isAdminUser(userId: string): Promise<boolean> {
-    const user = await this.userRepository.findOne({
-      where: { id: userId },
-      relations: ['role'],
-    });
-    const roleName = (user?.role?.name ?? '').toLowerCase();
-    return roleName.includes('admin') || roleName.includes('super');
+    // Por permiso del rol, no por subcadena del nombre ("Administrativo" no queda exento)
+    return this.authContextService.isAdmin(userId);
   }
 
   // ─── Cache helpers ─────────────────────────────────────────────────────────

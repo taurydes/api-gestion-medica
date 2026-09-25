@@ -1,6 +1,5 @@
 import * as crypto from 'crypto';
 
-const ENCRYPT_KEY = process.env.ENCRYPT_KEY || 'default_key';
 const ITER = 150_000;
 const SALT_LEN = 16;
 const IV_LEN = 12;
@@ -72,7 +71,7 @@ export class DefaultEncryptionAdapter extends EncryptionAdapter {
   /**
    * @summary Inicializa el adaptador validando la longitud mínima de la clave base.
    */
-  constructor(private readonly defaultKey: string = ENCRYPT_KEY) {
+  constructor(private readonly defaultKey: string = process.env.ENCRYPT_KEY ?? '') {
     super();
     if (!this.defaultKey || this.defaultKey.length < 16) {
       throw new Error('APP_KEY inválido (mínimo 16 caracteres).');
@@ -363,7 +362,7 @@ export class DefaultEncryptionAdapter extends EncryptionAdapter {
  * @summary Crea instancia del adaptador principal usando APP_KEY global.
  */
 export function createEncryptionAdapter(): EncryptionAdapter {
-  return new DefaultEncryptionAdapter(ENCRYPT_KEY);
+  return new DefaultEncryptionAdapter(process.env.ENCRYPT_KEY ?? '');
 }
 
 // Ejemplos:

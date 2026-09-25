@@ -360,12 +360,23 @@ export class RecipeService {
    * @param medicalHistoryId - ID del historial médico
    * @returns Lista de recetas del historial
    */
-  async findByMedicalHistory(medicalHistoryId: string): Promise<Recipe[]> {
+  async findByMedicalHistory(
+    medicalHistoryId: string,
+    authUser?: any,
+  ): Promise<Recipe[]> {
     const cacheKey = `recipe:medical-history:${medicalHistoryId}`;
 
     try {
+      // IDOR: mismo criterio que findByPatient — un doctor solo ve sus recetas.
+      // Se filtra después de la caché para no multiplicar claves que hoy se invalidan por historial.
+      const myDoctorId = authUser?.id
+        ? await this.getDoctorIdForUser(authUser.id)
+        : null;
+      const scope = (list: Recipe[]) =>
+        myDoctorId ? list.filter((r) => r.doctorId === myDoctorId) : list;
+
       const cached = await this.cacheManager.get<Recipe[]>(cacheKey);
-      if (cached) return cached;
+      if (cached) return scope(cached);
 
       const recipes = await this.recipeRepository.find({
         where: { medicalHistoryId },
@@ -375,7 +386,7 @@ export class RecipeService {
 
       await this.cacheManager.set(cacheKey, recipes, 300);
 
-      return recipes;
+      return scope(recipes);
     } catch (error) {
       throw new NotFoundException(
         `Error al obtener las recetas del historial médico: ${error.message}`,

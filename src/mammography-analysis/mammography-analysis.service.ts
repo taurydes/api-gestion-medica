@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -14,11 +15,16 @@ import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { AppointmentFile } from 'src/files/entities/appointment-file.entity';
 import { MedicalAppointment } from 'src/medical-appointments/entities/medical-appointment.entity';
 import { User } from 'src/user/entities/user.entity';
+import { AuthContextService } from 'src/common/services/auth-context.service';
+import { resolveUploadPath } from 'src/files/upload-path.util';
 
 import { MammographyAnalysis } from './entities/mammography-analysis.entity';
 import { CreateMammographyAnalysisDto } from './dto/create-mammography-analysis.dto';
 import { QueryMammographyAnalysisDto } from './dto/query-mammography-analysis.dto';
 import { ReviewMammographyAnalysisDto } from './dto/review-mammography-analysis.dto';
+
+/** Médico al que se acota la consulta; `null` = sin restricción (admin o usuario que no es médico). */
+type DoctorScope = { doctorId: string; userId: string } | null;
 
 @Injectable()
 export class MammographyAnalysisService {
@@ -40,6 +46,8 @@ export class MammographyAnalysisService {
     private readonly userRepo: Repository<User>,
 
     private readonly configService: ConfigService,
+
+    private readonly authContextService: AuthContextService,
   ) {
     this.uploadsDir =
       this.configService.get<string>('UPLOADS_PATH') || 'uploads';
@@ -158,6 +166,35 @@ export class MammographyAnalysisService {
   }
 
   /* ============================================================
+   * ALCANCE POR MÉDICO (IDOR)
+   * ============================================================ */
+
+  private async resolveDoctorScope(authUser?: any): Promise<DoctorScope> {
+    const userId = authUser?.id;
+    const doctorId = await this.authContextService.getScopedDoctorId(userId);
+    return doctorId ? { doctorId, userId } : null;
+  }
+
+  /** Un médico ve los análisis de sus citas y los sin cita que él mismo registró. */
+  private applyDoctorScope(qb: any, scope: DoctorScope): void {
+    if (!scope) return;
+    qb.andWhere(
+      '(appointment.doctorId = :scopeDoctorId OR (analysis.appointmentId IS NULL AND analysis.analyzedBy = :scopeUserId))',
+      { scopeDoctorId: scope.doctorId, scopeUserId: scope.userId },
+    );
+  }
+
+  private assertDoctorAccess(record: MammographyAnalysis, scope: DoctorScope): void {
+    if (!scope) return;
+    const ownAppointment = record.appointment?.doctorId === scope.doctorId;
+    const ownStandalone =
+      !record.appointmentId && record.analyzedBy === scope.userId;
+    if (!ownAppointment && !ownStandalone) {
+      throw new ForbiddenException('No tiene acceso a este análisis.');
+    }
+  }
+
+  /* ============================================================
    * READ
    * ============================================================ */
 
@@ -167,8 +204,9 @@ export class MammographyAnalysisService {
    * por probabilidad descendente. Los análisis sin cita van en un grupo
    * especial con appointment = null.
    */
-  async findTodayInbox(query: QueryMammographyAnalysisDto) {
+  async findTodayInbox(query: QueryMammographyAnalysisDto, authUser?: any) {
     const { start, end } = this.resolveDateRange(query);
+    const scope = await this.resolveDoctorScope(authUser);
 
     const qb = this.analysisRepo
       .createQueryBuilder('analysis')
@@ -217,6 +255,7 @@ export class MammographyAnalysisService {
     if (query.status) {
       qb.andWhere('analysis.status = :status', { status: query.status });
     }
+    this.applyDoctorScope(qb, scope);
 
     this.applyUrgencyOrder(qb);
     qb.limit(query.limit ?? 200).offset(query.offset ?? 0);
@@ -270,8 +309,9 @@ export class MammographyAnalysisService {
    * descendente. Pensada para tablas de dashboard donde se quiere
    * "los N más graves del día" con info enriquecida de cita/paciente.
    */
-  async findRecent(query: QueryMammographyAnalysisDto) {
+  async findRecent(query: QueryMammographyAnalysisDto, authUser?: any) {
     const { start, end } = this.resolveDateRange(query);
+    const scope = await this.resolveDoctorScope(authUser);
     const limit = query.limit ?? 10;
     const offset = query.offset ?? 0;
 
@@ -307,6 +347,7 @@ export class MammographyAnalysisService {
         minProbability: query.minProbability,
       });
     }
+    this.applyDoctorScope(qb, scope);
 
     this.applyUrgencyOrder(qb);
 
@@ -333,20 +374,23 @@ export class MammographyAnalysisService {
     };
   }
 
-  async findByAppointment(appointmentId: string) {
+  async findByAppointment(appointmentId: string, authUser?: any) {
+    const scope = await this.resolveDoctorScope(authUser);
     // Misma ordenación de "urgencia" que la bandeja/ranking: malignos primero
     // (probability DESC), benignos después (probability ASC).
     const qb = this.analysisRepo
       .createQueryBuilder('analysis')
       .leftJoinAndSelect('analysis.appointmentFile', 'appointmentFile')
+      .leftJoin('analysis.appointment', 'appointment')
       .where('analysis.deletedAt IS NULL')
       .andWhere('analysis.appointmentId = :appointmentId', { appointmentId });
+    this.applyDoctorScope(qb, scope);
     this.applyUrgencyOrder(qb);
     const items = await qb.getMany();
     return items.map((r) => this.serialize(r));
   }
 
-  async findOne(id: string): Promise<MammographyAnalysis> {
+  async findOne(id: string, authUser?: any): Promise<MammographyAnalysis> {
     const record = await this.analysisRepo.findOne({
       where: { id, deletedAt: IsNull() },
       relations: ['appointment', 'appointmentFile', 'patient'],
@@ -354,6 +398,7 @@ export class MammographyAnalysisService {
     if (!record) {
       throw new NotFoundException('Análisis no encontrado.');
     }
+    this.assertDoctorAccess(record, await this.resolveDoctorScope(authUser));
     return record;
   }
 
@@ -366,7 +411,7 @@ export class MammographyAnalysisService {
     dto: ReviewMammographyAnalysisDto,
     userId: string | null,
   ): Promise<MammographyAnalysis> {
-    const record = await this.findOne(id);
+    const record = await this.findOne(id, userId ? { id: userId } : undefined);
     record.isReviewed = true;
     record.reviewedBy = userId;
     record.reviewedAt = new Date();
@@ -380,16 +425,12 @@ export class MammographyAnalysisService {
    * SERVE IMAGE
    * ============================================================ */
 
-  async serveImage(id: string, res: any): Promise<void> {
-    const record = await this.findOne(id);
+  async serveImage(id: string, res: any, authUser?: any): Promise<void> {
+    const record = await this.findOne(id, authUser);
     if (!record.imagePath) {
       throw new NotFoundException('Este análisis no tiene imagen almacenada.');
     }
-    const fullPath = path.join(
-      process.cwd(),
-      this.uploadsDir,
-      record.imagePath,
-    );
+    const fullPath = resolveUploadPath(this.uploadsDir, record.imagePath);
     if (!fs.existsSync(fullPath)) {
       throw new NotFoundException('Archivo de imagen no existe en disco.');
     }
@@ -408,12 +449,16 @@ export class MammographyAnalysisService {
    * STATS
    * ============================================================ */
 
-  async getDailyStats(query: { date?: string; dateFrom?: string; dateTo?: string } = {}) {
+  async getDailyStats(
+    query: { date?: string; dateFrom?: string; dateTo?: string } = {},
+    authUser?: any,
+  ) {
     const { start, end } = this.resolveDateRange(query as QueryMammographyAnalysisDto);
+    const scope = await this.resolveDoctorScope(authUser);
 
     // Mismo criterio que la bandeja: fecha de la cita o, en su defecto,
     // fecha de creación del análisis (para análisis standalone).
-    const all = await this.analysisRepo
+    const statsQb = this.analysisRepo
       .createQueryBuilder('analysis')
       .leftJoin('analysis.appointment', 'appointment')
       .where('analysis.deletedAt IS NULL')
@@ -429,8 +474,9 @@ export class MammographyAnalysisService {
         'analysis.status',
         'analysis.probability',
         'analysis.isReviewed',
-      ])
-      .getMany();
+      ]);
+    this.applyDoctorScope(statsQb, scope);
+    const all = await statsQb.getMany();
 
     const total = all.length;
     const danger = all.filter((a) => a.status === 'danger').length;

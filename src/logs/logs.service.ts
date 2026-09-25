@@ -5,6 +5,11 @@ import { Repository } from 'typeorm';
 import { PaginationLogDto } from './dto/pagination-log.dto';
 import { ErrorLog } from './entities/error-log.entity';
 import { LogCreationOptions } from './logs.const';
+import {
+  maskSensitive,
+  sanitizeHeaders,
+  sanitizeRoute,
+} from './log-sanitizer.util';
 
 @Injectable()
 export class LogsService {
@@ -150,7 +155,7 @@ export class LogsService {
   async create(dto: LogCreationOptions): Promise<void> {
     try {
       if (dto.requestBody) {
-        let requestBody = dto.requestBody;
+        let requestBody: any = dto.requestBody;
         // Si es string, intenta parsear
         if (typeof requestBody === 'string') {
           try {
@@ -159,17 +164,16 @@ export class LogsService {
             // Si no es JSON válido, lo dejamos como está
           }
         }
-        // Si es objeto y tiene password, lo ocultamos
-        if (
-          typeof requestBody === 'object' &&
-          requestBody !== null &&
-          Object.prototype.hasOwnProperty.call(requestBody, 'password')
-        ) {
-          (requestBody as Record<string, any>)['password'] = '******';
-        }
-        // Guardamos como string
-        dto.requestBody = requestBody;
+        dto.requestBody = maskSensitive(requestBody);
       }
+      // Sin credenciales: ni headers de autenticación ni campos sensibles en profundidad
+      dto.headers = sanitizeHeaders(dto.headers);
+      dto.requestQuery = maskSensitive(dto.requestQuery);
+      dto.context = maskSensitive(dto.context);
+      if (typeof dto.context?.referer === 'string') {
+        dto.context.referer = sanitizeRoute(dto.context.referer);
+      }
+      dto.route = sanitizeRoute(dto.route);
       const data = this.errorLogRepository.create(dto);
       await this.errorLogRepository.save(data);
     } catch (e) {

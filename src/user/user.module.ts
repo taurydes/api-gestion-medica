@@ -10,6 +10,8 @@ import { UserSecurityController } from './user-security.controller';
 import { UserSecurityService } from './user-security.service';
 import { UserController } from './user.controller';
 import { UserService } from './user.service';
+import { ProfileController } from './profile.controller';
+import { ProfileService } from './profile.service';
 
 import { CommonPerson } from 'src/common-person/entities/common-person.entity';
 import { CommonPersonImage } from 'src/common-person/entities/common-person-image.entity';
@@ -36,8 +38,8 @@ import { FilesModule } from 'src/files/files.module';
     forwardRef(() => RoleModule),
     FilesModule,
   ],
-  controllers: [UserSecurityController, UserController],
-  providers: [UserSecurityService, UserService],
+  controllers: [UserSecurityController, UserController, ProfileController],
+  providers: [UserSecurityService, UserService, ProfileService],
   exports: [UserSecurityService, UserService, TypeOrmModule],
 })
 export class UserModule {}

@@ -9,7 +9,10 @@ describe('MenuController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [MenuController],
       providers: [MenuService],
-    }).compile();
+    })
+      // Dependencias sin implementación: estas specs solo comprueban la inyección
+      .useMocker(() => ({}))
+      .compile();
 
     controller = module.get<MenuController>(MenuController);
   });

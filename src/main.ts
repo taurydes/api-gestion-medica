@@ -17,6 +17,9 @@ import { HttpResponseInterceptor } from './common/interceptors/HttpResponse.inte
 import { LogsService } from './logs/logs.service';
 import { registerHandlebarsHelpers } from './logs/views/helpers';
 import { BullBoardService } from './queues/bull-board/bull-board.service';
+import { PanelAccessService } from './auth/services/panel-access.service';
+import { ModuleItemsMenu } from './menu/menu.const';
+import { PermissionActionsMenu } from './permission/permission.const';
 import { ConfigService } from '@nestjs/config';
 
 async function bootstrap() {
@@ -109,9 +112,17 @@ async function bootstrap() {
   // -------------------------------------------------
   // 📊 Bull Board - Panel de administración
   // -------------------------------------------------
+  // Montado una sola vez y detrás de JWT + sesión + permiso: el router Express no pasa por los guards globales.
   const bullBoardService = app.get(BullBoardService);
-  const bullRouter = bullBoardService.serverAdapter.getRouter();
-  app.use('/admin/queues', bullRouter);
+  const panelAccess = app.get(PanelAccessService);
+  app.use(
+    '/admin/queues',
+    panelAccess.middleware(
+      `${ModuleItemsMenu.BullBoardModule}.${PermissionActionsMenu.VIEW}`,
+      '/admin/login',
+    ),
+    bullBoardService.serverAdapter.getRouter(),
+  );
 
   // -------------------------------------------------
   // 🚀 Arranque

@@ -2,11 +2,10 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { Module, ValidationPipe } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD, APP_PIPE } from '@nestjs/core';
-import { ServeStaticModule } from '@nestjs/serve-static';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
-import { join } from 'path';
 import { redisStore } from 'cache-manager-redis-store';
 import { AuthModule } from './auth/auth.module';
+import { CommonModule } from './common/common.module';
 import { PermissionsGuard } from './auth/guards/permission.guard';
 import { SessionGuard } from './auth/guards/session.guard';
 import { configuration, validationSchema } from './configuration/index';
@@ -78,16 +77,9 @@ import { MammographyAnalysisModule } from './mammography-analysis/mammography-an
         blockDuration: 90000, // Bloquea por 90 segundos si se excede el límite
       },
     ]),
-    ServeStaticModule.forRoot({
-      rootPath: join(process.cwd(), 'uploads'),
-      serveRoot: '/uploads',
-      serveStaticOptions: {
-        index: false,
-        fallthrough: false,
-      },
-    }),
     getMainConnection(), // Conexión principal a la base de datos
     AuthModule,
+    CommonModule,
     UserModule,
     CommonPersonModule,
     RoleModule,

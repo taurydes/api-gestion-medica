@@ -27,7 +27,9 @@ export const validationSchema = Joi.object({
   }),
   DB_PORT: Joi.number().default(5432),
   DB_USER: Joi.string().default('postgres'),
-  DB_PASS: Joi.string().allow('').default('123456'),
+  DB_PASS: Joi.string().allow('').required().messages({
+    'any.required': '❌ DB_PASS es obligatorio',
+  }),
   DB_NAME: Joi.string().default('bd_gestion_medica'),
 
   // ---------------------------
@@ -54,6 +56,9 @@ export const validationSchema = Joi.object({
     'any.required': '❌ JWT_SECRET es obligatorio',
   }),
   JWT_EXPIRES_IN: Joi.string().default('1h'),
+  JWT_REFRESH_SECRET: Joi.string().required().messages({
+    'any.required': '❌ JWT_REFRESH_SECRET es obligatorio',
+  }),
 
   // ---------------------------
   // 🔹 Correo (SMTP o Mailpit)
@@ -64,11 +69,14 @@ export const validationSchema = Joi.object({
   EMAIL_PORT: Joi.number().default(1025),
   EMAIL_SECURE: Joi.boolean().truthy('true').falsy('false').default(false),
   EMAIL_USER: Joi.string().allow('').default('usuario'),
-  EMAIL_PASS: Joi.string().allow('').default('clave'),
+  EMAIL_PASS: Joi.string().allow('').default(''),
 
   // ---------------------------
   // 🔹 Token de validación
   // ---------------------------
+  ENCRYPT_KEY: Joi.string().min(16).required().messages({
+    'any.required': '❌ ENCRYPT_KEY es obligatorio',
+  }),
   TOKEN_VALIDATOR: Joi.string().required().messages({
     'any.required': '❌ TOKEN_VALIDATOR es obligatorio',
   }),

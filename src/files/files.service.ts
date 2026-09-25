@@ -22,6 +22,12 @@ import { CreateVideoBase64Dto, CreateVideoMultipartDto } from './dto/create-vide
 import { MedicalCenterImage } from 'src/medical-center/entities/medical-center-image.entity';
 import { DoctorImage } from 'src/doctors/entities/doctor-image.entity';
 import { CommonPersonImage } from 'src/common-person/entities/common-person-image.entity';
+import {
+  GENERAL_FOLDER,
+  assertFolderId,
+  assertSafeFileName,
+  resolveUploadPath,
+} from './upload-path.util';
 
 
 @Injectable()
@@ -59,18 +65,12 @@ export class FilesService {
   }
 
   /* ============================================================
-   * HELPER: construir URL pública a partir de ruta relativa
+   * HELPER: URL de un endpoint protegido de `files`
    * ============================================================ */
 
-  /**
-   * @summary Construir URL pública de un archivo en uploads/
-   * @param relativePath Ruta relativa desde la carpeta uploads/
-   *   Ejemplo: 'medical-centers/abc-123/photo.webp'
-   * @returns URL completa accesible vía ServeStaticModule
-   *   Ejemplo: 'http://localhost:8008/uploads/medical-centers/abc-123/photo.webp'
-   */
-  buildFileUrl(relativePath: string): string {
-    return `${this.publicUrl}/uploads/${relativePath}`;
+  /** URL bajo `/files/...`, que exige JWT + `file.consultar` (ya no existe `/uploads` público). */
+  private buildFilesEndpointUrl(route: string): string {
+    return `${this.publicUrl}/files/${route}`;
   }
 
   /* ============================================================
@@ -81,11 +81,12 @@ export class FilesService {
    * @summary Subir archivo base64 (genérico)
    * @description Guarda archivo base64 y retorna URL pública.
    */
-  async uploadFile(dto: UploadFileDto): Promise<{ url: string; name: string }> {
-    const uploadPath = path.join(process.cwd(), this.uploadsDir);
+  async uploadFile(dto: UploadFileDto): Promise<{ url: null; name: string }> {
+    const name = assertSafeFileName(dto.name);
+    const uploadPath = resolveUploadPath(this.uploadsDir);
     fs.mkdirSync(uploadPath, { recursive: true });
 
-    const filePath = path.join(uploadPath, dto.name);
+    const filePath = resolveUploadPath(this.uploadsDir, name);
 
     const base64 = dto.content.includes(',')
       ? dto.content.split(',')[1]
@@ -93,18 +94,17 @@ export class FilesService {
 
     fs.writeFileSync(filePath, Buffer.from(base64, 'base64'));
 
-    return {
-      url: `${this.publicUrl}/${this.uploadsDir}/${dto.name}`,
-      name: dto.name,
-    };
+    // Sin URL: no hay endpoint protegido para archivos genéricos
+    return { url: null, name };
   }
 
   /**
    * @summary Obtener URL pública
    * @description Construye URL usando PUBLIC_URL del .env.
    */
-  async getFileUrl(name: string): Promise<{ url: string }> {
-    return { url: this.buildFileUrl(name) };
+  async getFileUrl(name: string): Promise<{ url: null }> {
+    assertSafeFileName(name);
+    return { url: null };
   }
 
   /**
@@ -136,15 +136,17 @@ export class FilesService {
     clienteId: string,
   ): Promise<string> {
     try {
-      const clientDir = path.join(process.cwd(), this.uploadsDir, `client-${clienteId}`);
+      assertFolderId(clienteId, 'clienteId');
+      const safeName = assertSafeFileName(fileName);
+      const clientDir = resolveUploadPath(this.uploadsDir, `client-${clienteId}`);
       fs.mkdirSync(clientDir, { recursive: true });
 
-      const filePath = path.join(clientDir, fileName);
+      const filePath = resolveUploadPath(this.uploadsDir, `client-${clienteId}`, safeName);
       const pure = base64.includes(',') ? base64.split(',')[1] : base64;
 
       fs.writeFileSync(filePath, Buffer.from(pure, 'base64'));
 
-      return `${this.publicUrl}/${this.uploadsDir}/client-${clienteId}/${fileName}`;
+      return `${this.publicUrl}/${this.uploadsDir}/client-${clienteId}/${safeName}`;
     } catch {
       throw new InternalServerErrorException('Error al guardar video');
     }
@@ -183,10 +185,12 @@ export class FilesService {
     }
 
     /* 🔹 Crear carpeta del cliente */
-    const clientDir = path.join(process.cwd(), this.uploadsDir, `client-${dto.clienteId}`);
+    assertFolderId(dto.clienteId, 'clienteId');
+    const safeName = assertSafeFileName(file.originalname);
+    const clientDir = resolveUploadPath(this.uploadsDir, `client-${dto.clienteId}`);
     fs.mkdirSync(clientDir, { recursive: true });
 
-    const filePath = path.join(clientDir, file.originalname);
+    const filePath = resolveUploadPath(this.uploadsDir, `client-${dto.clienteId}`, safeName);
 
     fs.writeFileSync(filePath, file.buffer);
 
@@ -202,7 +206,7 @@ export class FilesService {
     }
 
     /* 🔹 Construir URL pública */
-    const url = `${this.publicUrl}/${this.uploadsDir}/client-${dto.clienteId}/${file.originalname}`;
+    const url = `${this.publicUrl}/${this.uploadsDir}/client-${dto.clienteId}/${safeName}`;
 
     /* 🔹 Registrar en DB */
     const video = this.videoRepository.create({
@@ -236,7 +240,8 @@ export class FilesService {
     const video = await this.videoRepository.findOne({ where: { id } });
     if (!video) throw new NotFoundException('Video no encontrado');
 
-    const localPath = video.archivoRuta.replace(this.publicUrl, path.join(process.cwd()));
+    const relative = video.archivoRuta.replace(`${this.publicUrl}/${this.uploadsDir}/`, '');
+    const localPath = resolveUploadPath(this.uploadsDir, relative);
 
     if (!fs.existsSync(localPath)) {
       throw new NotFoundException('Archivo de video no existe en el servidor');
@@ -282,18 +287,21 @@ export class FilesService {
     }
 
     // Estructura: UPLOADS_PATH/userId/medicalCenterId/appointmentId/
+    assertFolderId(data.uploadedBy, 'uploadedBy');
+    assertFolderId(data.medicalCenterId, 'medicalCenterId');
+    assertFolderId(data.appointmentId, 'appointmentId');
     const relativePath = path.join(
       data.uploadedBy,
       data.medicalCenterId,
       data.appointmentId,
     );
-    const fullDir = path.join(process.cwd(), this.uploadsDir, relativePath);
+    const fullDir = resolveUploadPath(this.uploadsDir, relativePath);
     fs.mkdirSync(fullDir, { recursive: true });
 
     // Nombre único para evitar colisiones
-    const ext = path.extname(file.originalname);
+    const ext = path.extname(path.basename(file.originalname));
     const storedName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
-    const fullPath = path.join(fullDir, storedName);
+    const fullPath = resolveUploadPath(this.uploadsDir, relativePath, storedName);
 
     // Guardar archivo binario
     fs.writeFileSync(fullPath, file.buffer);
@@ -331,7 +339,7 @@ export class FilesService {
       throw new NotFoundException('Archivo no encontrado.');
     }
 
-    const fullPath = path.join(process.cwd(), this.uploadsDir, record.filePath);
+    const fullPath = resolveUploadPath(this.uploadsDir, record.filePath);
     if (!fs.existsSync(fullPath)) {
       throw new NotFoundException('Archivo físico no encontrado en el servidor.');
     }
@@ -360,7 +368,7 @@ export class FilesService {
       order: { createdAt: 'ASC' },
     });
 
-    return files.map((f) => ({ ...f, url: this.buildFileUrl(f.filePath) }));
+    return files.map((f) => ({ ...f, url: this.getAppointmentFileUrl(f.id) }));
   }
 
   /**
@@ -375,7 +383,7 @@ export class FilesService {
       order: { createdAt: 'ASC' },
     });
 
-    return files.map((f) => ({ ...f, url: this.buildFileUrl(f.filePath) }));
+    return files.map((f) => ({ ...f, url: this.getAppointmentFileUrl(f.id) }));
   }
 
   /* ============================================================
@@ -414,17 +422,17 @@ export class FilesService {
 
     const webpBuffer = await sharp(file.buffer).webp({ quality: 85 }).toBuffer();
 
-    const folder = ownerId ?? 'general';
-    const dir = path.join(process.cwd(), this.uploadsDir, 'users', folder, 'profile');
+    const folder = ownerId ? assertFolderId(ownerId, 'ownerId') : GENERAL_FOLDER;
+    const dir = resolveUploadPath(this.uploadsDir, 'users', folder, 'profile');
 
     fs.mkdirSync(dir, { recursive: true });
 
     const storedName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`;
-    const filePath = path.join(dir, storedName);
+    const filePath = resolveUploadPath(this.uploadsDir, 'users', folder, 'profile', storedName);
 
     fs.writeFileSync(filePath, webpBuffer);
 
-    const url = this.buildFileUrl(`users/${folder}/profile/${storedName}`);
+    const url = this.buildFilesEndpointUrl(`profile-photos/${folder}/${storedName}`);
     return { url };
   }
 
@@ -433,15 +441,9 @@ export class FilesService {
    * @description Devuelve un stream de la imagen con las cabeceras MIME correctas.
    */
   async serveProfilePhoto(ownerId: string, filename: string, res: any): Promise<void> {
-    const baseDir = path.join(
-      process.cwd(),
-      this.uploadsDir,
-      'users',
-      ownerId,
-      'profile',
-    );
-
-    const fullPath = path.join(baseDir, filename);
+    assertFolderId(ownerId, 'ownerId', true);
+    assertSafeFileName(filename);
+    const fullPath = resolveUploadPath(this.uploadsDir, 'users', ownerId, 'profile', filename);
 
     if (!fs.existsSync(fullPath)) {
       throw new NotFoundException('Foto de perfil no encontrada en el servidor.');
@@ -498,18 +500,17 @@ export class FilesService {
 
     const webpBuffer = await sharp(file.buffer).webp({ quality: 85 }).toBuffer();
 
-    const folder = data.medicalCenterId;
-    const dir = path.join(process.cwd(), this.uploadsDir, 'medical-centers', folder);
+    const folder = assertFolderId(data.medicalCenterId, 'medicalCenterId');
+    const dir = resolveUploadPath(this.uploadsDir, 'medical-centers', folder);
 
     fs.mkdirSync(dir, { recursive: true });
 
     const storedName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`;
-    const fullFilePath = path.join(dir, storedName);
+    const fullFilePath = resolveUploadPath(this.uploadsDir, 'medical-centers', folder, storedName);
 
     fs.writeFileSync(fullFilePath, webpBuffer);
 
     const filePathRelative = `medical-centers/${folder}/${storedName}`;
-    const url = this.buildFileUrl(filePathRelative);
 
     // Desactivar todas las imágenes activas previas del centro
     await this.medicalCenterImageRepository.update(
@@ -532,7 +533,7 @@ export class FilesService {
 
     const image = await this.medicalCenterImageRepository.save(record);
 
-    return { url, image };
+    return { url: this.getMedicalCenterImageUrl(image.id), image };
   }
 
   /**
@@ -559,7 +560,7 @@ export class FilesService {
     await this.medicalCenterImageRepository.save(record);
 
     // Borrar archivo físico si existe
-    const fullPath = path.join(process.cwd(), this.uploadsDir, record.filePath);
+    const fullPath = resolveUploadPath(this.uploadsDir, record.filePath);
     if (fs.existsSync(fullPath)) {
       fs.unlinkSync(fullPath);
     }
@@ -584,7 +585,7 @@ export class FilesService {
       throw new NotFoundException('Imagen no encontrada.');
     }
 
-    const fullPath = path.join(process.cwd(), this.uploadsDir, record.filePath);
+    const fullPath = resolveUploadPath(this.uploadsDir, record.filePath);
     if (!fs.existsSync(fullPath)) {
       throw new NotFoundException('Archivo físico no encontrado en el servidor.');
     }
@@ -624,14 +625,14 @@ export class FilesService {
       throw new BadRequestException('La imagen no puede superar los 5 MB.');
 
     const webpBuffer = await sharp(file.buffer).webp({ quality: 85 }).toBuffer();
-    const dir = path.join(process.cwd(), this.uploadsDir, 'doctors', data.doctorId);
+    assertFolderId(data.doctorId, 'doctorId');
+    const dir = resolveUploadPath(this.uploadsDir, 'doctors', data.doctorId);
     fs.mkdirSync(dir, { recursive: true });
 
     const storedName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`;
-    fs.writeFileSync(path.join(dir, storedName), webpBuffer);
+    fs.writeFileSync(resolveUploadPath(this.uploadsDir, 'doctors', data.doctorId, storedName), webpBuffer);
 
     const filePathRelative = `doctors/${data.doctorId}/${storedName}`;
-    const url = this.buildFileUrl(filePathRelative);
 
     // Desactivar imágenes previas
     await this.doctorImageRepository.update(
@@ -649,7 +650,7 @@ export class FilesService {
       filePath: filePathRelative,
     });
     const image = await this.doctorImageRepository.save(record);
-    return { url, image };
+    return { url: this.getDoctorImageUrl(image.id), image };
   }
 
   /**
@@ -660,7 +661,7 @@ export class FilesService {
       where: { id: imageId, deletedAt: IsNull() },
     });
     if (!record) throw new NotFoundException('Imagen no encontrada.');
-    const fullPath = path.join(process.cwd(), this.uploadsDir, record.filePath);
+    const fullPath = resolveUploadPath(this.uploadsDir, record.filePath);
     if (!fs.existsSync(fullPath)) throw new NotFoundException('Archivo físico no encontrado.');
     res.setHeader('Content-Type', record.mimeType);
     res.setHeader('Content-Disposition', `inline; filename="${record.originalName}"`);
@@ -676,14 +677,9 @@ export class FilesService {
     filename: string,
     res: any,
   ): Promise<void> {
-    const baseDir = path.join(
-      process.cwd(),
-      this.uploadsDir,
-      'medical-centers',
-      medicalCenterId,
-    );
-
-    const fullPath = path.join(baseDir, filename);
+    assertFolderId(medicalCenterId, 'medicalCenterId');
+    assertSafeFileName(filename);
+    const fullPath = resolveUploadPath(this.uploadsDir, 'medical-centers', medicalCenterId, filename);
 
     if (!fs.existsSync(fullPath)) {
       throw new NotFoundException('Foto de centro médico no encontrada en el servidor.');
@@ -739,17 +735,17 @@ export class FilesService {
 
     const webpBuffer = await sharp(file.buffer).webp({ quality: 85 }).toBuffer();
 
-    const folder = personId ?? 'general';
-    const dir = path.join(process.cwd(), this.uploadsDir, 'common-persons', folder);
+    const folder = personId ? assertFolderId(personId, 'personId') : GENERAL_FOLDER;
+    const dir = resolveUploadPath(this.uploadsDir, 'common-persons', folder);
 
     fs.mkdirSync(dir, { recursive: true });
 
     const storedName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`;
-    const filePath = path.join(dir, storedName);
+    const filePath = resolveUploadPath(this.uploadsDir, 'common-persons', folder, storedName);
 
     fs.writeFileSync(filePath, webpBuffer);
 
-    const url = this.buildFileUrl(`common-persons/${folder}/${storedName}`);
+    const url = this.buildFilesEndpointUrl(`common-person-photos/${folder}/${storedName}`);
     return { url };
   }
 
@@ -762,14 +758,9 @@ export class FilesService {
     filename: string,
     res: any,
   ): Promise<void> {
-    const baseDir = path.join(
-      process.cwd(),
-      this.uploadsDir,
-      'common-persons',
-      personId,
-    );
-
-    const fullPath = path.join(baseDir, filename);
+    assertFolderId(personId, 'personId', true);
+    assertSafeFileName(filename);
+    const fullPath = resolveUploadPath(this.uploadsDir, 'common-persons', personId, filename);
 
     if (!fs.existsSync(fullPath)) {
       throw new NotFoundException('Foto de persona no encontrada en el servidor.');
@@ -834,16 +825,12 @@ export class FilesService {
 
     const webpBuffer = await sharp(file.buffer).webp({ quality: 85 }).toBuffer();
 
-    const dir = path.join(
-      process.cwd(),
-      this.uploadsDir,
-      'common-persons',
-      data.commonPersonId,
-    );
+    assertFolderId(data.commonPersonId, 'commonPersonId');
+    const dir = resolveUploadPath(this.uploadsDir, 'common-persons', data.commonPersonId);
     fs.mkdirSync(dir, { recursive: true });
 
     const storedName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`;
-    const filePath = path.join(dir, storedName);
+    const filePath = resolveUploadPath(this.uploadsDir, 'common-persons', data.commonPersonId, storedName);
     fs.writeFileSync(filePath, webpBuffer);
 
     // Desactivar imagen previa
@@ -879,7 +866,7 @@ export class FilesService {
       throw new NotFoundException('Imagen de persona no encontrada.');
     }
 
-    const fullPath = path.join(process.cwd(), this.uploadsDir, record.filePath);
+    const fullPath = resolveUploadPath(this.uploadsDir, record.filePath);
     if (!fs.existsSync(fullPath)) {
       throw new NotFoundException('Archivo de imagen no encontrado en el servidor.');
     }

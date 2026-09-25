@@ -102,8 +102,8 @@ export class PatientController {
   @ApiResponse({ status: 404, description: 'Paciente no encontrado' })
   @Get(':id')
   @Permission(`${ModuleItemsMenu.PatientModule}.${PermissionActionsMenu.VIEW}`)
-  async findOne(@Param('id') id: string) {
-    return await this.patientService.findOne(id);
+  async findOne(@Param('id') id: string, @Req() req: any) {
+    return await this.patientService.findOne(id, req.user);
   }
 
   /**

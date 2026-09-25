@@ -9,6 +9,7 @@ import {
   Res,
   UploadedFile,
   UseInterceptors,
+  Req,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -100,8 +101,8 @@ export class MammographyAnalysisController {
   @Permission(
     `${ModuleItemsMenu.MammographyAnalysisModule}.${PermissionActionsMenu.VIEW}`,
   )
-  inbox(@Query() query: QueryMammographyAnalysisDto) {
-    return this.service.findTodayInbox(query);
+  inbox(@Query() query: QueryMammographyAnalysisDto, @Req() req: any) {
+    return this.service.findTodayInbox(query, req.user);
   }
 
   /* ============================================================
@@ -117,8 +118,8 @@ export class MammographyAnalysisController {
   @Permission(
     `${ModuleItemsMenu.MammographyAnalysisModule}.${PermissionActionsMenu.VIEW}`,
   )
-  recent(@Query() query: QueryMammographyAnalysisDto) {
-    return this.service.findRecent(query);
+  recent(@Query() query: QueryMammographyAnalysisDto, @Req() req: any) {
+    return this.service.findRecent(query, req.user);
   }
 
   /* ============================================================
@@ -133,8 +134,8 @@ export class MammographyAnalysisController {
   @Permission(
     `${ModuleItemsMenu.MammographyAnalysisModule}.${PermissionActionsMenu.VIEW}`,
   )
-  dailyStats(@Query() query: QueryMammographyAnalysisDto) {
-    return this.service.getDailyStats(query);
+  dailyStats(@Query() query: QueryMammographyAnalysisDto, @Req() req: any) {
+    return this.service.getDailyStats(query, req.user);
   }
 
   /* ============================================================
@@ -149,8 +150,11 @@ export class MammographyAnalysisController {
   @Permission(
     `${ModuleItemsMenu.MammographyAnalysisModule}.${PermissionActionsMenu.VIEW}`,
   )
-  byAppointment(@Param('appointmentId') appointmentId: string) {
-    return this.service.findByAppointment(appointmentId);
+  byAppointment(
+    @Param('appointmentId') appointmentId: string,
+    @Req() req: any,
+  ) {
+    return this.service.findByAppointment(appointmentId, req.user);
   }
 
   /* ============================================================
@@ -185,8 +189,8 @@ export class MammographyAnalysisController {
   @Permission(
     `${ModuleItemsMenu.MammographyAnalysisModule}.${PermissionActionsMenu.VIEW}`,
   )
-  image(@Param('id') id: string, @Res() res: any) {
-    return this.service.serveImage(id, res);
+  image(@Param('id') id: string, @Res() res: any, @Req() req: any) {
+    return this.service.serveImage(id, res, req.user);
   }
 
   /* ============================================================
@@ -197,7 +201,7 @@ export class MammographyAnalysisController {
   @Permission(
     `${ModuleItemsMenu.MammographyAnalysisModule}.${PermissionActionsMenu.VIEW}`,
   )
-  findOne(@Param('id') id: string) {
-    return this.service.findOne(id);
+  findOne(@Param('id') id: string, @Req() req: any) {
+    return this.service.findOne(id, req.user);
   }
 }

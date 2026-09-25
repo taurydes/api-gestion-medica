@@ -1,19 +1,26 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import {
   BadRequestException,
+  HttpException,
   Inject,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { Cache } from 'cache-manager';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { Repository } from 'typeorm';
+import { RedisSessionService } from 'src/redis-session/redis-session.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserSecurityQueryDto } from './dto/user-security-query.dto';
 import { UserSecurity } from './entities/user.system.entity';
 import { CreateUserSecurityDto } from './dto/create-user-security.dto';
+import {
+  resolveAdminFieldChanges,
+  revokeSessionOrFail,
+} from './user-admin-fields';
 
 @Injectable()
 export class UserSecurityService {
@@ -23,6 +30,8 @@ export class UserSecurityService {
 
     @Inject(CACHE_MANAGER)
     private readonly cacheManager: Cache,
+
+    private readonly redisSession: RedisSessionService,
   ) {}
 
   /**
@@ -179,11 +188,12 @@ export class UserSecurityService {
   }
 
   /**
-   * Actualizar usuario
+   * `roleId` y `status` siguen la misma regla que PATCH /users (ver `resolveAdminFieldChanges`).
    */
   async update(
     id: string,
     updateUserDto: UpdateUserDto,
+    actorPermissions: string[] = [],
   ): Promise<Omit<UserSecurity, 'password'> | null> {
     try {
       const user = await this.userSecurityRepository.findOneBy({ id });
@@ -192,11 +202,30 @@ export class UserSecurityService {
         throw new NotFoundException(`Usuario con ID ${id} no encontrado.`);
       }
 
-      if (updateUserDto.password) {
-        updateUserDto.password = await bcrypt.hash(updateUserDto.password, 10);
+      const {
+        password: _password,
+        roleId,
+        status,
+        ...userFields
+      } = updateUserDto as any;
+      const { fields, deactivates } = resolveAdminFieldChanges(
+        user,
+        { roleId, status },
+        actorPermissions,
+      );
+      Object.assign(userFields, fields);
+
+      // Revocar antes de escribir: si Redis falla, no queda nada persistido
+      if (deactivates) {
+        await revokeSessionOrFail(this.redisSession, id);
       }
 
-      await this.userSecurityRepository.update(id, updateUserDto);
+      for (const key of Object.keys(userFields)) {
+        if (userFields[key] === undefined) delete userFields[key];
+      }
+      if (Object.keys(userFields).length > 0) {
+        await this.userSecurityRepository.update(id, userFields);
+      }
       const updated = await this.userSecurityRepository.findOneBy({ id });
 
       if (!updated) {
@@ -212,6 +241,7 @@ export class UserSecurityService {
 
       return rest;
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       throw new BadRequestException(
         `Error al actualizar el usuario: ${error.message}`,
       );
@@ -228,12 +258,15 @@ export class UserSecurityService {
         throw new NotFoundException(`Usuario con ID ${id} no encontrado.`);
       }
 
+      // Revocar antes del borrado: si Redis falla, el usuario queda intacto
+      await revokeSessionOrFail(this.redisSession, id);
       await this.userSecurityRepository.delete(id);
 
       await this.cacheManager.del(`userSecurity:${id}`);
       await this.cacheManager.del('userSecurity:all');
       await this.clearQueryCache();
     } catch (error) {
+      if (error instanceof ServiceUnavailableException) throw error;
       throw new NotFoundException(
         `Error al eliminar el usuario: ${error.message}`,
       );

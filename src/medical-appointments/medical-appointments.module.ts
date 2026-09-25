@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CommonModule } from 'src/common/common.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { MedicalAppointment } from './entities/medical-appointment.entity';
@@ -21,6 +22,7 @@ import { FilesModule } from 'src/files/files.module';
 
 @Module({
   imports: [
+    CommonModule,
     TypeOrmModule.forFeature(
       [
         MedicalAppointment,

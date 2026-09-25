@@ -153,8 +153,8 @@
 
             // Guardar en cookie con opciones seguras
              document.cookie = `access_token=${accessToken}; Path=/; SameSite=Lax`;
-            // Redirigir CON el token en la URL (como fallback)
-            window.location.href = `/logs/ui/view?token=${encodeURIComponent(accessToken)}`;
+            // La vista lee el token desde la cookie; nunca va en la URL
+            window.location.href = '/logs/ui/view';
 
         } catch (err) {
           console.error('❌ Error:', err);

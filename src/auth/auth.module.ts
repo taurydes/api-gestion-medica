@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -10,6 +11,7 @@ import { User } from 'src/user/entities/user.entity';
 import { UserSecurity } from 'src/user/entities/user.system.entity';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { PanelAccessService } from './services/panel-access.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 
 dotenv.config();
@@ -20,15 +22,21 @@ dotenv.config();
       DatabaseConnectionName.DB_MAIN,
     ),
     PassportModule,
-    JwtModule.register({
-      secret: process.env.JWT_SECRET || 'secret',
-      signOptions: { expiresIn: process.env.JWT_EXPIRES_IN || '1h' },
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        secret: configService.getOrThrow<string>('JWT_SECRET'),
+        signOptions: {
+          expiresIn: configService.get<string>('JWT_EXPIRES_IN') || '1h',
+        },
+      }),
     }),
     PermissionModule,
     CommonModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
-  exports: [JwtModule, AuthService],
+  providers: [AuthService, JwtStrategy, PanelAccessService],
+  exports: [JwtModule, AuthService, PanelAccessService],
 })
 export class AuthModule {}

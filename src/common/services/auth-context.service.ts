@@ -5,6 +5,10 @@ import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { User } from 'src/user/entities/user.entity';
 import { Doctor } from 'src/doctors/entities/doctor.entity';
 import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity';
+import {
+  ADMIN_SCOPE_PERMISSION,
+  UserAccessService,
+} from './user-access.service';
 
 export interface AuthContext {
   userId: string;
@@ -26,7 +30,21 @@ export class AuthContextService {
 
     @InjectRepository(Doctor, DatabaseConnectionName.DB_MAIN)
     private readonly doctorRepo: Repository<Doctor>,
+
+    private readonly userAccessService: UserAccessService,
   ) {}
+
+  /** Admin con alcance global: se decide por permiso del rol, no por el nombre del rol. */
+  async isAdmin(userId: string): Promise<boolean> {
+    return this.userAccessService.hasPermission(userId, ADMIN_SCOPE_PERMISSION);
+  }
+
+  /** doctorId que restringe la consulta, o `null` si el usuario es admin o no es médico. */
+  async getScopedDoctorId(userId: string | undefined): Promise<string | null> {
+    if (!userId) return null;
+    if (await this.isAdmin(userId)) return null;
+    return this.getDoctorIdForUser(userId);
+  }
 
   async resolve(authUser: any): Promise<AuthContext> {
     const userId = authUser?.id;

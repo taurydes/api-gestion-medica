@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CommonModule } from 'src/common/common.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { MedicalAppointment } from 'src/medical-appointments/entities/medical-appointment.entity';
@@ -16,6 +17,7 @@ import { DashboardService } from './dashboard.service';
 
 @Module({
   imports: [
+    CommonModule,
     TypeOrmModule.forFeature(
       [
         MedicalAppointment,

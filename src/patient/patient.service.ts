@@ -1,5 +1,6 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import {
+  ForbiddenException,
   Injectable,
   BadRequestException,
   NotFoundException,
@@ -370,7 +371,19 @@ export class PatientService {
    * @param id - ID del paciente
    * @returns Paciente encontrado con todas sus relaciones
    */
-  async findOne(id: string): Promise<Patient> {
+  async findOne(id: string, user?: any): Promise<Patient> {
+    // IDOR: mismo criterio que findAll — un doctor solo ve pacientes con los que tiene citas
+    const doctorId = user ? await this.getDoctorIdForUser(user) : null;
+    if (doctorId) {
+      const rows = await this.patientRepository.query(
+        'SELECT 1 FROM medical_appointments WHERE patient_id = $1 AND doctor_id = $2 LIMIT 1',
+        [id, doctorId],
+      );
+      if (!rows?.length) {
+        throw new ForbiddenException('No tiene acceso a este paciente.');
+      }
+    }
+
     const cacheKey = `patient:${id}`;
 
     try {

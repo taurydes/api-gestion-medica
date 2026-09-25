@@ -7,7 +7,10 @@ describe('MenuService', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [MenuService],
-    }).compile();
+    })
+      // Dependencias sin implementación: estas specs solo comprueban la inyección
+      .useMocker(() => ({}))
+      .compile();
 
     service = module.get<MenuService>(MenuService);
   });

@@ -5,12 +5,11 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { InjectRepository } from '@nestjs/typeorm';
 import { Request } from 'express';
-import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
-import { UserSecurity } from 'src/user/entities/user.system.entity';
-import { User } from 'src/user/entities/user.entity';
-import { Repository } from 'typeorm';
+import {
+  UserAccess,
+  UserAccessService,
+} from 'src/common/services/user-access.service';
 import { PERMISSIONS_KEY } from '../decorators/permission.decorator';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 
@@ -18,12 +17,7 @@ import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 export class PermissionsGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
-
-    @InjectRepository(UserSecurity, DatabaseConnectionName.DB_MAIN)
-    private readonly userSecurityRepository: Repository<UserSecurity>,
-
-    @InjectRepository(User, DatabaseConnectionName.DB_MAIN)
-    private readonly userRepository: Repository<User>,
+    private readonly userAccessService: UserAccessService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -53,72 +47,32 @@ export class PermissionsGuard implements CanActivate {
       throw new ForbiddenException('Usuario no autenticado');
     }
 
-    // 3️⃣ Intentar cargar como UserSecurity primero, luego como User
-    let userPermissionCodes: string[] = [];
+    // 3️⃣ Rol y permisos desde la BD (UserSecurity primero, luego User)
+    const cached: UserAccess | undefined = (request as any).userAccess;
+    const access =
+      cached?.userId === authUser.id
+        ? cached
+        : await this.userAccessService.resolve(authUser.id);
 
-    const secUser = await this.userSecurityRepository.findOne({
-      where: { id: authUser.id },
-      relations: [
-        'role',
-        'role.permissionMenus',
-        'role.permissionMenus.permission',
-        'role.permissionMenus.menu',
-      ],
-    });
-
-    if (secUser?.role) {
-      const rolePermissions = secUser.role.permissionMenus ?? [];
-      userPermissionCodes = rolePermissions
-        .filter(
-          (pr) =>
-            pr.isActive &&
-            pr.menu?.slug &&
-            pr.permission?.isActive &&
-            pr.permission?.name,
-        )
-        .map((pr) => `${pr.menu.slug}.${pr.permission.name}`.toLowerCase());
-
-      // Inyectar permisos y rol en la request para uso posterior
-      (request as any).userPermissions = userPermissionCodes;
-      (request as any).userRole = secUser.role;
-    } else {
-      // Buscar en tabla de usuarios normales
-      const normalUser = await this.userRepository.findOne({
-        where: { id: authUser.id },
-        relations: [
-          'role',
-          'role.permissionMenus',
-          'role.permissionMenus.permission',
-          'role.permissionMenus.menu',
-        ],
-      });
-
-      if (!normalUser?.role) {
-        throw new ForbiddenException(
-          'No posee permisos suficientes para el módulo',
-        );
-      }
-
-      const rolePermissions = normalUser.role.permissionMenus ?? [];
-      userPermissionCodes = rolePermissions
-        .filter(
-          (pr) =>
-            pr.isActive &&
-            pr.menu?.slug &&
-            pr.permission?.isActive &&
-            pr.permission?.name,
-        )
-        .map((pr) => `${pr.menu.slug}.${pr.permission.name}`.toLowerCase());
-
-      (request as any).userPermissions = userPermissionCodes;
-      (request as any).userRole = normalUser.role;
+    if (!access) {
+      throw new ForbiddenException(
+        'No posee permisos suficientes para el módulo',
+      );
     }
+
+    if (!access.isActive) {
+      throw new ForbiddenException('El usuario o su rol están inactivos');
+    }
+
+    // Inyectar permisos y rol en la request para uso posterior
+    (request as any).userPermissions = access.permissions;
+    (request as any).userRole = access.role;
 
     // 4️⃣ Validar que el usuario tenga al menos uno de los permisos requeridos
     const lowerRequired = requiredPermissions.map((p) => p.toLowerCase());
 
     const hasPermission = lowerRequired.some((required) =>
-      userPermissionCodes.includes(required),
+      access.permissions.includes(required),
     );
 
     if (!hasPermission) {

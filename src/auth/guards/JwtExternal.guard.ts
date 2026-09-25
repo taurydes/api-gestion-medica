@@ -30,7 +30,10 @@ export class JwtExternalGuard implements CanActivate {
     if (isPublic) return true;
 
     const req = context.switchToHttp().getRequest();
-    const jwtKey = process.env.JWTKEY_VALIDATOR || 'default_jwt_key';
+    const jwtKey = process.env.JWTKEY_VALIDATOR;
+    if (!jwtKey) {
+      throw new ForbiddenException('Validación de token externo no configurada');
+    }
 
     // Obtener token desde el header Authorization
     const authHeader = req.headers['authorization'];

@@ -1,9 +1,11 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import {
   BadRequestException,
+  HttpException,
   Inject,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
@@ -13,6 +15,7 @@ import { DataSource, In, IsNull, Repository } from 'typeorm';
 
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UserQueryDto } from './dto/user-query.dto copy';
 import { User } from './entities/user.entity';
 import { CommonPerson } from '../common-person/entities/common-person.entity';
@@ -21,6 +24,16 @@ import { Doctor } from 'src/doctors/entities/doctor.entity';
 import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity';
 import { Specialty } from 'src/parameters/entities/specialty.entity';
 import { FilesService } from 'src/files/files.service';
+import { RedisSessionService } from 'src/redis-session/redis-session.service';
+import {
+  resolveAdminFieldChanges,
+  revokeSessionOrFail,
+} from './user-admin-fields';
+
+export {
+  USER_ROLE_CHANGE_PERMISSION,
+  USER_STATUS_CHANGE_PERMISSION,
+} from './user-admin-fields';
 
 @Injectable()
 export class UserService {
@@ -40,6 +53,8 @@ export class UserService {
     private readonly cacheManager: Cache,
     @InjectDataSource(DatabaseConnectionName.DB_MAIN)
     private readonly dataSource: DataSource,
+
+    private readonly redisSession: RedisSessionService,
   ) {}
 
   private async getUserImageUrl(commonPersonId: string): Promise<string | null> {
@@ -327,9 +342,14 @@ export class UserService {
   // 🟢 Actualizar usuario
   // ============================================================
 
+  /**
+   * `roleId` y `status` solo se aplican si cambian y el actor tiene el permiso de administración.
+   * La contraseña nunca se cambia aquí: ver `PATCH /auth/change-password`.
+   */
   async update(
     id: string,
     dto: UpdateUserDto,
+    actorPermissions: string[] = [],
   ): Promise<Omit<User, 'password'> | null> {
     try {
       const exists = await this.repo.findOne({
@@ -342,13 +362,32 @@ export class UserService {
       }
 
       // Separar commonPerson del DTO — repo.update() no acepta relaciones anidadas
-      const { commonPerson: commonPersonDto, ...userFields } = dto as any;
+      const {
+        commonPerson: commonPersonDto,
+        password: _password,
+        roleId,
+        status,
+        ...userFields
+      } = dto as any;
 
-      if (userFields.password) {
-        userFields.password = await bcrypt.hash(userFields.password, 10);
+      const { fields, deactivates } = resolveAdminFieldChanges(
+        exists,
+        { roleId, status },
+        actorPermissions,
+      );
+      Object.assign(userFields, fields);
+
+      // Revocar antes de escribir: si Redis falla, no queda nada persistido
+      if (deactivates) {
+        await revokeSessionOrFail(this.redisSession, id);
       }
 
-      await this.repo.update(id, userFields);
+      for (const key of Object.keys(userFields)) {
+        if (userFields[key] === undefined) delete userFields[key];
+      }
+      if (Object.keys(userFields).length > 0) {
+        await this.repo.update(id, userFields);
+      }
 
       // Actualizar CommonPerson por separado si se envió
       if (commonPersonDto && exists.commonPerson?.id) {
@@ -369,6 +408,7 @@ export class UserService {
 
       return rest;
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       throw new BadRequestException(
         `Error al actualizar el usuario: ${error.message}`,
       );
@@ -409,6 +449,9 @@ export class UserService {
         .where('user_id = :id', { id })
         .execute();
 
+      // Revocar antes del commit: si Redis falla, el rollback deja al usuario intacto
+      await revokeSessionOrFail(this.redisSession, id);
+
       await queryRunner.commitTransaction();
 
       await this.cacheManager.del(`user:${id}`);
@@ -416,11 +459,21 @@ export class UserService {
       await this.clearQueryCache();
     } catch (error) {
       await queryRunner.rollbackTransaction();
+      if (error instanceof ServiceUnavailableException) throw error;
       throw new NotFoundException(
         `Error al eliminar el usuario: ${error instanceof Error ? error.message : String(error)}`,
       );
     } finally {
       await queryRunner.release();
     }
+  }
+
+  /** Perfil propio: solo email y datos de persona; nunca rol, estado ni contraseña. */
+  async updateProfile(
+    id: string,
+    dto: UpdateProfileDto,
+  ): Promise<Omit<User, 'password'> | null> {
+    const { email, commonPerson } = dto;
+    return this.update(id, { email, commonPerson } as UpdateUserDto);
   }
 }
