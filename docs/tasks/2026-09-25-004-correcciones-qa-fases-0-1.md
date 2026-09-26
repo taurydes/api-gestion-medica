@@ -21,7 +21,12 @@ Corregir los hallazgos de `docs/QA/2026-09-25-fases-0-1-qa.md`: H-01 (ALTA, un s
 - `npm run build` 0/0; `npx jest` 29 suites / **147 tests** verdes (nuevo baseline; antes 133).
 - Re-test HTTP + BD + Redis en la sección 10 del reporte QA: todo PASS.
 
+## Seguimiento (pedido explícito: corregir ya lo visto)
+
+- El 404 con texto del driver en `patient`/`doctors` se corrigió: `ParseUuid` en todos los params de id de todos los controladores (menos `logs/:id`, que es integer), y `toHttpException` en lugar de `new XException(... error.message)` en 21 servicios (61 sitios). Detalle y re-test en §10 del reporte QA.
+- Decisión: un error desconocido ahora es 500 con el mensaje de dominio (antes 400/404 con el detalle). Las violaciones 23505/23503 siguen siendo 409. Se ajustó el test de `UserService.update` que fijaba el 400 anterior.
+- Tests: 151 (antes 147).
+
 ## Fuera de alcance / pendiente
 
-- `patient.findOne` y `doctors.findOne` envuelven el error crudo en `NotFoundException(error.message)`, así que un id no UUID devuelve 404 con el texto del driver. Es el patrón M-61, para Fase 2.
 - Un médico común que pide un paciente borrado sin citas con él sigue recibiendo 403, porque el filtro corre antes del 404. Aceptado: no revela nada nuevo.

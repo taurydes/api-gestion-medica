@@ -65,6 +65,8 @@ Ejemplo:
 |---|---|
 | Un superusuario (permiso `security.consultar`) con registro de doctor ahora ve todos los pacientes, recetas, historiales, citas, doctores y centros (antes veía solo lo suyo). | Ninguna. Si alguna vista compensaba el listado vacío, quitar ese parche. |
 | Ids no UUID en `files` (`video/:id`, `appointment-files/:fileId`, `appointment-files?appointmentId`, `medical-center-images/:imageId`, `doctor-images/:imageId`, `common-person-images/:imageId`) y en `mammography-analyses` (`appointment/:appointmentId`, `:id`, `:id/review`, `:id/image`) → **400**. `appointment-files` sin `appointmentId` también responde 400. | Tratarlo como error de validación. |
+| Lo mismo en **todos** los controladores: cualquier id de ruta que no sea UUID (`/patient/:id`, `/doctors/:id`, `/roles/:id`, parámetros, etc.) → **400** con el mismo mensaje. Excepción: `/logs/:id` (numérico). | Tratarlo como error de validación. |
+| Los servicios ya no concatenan el error interno al mensaje (antes, por ejemplo, `Error al obtener el paciente: invalid input syntax…` con 404/400). Un fallo inesperado ahora es **500** con el mensaje de dominio (`Error al obtener el paciente.`); los duplicados y los registros referenciados son **409**. | No depender del texto posterior a `:` en esos mensajes. |
 | Todo 500 no controlado responde `"Error interno del servidor."` en vez del mensaje interno. | No mostrar ni parsear el texto de un 500. |
 | Login y refresh de un usuario cuyo **rol** está inactivo → **401** (login: `Usuario no encontrado`; refresh: `Usuario inactivo o eliminado`), igual que un usuario inactivo. | Ninguna: ya se maneja como credencial rechazada. |
 
