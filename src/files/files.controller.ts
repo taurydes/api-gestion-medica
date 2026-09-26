@@ -20,6 +20,7 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 
+import { ParseUuid } from 'src/common/pipes/parse-uuid.pipe';
 import { FilesService } from './files.service';
 import { DicomConverterService } from './dicom-converter.service';
 import { UploadFileDto } from './dto/create-file.dto';
@@ -124,7 +125,7 @@ export class FilesController {
   })
   @Get('video/:id')
   @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.VIEW}`)
-  async downloadVideo(@Param('id') id: string, @Res() res) {
+  async downloadVideo(@Param('id', ParseUuid) id: string, @Res() res) {
     return this.filesService.downloadVideo(id, res);
   }
 
@@ -176,7 +177,7 @@ export class FilesController {
   @Get('appointment-files/:fileId')
   @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.VIEW}`)
   async serveAppointmentFile(
-    @Param('fileId') fileId: string,
+    @Param('fileId', ParseUuid) fileId: string,
     @Res() res,
   ) {
     return this.filesService.serveAppointmentFile(fileId, res);
@@ -192,7 +193,7 @@ export class FilesController {
   @Get('appointment-files')
   @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.VIEW}`)
   async getFilesByAppointment(
-    @Query('appointmentId') appointmentId: string,
+    @Query('appointmentId', ParseUuid) appointmentId: string,
   ) {
     return this.filesService.getFilesByAppointment(appointmentId);
   }
@@ -305,7 +306,7 @@ export class FilesController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.DELETE}`)
   async deleteMedicalCenterImage(
-    @Param('imageId') imageId: string,
+    @Param('imageId', ParseUuid) imageId: string,
   ): Promise<void> {
     return this.filesService.deleteMedicalCenterImage(imageId);
   }
@@ -320,7 +321,7 @@ export class FilesController {
   @Get('medical-center-images/:imageId')
   @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.VIEW}`)
   async serveMedicalCenterImage(
-    @Param('imageId') imageId: string,
+    @Param('imageId', ParseUuid) imageId: string,
     @Res() res,
   ): Promise<void> {
     return this.filesService.serveMedicalCenterImage(imageId, res);
@@ -429,7 +430,7 @@ export class FilesController {
   @Get('doctor-images/:imageId')
   @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.VIEW}`)
   async serveDoctorImage(
-    @Param('imageId') imageId: string,
+    @Param('imageId', ParseUuid) imageId: string,
     @Res() res,
   ): Promise<void> {
     return this.filesService.serveDoctorImage(imageId, res);
@@ -471,7 +472,7 @@ export class FilesController {
   @Get('common-person-images/:imageId')
   @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.VIEW}`)
   async serveCommonPersonImage(
-    @Param('imageId') imageId: string,
+    @Param('imageId', ParseUuid) imageId: string,
     @Res() res,
   ): Promise<void> {
     return this.filesService.serveCommonPersonImage(imageId, res);

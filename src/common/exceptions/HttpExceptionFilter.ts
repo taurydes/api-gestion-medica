@@ -11,6 +11,9 @@ import { LogsService } from 'src/logs/logs.service';
 /**
  * Estructura del cuerpo de error HTTP capturado.
  */
+/** Client-facing text for non-HTTP errors: the raw detail (e.g. a driver message) only goes to the log. */
+export const INTERNAL_ERROR_MESSAGE = 'Error interno del servidor.';
+
 interface HttpErrorBody {
   message?: string;
   [k: string]: any;
@@ -87,11 +90,13 @@ export class HttpExceptionFilter implements ExceptionFilter {
       req,
     };
 
+    const clientMessage = isHttp ? exceptionRequest.message : INTERNAL_ERROR_MESSAGE;
+
     // Evita registrar excepciones triviales
     if (req.url === '/' || req.url === '/favicon.ico') {
       return res.status(status).json({
         data: null,
-        error: body.message,
+        error: clientMessage,
         statusCode: status,
       });
     }
@@ -106,7 +111,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     // Devuelve respuesta estandarizada
     res.status(status).json({
       data: null,
-      error: exceptionRequest.message,
+      error: clientMessage,
       statusCode: status,
     });
   }

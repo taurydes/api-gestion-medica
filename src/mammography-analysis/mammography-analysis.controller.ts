@@ -27,6 +27,7 @@ import { Permission } from 'src/auth/decorators/permission.decorator';
 import { ModuleItemsMenu } from 'src/menu/menu.const';
 import { PermissionActionsMenu } from 'src/permission/permission.const';
 
+import { ParseUuid } from 'src/common/pipes/parse-uuid.pipe';
 import { MammographyAnalysisService } from './mammography-analysis.service';
 import { CreateMammographyAnalysisDto } from './dto/create-mammography-analysis.dto';
 import { QueryMammographyAnalysisDto } from './dto/query-mammography-analysis.dto';
@@ -151,7 +152,7 @@ export class MammographyAnalysisController {
     `${ModuleItemsMenu.MammographyAnalysisModule}.${PermissionActionsMenu.VIEW}`,
   )
   byAppointment(
-    @Param('appointmentId') appointmentId: string,
+    @Param('appointmentId', ParseUuid) appointmentId: string,
     @Req() req: any,
   ) {
     return this.service.findByAppointment(appointmentId, req.user);
@@ -170,7 +171,7 @@ export class MammographyAnalysisController {
     `${ModuleItemsMenu.MammographyAnalysisModule}.${PermissionActionsMenu.UPDATE}`,
   )
   markReviewed(
-    @Param('id') id: string,
+    @Param('id', ParseUuid) id: string,
     @Body() dto: ReviewMammographyAnalysisDto,
     @GetUser('id') userId: string,
   ) {
@@ -189,7 +190,7 @@ export class MammographyAnalysisController {
   @Permission(
     `${ModuleItemsMenu.MammographyAnalysisModule}.${PermissionActionsMenu.VIEW}`,
   )
-  image(@Param('id') id: string, @Res() res: any, @Req() req: any) {
+  image(@Param('id', ParseUuid) id: string, @Res() res: any, @Req() req: any) {
     return this.service.serveImage(id, res, req.user);
   }
 
@@ -201,7 +202,7 @@ export class MammographyAnalysisController {
   @Permission(
     `${ModuleItemsMenu.MammographyAnalysisModule}.${PermissionActionsMenu.VIEW}`,
   )
-  findOne(@Param('id') id: string, @Req() req: any) {
+  findOne(@Param('id', ParseUuid) id: string, @Req() req: any) {
     return this.service.findOne(id, req.user);
   }
 }
