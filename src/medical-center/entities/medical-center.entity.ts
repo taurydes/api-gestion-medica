@@ -1,5 +1,6 @@
 import {
   Entity,
+  Index,
   PrimaryGeneratedColumn,
   Column,
   ManyToMany,
@@ -13,6 +14,7 @@ import { Parish } from 'src/parameters/entities/parish.entity';
 import { MedicalCenterImage } from './medical-center-image.entity';
 
 @Entity({ schema: 'parametro', name: 'medical_centers' })
+@Index('UQ_medical_centers_name_active', ['name'], { unique: true, where: '"deleted_at" IS NULL' })
 export class MedicalCenter {
   @PrimaryGeneratedColumn('uuid')
   id: string;

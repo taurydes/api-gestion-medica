@@ -30,7 +30,7 @@ function userServiceWith(personRepo: FakeRepo) {
   };
   const usersRepo = {
     createQueryBuilder: () => {
-      const qb: any = { where: () => qb, orWhere: () => qb, getOne: async () => null };
+      const qb: any = { where: () => qb, andWhere: () => qb, getOne: async () => null };
       return qb;
     },
   };

@@ -2,6 +2,7 @@ import { PermissionMenu } from 'src/permission/entities/permission-menu.entity';
 import {
   Column,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   OneToMany,
@@ -9,6 +10,8 @@ import {
 } from 'typeorm';
 
 @Entity({ schema: 'seguridad', name: 'menu' })
+// PermissionsGuard builds "slug.action": two menus with one slug would merge their grants (M-21).
+@Index('UQ_menu_slug', ['slug'], { unique: true })
 export class Menu {
   @PrimaryGeneratedColumn('uuid')
   id: string;

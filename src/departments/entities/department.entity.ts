@@ -4,6 +4,7 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   JoinColumn,
   JoinTable,
   ManyToMany,
@@ -22,6 +23,10 @@ import { Doctor } from 'src/doctors/entities/doctor.entity';
  * Un departamento agrupa varias especialidades médicas.
  */
 @Entity({ schema: 'parametro', name: 'departments' })
+@Index('UQ_departments_name_center_active', ['name', 'medicalCenterId'], {
+  unique: true,
+  where: '"deleted_at" IS NULL',
+})
 export class Department {
   @PrimaryGeneratedColumn('uuid')
   id: string;

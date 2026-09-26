@@ -144,3 +144,37 @@ Todas las referencias son por id, así que recodificar no mueve relaciones. `MT`
 **Para activar**: correr el script; mover la migración a `src/database/migrations`; declarar en `Specialty` `@Index('UQ_specialties_code_active', { synchronize: false })` y `@Index('UQ_specialties_name_lower_active', { synchronize: false })` (el índice de expresión no se puede describir con columnas y, sin la declaración, `migration:generate` propondría borrarlos); `migration:run` y comprobar que no hay drift.
 
 **Tests**: `src/parameters/services/specialty.service.spec.ts` (el filtro de nombre es `LOWER(col) = LOWER(:name)` con parámetro; "Mastología" con "mastología" existente → 400 sin escribir).
+
+## M-20 — Índice único de permisos por rol
+
+- Migración `1790386000000-PermisosMenusUniqueGrant`: `UQ_permisos_menus_rol_menu_permiso_active (rol_id, menu_id, permiso_id) WHERE deleted_at IS NULL`. Entidad `PermissionMenu` con el `@Index` equivalente.
+- La misma migración reemplaza `seguridad.asignar_super_permisos`: su `NOT EXISTS` solo saltaba filas con el mismo `user_id`, así que con el índice habría fallado con 23505 al reasignar un rol. Ahora salta cualquier asignación activa de la terna. `down()` restaura la versión original.
+- Parcial sobre `deleted_at`: 62 de las 204 filas están revocadas; el servicio reactiva la fila existente en lugar de insertar, así que nunca necesita dos filas activas.
+- Datos previos: 0 ternas repetidas.
+
+## M-21 — Índices únicos de catálogos y usuarios
+
+- Migración `1790386100000-CatalogUniqueIndexes` (escrita a mano: `migration:generate` se cae con `TypeError … reading 'name'` porque `public.users` y `seguridad.users` tienen el mismo nombre de tabla y TypeORM busca la restricción en la equivocada):
+  - `UQ_medical_centers_name_active (name) WHERE deleted_at IS NULL`
+  - `UQ_departments_name_center_active (name, medical_center_id) WHERE deleted_at IS NULL`
+  - `UQ_roles_nombre (nombre)` y `UQ_menu_slug (slug)` (totales, como pide el plan; hoy 0 roles borrados y el borrado de menú es físico)
+  - `users`: se quitan `UQ_51b8b26ac168fbe7d6f5653e6cf` (name) y `UQ_97672ac88f789774dd47f7c8be3` (email) y se crean `UQ_users_name_active` y `UQ_users_email_active` con `WHERE deleted_at IS NULL`. `users.common_person_id` sigue total (1:1).
+- Entidades con los `@Index` equivalentes (`MedicalCenter`, `Department`, `Role`, `Menu`, `User`; en `User` se quita `unique: true` de las columnas).
+- Servicios: `medical-center.create` ignora centros borrados al verificar el nombre y traduce un 23505 de carrera a 409; `user.validateUserData` ignora usuarios borrados (mismo alcance que los índices parciales).
+- Datos previos: 0 duplicados en todas las tablas.
+
+**Verificación M-20 y M-21**
+
+| Prueba (`BEGIN … ROLLBACK`) | Copia `_f1` | Real |
+|---|---|---|
+| Terna activa repetida en `permisos_menus` | 23505 | 23505 |
+| Terna repetida cuando la previa está revocada (62 elegibles) | OK | OK |
+| `asignar_super_permisos` sobre el rol con más permisos | OK (no falla) | OK |
+| Centro con nombre de uno activo | 23505 | 23505 |
+| Centro con el nombre del centro borrado (1 elegible) | OK | OK |
+| Departamento repetido en el mismo centro | 23505 | 23505 |
+| Rol repetido / slug repetido | 23505 / 23505 | 23505 / 23505 |
+| Email / nombre de usuario activo repetido | 23505 / 23505 | 23505 / 23505 |
+| Reusar email y nombre de un usuario borrado | OK | OK |
+
+`migration:run` → `revert` ×2 → `run` en la copia sin errores; `migration:generate` sin cambios en ambas bases. Tests: `src/medical-center/medical-center-unique.spec.ts` (nombre de un centro borrado reutilizable; activo → 400; 23505 → 409).

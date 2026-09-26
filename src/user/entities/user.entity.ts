@@ -1,5 +1,6 @@
 import {
   Entity,
+  Index,
   PrimaryGeneratedColumn,
   Column,
   ManyToOne,
@@ -10,14 +11,17 @@ import { Role } from 'src/role/entities/role.entity';
 import { CommonPerson } from '../../common-person/entities/common-person.entity';
 
 @Entity({ schema: 'public', name: 'users' })
+// Partial: a soft-deleted user must not block reusing its name or email (M-21).
+@Index('UQ_users_name_active', ['name'], { unique: true, where: '"deleted_at" IS NULL' })
+@Index('UQ_users_email_active', ['email'], { unique: true, where: '"deleted_at" IS NULL' })
 export class User {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'varchar', length: 255, unique: true })
+  @Column({ type: 'varchar', length: 255 })
   name: string;
 
-  @Column({ type: 'varchar', length: 255, unique: true })
+  @Column({ type: 'varchar', length: 255 })
   email: string;
 
   @Column({

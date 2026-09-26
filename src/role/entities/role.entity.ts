@@ -1,9 +1,10 @@
 import { PermissionMenu } from 'src/permission/entities/permission-menu.entity';
 import { UserSecurity } from 'src/user/entities/user.system.entity';
 import { User } from '../../user/entities/user.entity';
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, Index, OneToMany } from 'typeorm';
 
 @Entity({ schema: 'seguridad', name: 'roles' })
+@Index('UQ_roles_nombre', ['name'], { unique: true })
 export class Role {
   @PrimaryGeneratedColumn('uuid')
   id: string;

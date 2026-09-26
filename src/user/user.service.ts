@@ -91,8 +91,9 @@ export class UserService {
   private async validateUserData(data: CreateUserDto): Promise<void> {
     const qb = this.repo
       .createQueryBuilder('u')
-      .where('u.email = :email', { email: data.email })
-      .orWhere('u.name = :name', { name: data.name });
+      .where('(u.email = :email OR u.name = :name)', { email: data.email, name: data.name })
+      // Same scope as the partial unique indexes: a deleted user frees its name and email (M-21).
+      .andWhere('u.deletedAt IS NULL');
     const existsUser = await qb.getOne();
     if (existsUser) {
       throw new BadRequestException(

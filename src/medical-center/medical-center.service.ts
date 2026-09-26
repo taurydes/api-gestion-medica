@@ -1,12 +1,14 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { AuthContextService } from 'src/common/services/auth-context.service';
+import { uniqueViolationToConflict } from 'src/common-person/person-document.util';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
@@ -123,7 +125,7 @@ export class MedicalCenterService {
   async create(dto: CreateMedicalCenterDto): Promise<MedicalCenter> {
     try {
       const existingCenter = await this.medicalCenterRepository.findOne({
-        where: { name: dto.name },
+        where: { name: dto.name, deletedAt: IsNull() },
       });
 
       if (existingCenter) {
@@ -141,6 +143,10 @@ export class MedicalCenterService {
 
       return center;
     } catch (error) {
+      if (error instanceof BadRequestException) throw error;
+      if (uniqueViolationToConflict(error)) {
+        throw new ConflictException('Ya existe un centro médico con ese nombre.');
+      }
       throw new BadRequestException(
         `Error al crear el centro médico: ${error.message}`,
       );
