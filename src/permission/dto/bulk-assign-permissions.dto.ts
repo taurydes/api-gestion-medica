@@ -5,6 +5,7 @@ import {
   IsArray,
   IsBoolean,
   IsOptional,
+  IsUUID,
   ValidateNested,
 } from 'class-validator';
 
@@ -13,56 +14,47 @@ import {
  */
 export class BulkAssignPermissionsToRoleByIdDto {
   @ApiProperty({
-    description: 'ID del rol al que se asignarán los permisos',
-    example: 'uuid-string',
+    description: 'ID del rol (UUID) al que se asignarán los permisos',
+    example: '69cf7b3a-864c-44d7-8541-1ab57d34f49b',
   })
-  roleId: string | number;
-
-  @ApiProperty({ description: 'ID del módulo (menú)', example: 'uuid-string' })
-  moduleId: string | number;
+  @IsUUID('all', { message: 'roleId debe ser un UUID válido' })
+  roleId: string;
 
   @ApiProperty({
-    description: 'Lista de IDs de permisos a asignar',
-    example: ['1', '2', '3'],
-    type: [Object],
+    description: 'ID del módulo (menú, UUID)',
+    example: 'fd6a2bac-c8fe-4e91-9839-cd5a06fef078',
+  })
+  @IsUUID('all', { message: 'moduleId debe ser un UUID válido' })
+  moduleId: string;
+
+  @ApiProperty({
+    description: 'Lista de IDs de permisos (UUID) a asignar',
+    example: ['d5d6de53-0734-44e5-ae49-d9057aecab23'],
+    type: [String],
   })
   @IsArray()
   @ArrayMinSize(1)
-  permissionIds: (string | number)[];
-}
-
-/**
- * DTO para asignar múltiples permisos a un usuario usando IDs.
- */
-export class BulkAssignPermissionsToUserByIdDto {
-  @ApiProperty({
-    description: 'ID del usuario al que se asignarán los permisos',
-    example: 'uuid-string',
-  })
-  userId: string | number;
-
-  @ApiProperty({ description: 'ID del módulo (menú)', example: 'uuid-string' })
-  moduleId: string | number;
-
-  @ApiProperty({
-    description: 'Lista de IDs de permisos a asignar',
-    example: ['1', '2', '3'],
-    type: [Object],
-  })
-  @IsArray()
-  @ArrayMinSize(1)
-  permissionIds: (string | number)[];
+  @IsUUID('all', { each: true, message: 'Cada permissionId debe ser un UUID válido' })
+  permissionIds: string[];
 }
 
 /**
  * Item de permiso por ID para bulk operations.
  */
 export class PermissionItemByIdDto {
-  @ApiProperty({ description: 'ID del módulo (menú)', example: 'uuid-string' })
-  moduleId: string | number;
+  @ApiProperty({
+    description: 'ID del módulo (menú, UUID)',
+    example: 'fd6a2bac-c8fe-4e91-9839-cd5a06fef078',
+  })
+  @IsUUID('all', { message: 'moduleId debe ser un UUID válido' })
+  moduleId: string;
 
-  @ApiProperty({ description: 'ID del permiso/acción', example: 'uuid-string' })
-  permissionId: string | number;
+  @ApiProperty({
+    description: 'ID del permiso/acción (UUID)',
+    example: 'd5d6de53-0734-44e5-ae49-d9057aecab23',
+  })
+  @IsUUID('all', { message: 'permissionId debe ser un UUID válido' })
+  permissionId: string;
 
   @ApiPropertyOptional({
     description: 'Si está habilitado',
@@ -79,31 +71,11 @@ export class PermissionItemByIdDto {
  */
 export class BulkAssignMultipleModulesPermissionsToRoleByIdDto {
   @ApiProperty({
-    description: 'ID del rol al que se asignarán los permisos',
-    example: 'uuid-string',
+    description: 'ID del rol (UUID) al que se asignarán los permisos',
+    example: '69cf7b3a-864c-44d7-8541-1ab57d34f49b',
   })
-  roleId: string | number;
-
-  @ApiProperty({
-    description: 'Lista de permisos (moduleId + permissionId)',
-    type: [PermissionItemByIdDto],
-  })
-  @IsArray()
-  @ArrayMinSize(1)
-  @ValidateNested({ each: true })
-  @Type(() => PermissionItemByIdDto)
-  permissions: PermissionItemByIdDto[];
-}
-
-/**
- * DTO para asignar múltiples permisos de múltiples módulos a un usuario usando IDs.
- */
-export class BulkAssignMultipleModulesPermissionsToUserByIdDto {
-  @ApiProperty({
-    description: 'ID del usuario al que se asignarán los permisos',
-    example: 'uuid-string',
-  })
-  userId: string | number;
+  @IsUUID('all', { message: 'roleId debe ser un UUID válido' })
+  roleId: string;
 
   @ApiProperty({
     description: 'Lista de permisos (moduleId + permissionId)',

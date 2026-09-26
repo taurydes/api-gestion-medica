@@ -3,9 +3,9 @@ import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
-  IsInt,
+  IsNotEmpty,
   IsString,
-  Min,
+  IsUUID,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -13,10 +13,12 @@ import { Type } from 'class-transformer';
 export class BulkUpdatePermissionItemDto {
   @ApiProperty({ example: 'Campaign', description: 'Módulo/menú (slug)' })
   @IsString()
+  @IsNotEmpty()
   module: string;
 
   @ApiProperty({ example: 'crear', description: 'Acción' })
   @IsString()
+  @IsNotEmpty()
   action: string;
 
   @ApiProperty({ example: true, description: 'Habilitar/deshabilitar permiso' })
@@ -28,10 +30,9 @@ export class BulkUpdatePermissionItemDto {
  * Body DTO: Actualizar múltiples permisos para un rol.
  */
 export class BulkUpdatePermissionsDto {
-  @ApiProperty({ example: 2, description: 'ID del rol' })
-  @IsInt()
-  @Min(1)
-  roleId: number;
+  @ApiProperty({ example: '69cf7b3a-864c-44d7-8541-1ab57d34f49b', description: 'ID del rol (UUID)' })
+  @IsUUID('all', { message: 'roleId debe ser un UUID válido' })
+  roleId: string;
 
   @ApiProperty({ type: [BulkUpdatePermissionItemDto] })
   @IsArray()

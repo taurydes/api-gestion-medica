@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 
 /**
  * DTO (query/body): Verificar si un usuario tiene un permiso.
@@ -12,7 +12,8 @@ export class CheckPermissionDto {
     description: 'ID del usuario (opcional; en /me se toma del JWT)',
   })
   @IsOptional()
-  userId?: string | number;
+  @IsUUID('all', { message: 'userId debe ser un UUID válido' })
+  userId?: string;
 
   @ApiProperty({
     example: 'Campaign',

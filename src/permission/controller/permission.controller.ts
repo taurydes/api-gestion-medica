@@ -58,10 +58,8 @@ import {
 } from '../dto';
 import {
   BulkAssignMultipleModulesPermissionsToRoleByIdDto,
-  BulkAssignMultipleModulesPermissionsToUserByIdDto,
   BulkAssignPermissionsResponseDto,
   BulkAssignPermissionsToRoleByIdDto,
-  BulkAssignPermissionsToUserByIdDto,
 } from '../dto/bulk-assign-permissions.dto';
 import { QueryPermissionDto } from '../dto/query-permission.dto';
 import { UpdatePermissionDto } from '../dto/update-permission.dto';
@@ -253,59 +251,6 @@ export class CaslPermissionController {
     );
   }
 
-  // =========================================================================
-  // BULK ASSIGNMENT - USERS
-  // ===========================================================================
-
-  /**
-   * Asigna múltiples permisos de múltiples módulos a un usuario (por IDs).
-   */
-  @Post('bulk-assign/user/multiple-modules')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary:
-      'Asignar múltiples permisos (por IDs) de múltiples módulos a un usuario',
-  })
-  @Permission(
-    `${ModuleItemsMenu.PermissionModule}.${PermissionActionsMenu.ASSIGN}`,
-  )
-  @ApiResponse({ status: 200, type: BulkAssignPermissionsResponseDto })
-  async bulkAssignMultipleModulesPermissionsToUserById(
-    @Body() dto: BulkAssignMultipleModulesPermissionsToUserByIdDto,
-  ): Promise<BulkAssignPermissionsResponseDto> {
-    return await this.permissionService.bulkAssignMultipleModulesPermissionsToUserById(
-      dto,
-    );
-  }
-
-  /**
-   * Asigna múltiples permisos (acciones) de un módulo a un usuario (por IDs).
-   */
-  @Post('bulk-assign/user')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Asignar múltiples permisos (por IDs) de un módulo a un usuario',
-  })
-  @Permission(
-    `${ModuleItemsMenu.PermissionModule}.${PermissionActionsMenu.ASSIGN}`,
-  )
-  @ApiResponse({ status: 200, type: BulkAssignPermissionsResponseDto })
-  async bulkAssignPermissionsToUserById(
-    @Body() dto: BulkAssignPermissionsToUserByIdDto,
-  ): Promise<BulkAssignPermissionsResponseDto> {
-    const result = await this.permissionService.bulkAssignPermissionsToUserById(
-      dto.userId,
-      dto.moduleId,
-      dto.permissionIds,
-    );
-
-    return {
-      success: result.success,
-      assignedCount: result.assignedCount,
-      message: `${result.assignedCount} permisos asignados al usuario (por ID)`,
-      errors: result.errors.length > 0 ? result.errors : undefined,
-    };
-  }
   // ===========================================================================
   // CACHE MANAGEMENT
   // ===========================================================================
@@ -321,7 +266,7 @@ export class CaslPermissionController {
     `${ModuleItemsMenu.PermissionModule}.${PermissionActionsMenu.DELETE}`,
   )
   async invalidateRoleCache(@Param('roleId', ParseUuid) roleId: string) {
-    await this.permissionService.invalidateRoleCache(roleId as any);
+    await this.permissionService.invalidateRoleCache(roleId);
     return { success: true, message: `Cache invalidado para rol ${roleId}` };
   }
 
@@ -336,7 +281,7 @@ export class CaslPermissionController {
     `${ModuleItemsMenu.PermissionModule}.${PermissionActionsMenu.DELETE}`,
   )
   async invalidateUserCache(@Param('userId', ParseUuid) userId: string) {
-    await this.permissionService.invalidateUserCache(userId as any);
+    await this.permissionService.invalidateUserCache(userId);
     return {
       success: true,
       message: `Cache invalidado para usuario ${userId}`,

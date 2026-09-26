@@ -25,7 +25,6 @@ import {
   AbilityRulesResponseDto,
   AssignPermissionDto,
   BulkAssignMultipleModulesPermissionsToRoleByIdDto,
-  BulkAssignMultipleModulesPermissionsToUserByIdDto,
   BulkAssignPermissionsToRoleByIdDto,
   BulkUpdatePermissionsDto,
   CheckPermissionDto,
@@ -104,6 +103,28 @@ export class PermissionService {
 
   private normalizeAction(action: string): string {
     return (action || '').trim().toLowerCase();
+  }
+
+  /** Grant (rol, menú, permiso): prefers the live row, since revoked rows accumulate with deleted_at set. */
+  private async findGrant(
+    roleId: string,
+    menuId: string,
+    permissionId: string,
+  ): Promise<PermissionMenu | null> {
+    const where = { roleId, menuId, permissionId };
+    return (
+      (await this.permissionMenuRepo.findOne({ where: { ...where, deletedAt: IsNull() } })) ??
+      (await this.permissionMenuRepo.findOne({ where, order: { updatedAt: 'DESC' } }))
+    );
+  }
+
+  /** Reactivates a revoked or inactive grant; the partial unique index only allows one live row. */
+  private async reactivateGrant(grant: PermissionMenu, actorId: string): Promise<PermissionMenu> {
+    grant.isActive = true;
+    grant.deletedAt = null;
+    grant.updatedAt = new Date();
+    grant.userId = actorId;
+    return this.permissionMenuRepo.save(grant);
   }
 
   // ===========================================================================
@@ -384,26 +405,13 @@ export class PermissionService {
       );
     }
 
-    // Verificar si ya existe la asignación
-    const existing = await this.permissionMenuRepo.findOne({
-      where: {
-        roleId: String(roleId),
-        menuId: String(menu.id),
-        permissionId: String(permission.id),
-      },
-    });
+    const existing = await this.findGrant(roleId, menu.id, permission.id);
 
     if (existing) {
-      // Si existe pero está inactivo, reactivarlo
-      if (!existing.isActive) {
-        existing.isActive = true;
-        existing.updatedAt = new Date();
-        await this.permissionMenuRepo.save({ ...existing, userId: user.id });
-        await this.invalidateRoleCache(roleId);
-        return existing;
-      }
-      // Ya existe y está activo
-      return existing;
+      if (existing.isActive && !existing.deletedAt) return existing;
+      const reactivated = await this.reactivateGrant(existing, String(user.id));
+      await this.invalidateRoleCache(roleId);
+      return reactivated;
     }
 
     // Crear nueva asignación
@@ -446,16 +454,17 @@ export class PermissionService {
       return false;
     }
 
-    // Buscar la asignación
+    // Only the live grant counts: an older revoked row would report success while access stays granted.
     const existing = await this.permissionMenuRepo.findOne({
       where: {
-        roleId: String(roleId),
-        menuId: String(menu.id),
-        permissionId: String(permission.id),
+        roleId,
+        menuId: menu.id,
+        permissionId: permission.id,
+        deletedAt: IsNull(),
       },
     });
 
-    if (!existing) {
+    if (!existing || !existing.isActive) {
       return false;
     }
 
@@ -510,9 +519,8 @@ export class PermissionService {
    * Obtiene todos los permisos de un rol.
    */
   async getRolePermissions(roleId: number | string): Promise<DbPermission[]> {
-    const cacheKey = this.ROLE_PERMISSIONS_KEY(
-      typeof roleId === 'number' ? roleId : 0,
-    );
+    // Keyed by the real id: role ids are UUIDs, the old `0` fallback shared one entry across all roles.
+    const cacheKey = this.ROLE_PERMISSIONS_KEY(String(roleId));
 
     const cached = await this.cache.get<DbPermission[]>(cacheKey);
     if (cached) {
@@ -753,20 +761,10 @@ export class PermissionService {
           );
           continue;
         }
-        // Verificar si ya existe la asignación
-        const existing = await this.permissionMenuRepo.findOne({
-          where: {
-            roleId: String(roleId),
-            menuId: String(menu.id),
-            permissionId: String(permission.id),
-          },
-        });
+        const existing = await this.findGrant(roleId, menu.id, permission.id);
         if (existing) {
-          if (!existing.isActive) {
-            existing.isActive = true;
-            existing.updatedAt = new Date();
-            existing.deletedAt = null;
-            await this.permissionMenuRepo.save(existing);
+          if (!existing.isActive || existing.deletedAt) {
+            await this.reactivateGrant(existing, String(currentUser.id));
             assignedCount++;
           }
           continue;
@@ -840,24 +838,12 @@ export class PermissionService {
           continue;
         }
 
-        const existing = await this.permissionMenuRepo.findOne({
-          where: {
-            roleId: String(roleId),
-            menuId: String(menu.id),
-            permissionId: String(permission.id),
-          },
-        });
+        const existing = await this.findGrant(roleId, menu.id, permission.id);
 
         if (enabled) {
           if (existing) {
-            if (!existing.isActive) {
-              existing.isActive = true;
-              existing.updatedAt = new Date();
-              existing.deletedAt = null;
-              await this.permissionMenuRepo.save({
-                ...existing,
-                userId: currentUser.id,
-              });
+            if (!existing.isActive || existing.deletedAt) {
+              await this.reactivateGrant(existing, String(currentUser.id));
               assignedCount++;
             }
             continue;
@@ -874,7 +860,7 @@ export class PermissionService {
           await this.permissionMenuRepo.save(created);
           assignedCount++;
         } else {
-          if (!existing || !existing.isActive) continue;
+          if (!existing || !existing.isActive || existing.deletedAt) continue;
           existing.isActive = false;
           existing.updatedAt = new Date();
           existing.deletedAt = new Date();
@@ -896,123 +882,6 @@ export class PermissionService {
       revokedCount,
       errors,
     };
-  }
-
-  /**
-   * Asigna múltiples permisos de múltiples módulos a un usuario (por IDs) directamente.
-   * @param userId ID del usuario
-   * @param permissions Lista de {moduleId, permissionId}
-   */
-  async bulkAssignMultipleModulesPermissionsToUserById(
-    dto: BulkAssignMultipleModulesPermissionsToUserByIdDto,
-  ): Promise<{ success: boolean; assignedCount: number; errors: string[] }> {
-    const errors: string[] = [];
-    let assignedCount = 0;
-    const { userId, permissions } = dto;
-    const user = await this.userRepo.findOne({ where: { id: String(userId) } });
-    if (!user) {
-      throw new NotFoundException(`Usuario con ID ${userId} no encontrado`);
-    }
-
-    // Agrupar por módulo para reutilizar bulkAssignPermissionsToUserById
-    const byModule = new Map<string | number, (string | number)[]>();
-    for (const perm of permissions) {
-      const list = byModule.get(perm.moduleId) || [];
-      list.push(perm.permissionId);
-      byModule.set(perm.moduleId, list);
-    }
-
-    for (const [moduleId, permissionIds] of byModule) {
-      const result = await this.bulkAssignPermissionsToUserById(
-        userId,
-        moduleId,
-        permissionIds,
-      );
-      assignedCount += result.assignedCount;
-      errors.push(...result.errors);
-    }
-
-    return { success: errors.length === 0, assignedCount, errors };
-  }
-
-  /**
-   * Asigna múltiples permisos (acciones) de un módulo a un usuario usando IDs.
-   * @param userId ID del usuario
-   * @param moduleId ID del módulo (menú)
-   * @param permissionIds Lista de IDs de permisos
-   */
-  async bulkAssignPermissionsToUserById(
-    userId: string | number,
-    moduleId: string | number,
-    permissionIds: (string | number)[],
-  ): Promise<{ success: boolean; assignedCount: number; errors: string[] }> {
-    const errors: string[] = [];
-    let assignedCount = 0;
-
-    const user = await this.userRepo.findOne({ where: { id: String(userId) } });
-    if (!user) {
-      throw new NotFoundException(`Usuario con ID ${userId} no encontrado`);
-    }
-
-    const menu = await this.menuRepo.findOne({
-      where: { id: String(moduleId) },
-    });
-    if (!menu) {
-      throw new NotFoundException(`Módulo con ID '${moduleId}' no encontrado`);
-    }
-
-    for (const permissionId of permissionIds) {
-      try {
-        const permission = await this.permissionRepo.findOne({
-          where: { id: String(permissionId) },
-        });
-        if (!permission) {
-          errors.push(
-            `Permiso con ID '${permissionId}' no encontrado en el catálogo`,
-          );
-          continue;
-        }
-
-        const existing = await this.permissionMenuRepo.findOne({
-          where: {
-            userId: String(userId),
-            menuId: String(menu.id),
-            permissionId: String(permission.id),
-          },
-        });
-
-        if (existing) {
-          if (!existing.isActive) {
-            existing.isActive = true;
-            existing.updatedAt = new Date();
-            existing.deletedAt = null;
-            await this.permissionMenuRepo.save(existing);
-            assignedCount++;
-          }
-          continue;
-        }
-
-        const newPermissionMenu = this.permissionMenuRepo.create({
-          userId: String(userId),
-          menuId: String(menu.id),
-          permissionId: String(permission.id),
-          roleId: String(user.roleId || ''),
-          isActive: true,
-          createdAt: new Date(),
-        });
-
-        await this.permissionMenuRepo.save(newPermissionMenu);
-        assignedCount++;
-      } catch (error) {
-        errors.push(
-          `Error asignando permiso ID '${permissionId}': ${safeErrorMessage(error)}`,
-        );
-      }
-    }
-
-    await this.invalidateUserCache(userId);
-
-    return { success: errors.length === 0, assignedCount, errors };
   }
 
   /**
