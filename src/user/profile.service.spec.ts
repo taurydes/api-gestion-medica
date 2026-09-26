@@ -1,6 +1,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { ProfileService } from './profile.service';
+import { UserService } from './user.service';
 
 async function setup(options: { systemUser?: boolean; missing?: boolean } = {}) {
   const user = { id: 'u1', password: await bcrypt.hash('claveActual1', 4) };
@@ -66,5 +67,55 @@ describe('ProfileService.updateProfile (M-31)', () => {
     const { service, userService } = await setup();
     await service.updateProfile('u1', { email: 'yo@example.com' });
     expect(userService.updateProfile).toHaveBeenCalledWith('u1', { email: 'yo@example.com' });
+  });
+});
+
+describe('GET /auth/profile: perfil propio sin permiso de módulo (fase 2)', () => {
+  const stored = {
+    id: 'u1',
+    name: 'marta',
+    email: 'marta@example.com',
+    password: 'hash',
+    roleId: 'r1',
+    role: { id: 'r1', name: 'enfermero', permissionMenus: [{ id: 'pm' }] },
+    commonPerson: { id: 'cp1', firstName: 'Marta', lastName: 'Ruiz', phoneNumber: '04141234567' },
+  };
+
+  it('UserService.getOwnProfile devuelve persona, rol mínimo e imageUrl, nunca el hash', async () => {
+    const repo = { findOne: jest.fn().mockResolvedValue(stored) };
+    const images = { findOne: jest.fn().mockResolvedValue({ id: 'img1' }) };
+    const files = { getCommonPersonImageUrl: jest.fn((id: string) => `/files/common-person-image/${id}`) };
+    const userService = new UserService(
+      repo as any, {} as any, images as any, files as any, {} as any, {} as any, {} as any,
+    );
+
+    const profile: any = await userService.getOwnProfile('u1');
+
+    expect(profile).not.toHaveProperty('password');
+    expect(profile.role).toEqual({ id: 'r1', name: 'enfermero' });
+    expect(profile.commonPerson).toMatchObject({ firstName: 'Marta', phoneNumber: '04141234567' });
+    expect(profile.imageUrl).toBe('/files/common-person-image/img1');
+    expect(repo.findOne.mock.calls[0][0].where.id).toBe('u1');
+  });
+
+  it('un usuario de seguridad sin persona recibe commonPerson null', async () => {
+    const secRepo = {
+      findOne: jest.fn().mockResolvedValue({ id: 's1', name: 'admin', email: 'a@x.com', password: 'h', role: { id: 'r0', name: 'superusuario' } }),
+    };
+    const service = new ProfileService({} as any, secRepo as any, { getOwnProfile: jest.fn().mockResolvedValue(null) } as any);
+
+    const profile: any = await service.getProfile('s1');
+
+    expect(profile).toMatchObject({ id: 's1', commonPerson: null, imageUrl: null, role: { id: 'r0', name: 'superusuario' } });
+    expect(profile).not.toHaveProperty('password');
+  });
+
+  it('usuario inexistente → 404', async () => {
+    const service = new ProfileService(
+      {} as any,
+      { findOne: jest.fn().mockResolvedValue(null) } as any,
+      { getOwnProfile: jest.fn().mockResolvedValue(null) } as any,
+    );
+    await expect(service.getProfile('nadie')).rejects.toThrow(NotFoundException);
   });
 });

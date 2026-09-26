@@ -26,6 +26,25 @@ export class ProfileService {
     private readonly userService: UserService,
   ) {}
 
+  /** Session-only read of the caller's own data; system users (seguridad.users) have no person record. */
+  async getProfile(userId: string) {
+    const profile = await this.userService.getOwnProfile(userId);
+    if (profile) return profile;
+
+    const sysUser = await this.userSecurityRepository.findOne({
+      where: { id: userId, deletedAt: IsNull() },
+      relations: { role: true },
+    });
+    if (!sysUser) throw new NotFoundException('Usuario no encontrado');
+    const { password, role, ...rest } = sysUser;
+    return {
+      ...rest,
+      role: role ? { id: role.id, name: role.name } : null,
+      commonPerson: null,
+      imageUrl: null,
+    };
+  }
+
   async updateProfile(userId: string, dto: UpdateProfileDto) {
     return this.userService.updateProfile(userId, dto);
   }

@@ -500,6 +500,21 @@ export class UserService {
     }
   }
 
+  /** Own profile (GET /auth/profile): GET /users/:id shape without password or the role's grants; null if not a regular user. */
+  async getOwnProfile(userId: string) {
+    const user = await this.repo.findOne({
+      where: { id: userId, deletedAt: IsNull() },
+      relations: { commonPerson: true, role: true },
+    });
+    if (!user) return null;
+
+    const { password, role, ...rest } = user;
+    const imageUrl = rest.commonPerson?.id
+      ? await this.getUserImageUrl(rest.commonPerson.id)
+      : null;
+    return { ...rest, role: role ? { id: role.id, name: role.name } : null, imageUrl };
+  }
+
   /** Perfil propio: solo email y datos de persona; nunca rol, estado ni contraseña. */
   async updateProfile(
     id: string,

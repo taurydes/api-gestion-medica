@@ -1,4 +1,4 @@
-import { Body, Controller, Patch } from '@nestjs/common';
+import { Body, Controller, Get, Patch } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { GetUser } from 'src/auth/decorators/get-user.decorator';
@@ -13,6 +13,12 @@ import { ProfileService } from './profile.service';
 @Controller('auth')
 export class ProfileController {
   constructor(private readonly profileService: ProfileService) {}
+
+  @ApiOperation({ summary: 'Leer el perfil propio (usuario, rol y datos de persona)' })
+  @Get('profile')
+  getProfile(@GetUser('id') userId: string) {
+    return this.profileService.getProfile(userId);
+  }
 
   @ApiOperation({ summary: 'Actualizar el perfil propio (email y datos de persona)' })
   @Patch('me')
