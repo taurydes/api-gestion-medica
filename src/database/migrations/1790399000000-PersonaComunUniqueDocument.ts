@@ -1,9 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-/**
- * M-18 step 2, NOT applied: move to ../migrations after running docs/info/migrations/2026-09-25-depurar-persona-comun-duplicada.sql
- * and add the matching @Index to CommonPerson (see docs/tasks/2026-09-25-003-fase-1-integridad.md).
- */
+/** M-18 step 2: requires docs/info/migrations/2026-09-25-depurar-persona-comun-duplicada.sql first; aborts if duplicates remain. */
 export class PersonaComunUniqueDocument1790399000000 implements MigrationInterface {
     name = 'PersonaComunUniqueDocument1790399000000';
 

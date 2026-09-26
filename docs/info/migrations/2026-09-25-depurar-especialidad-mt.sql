@@ -6,7 +6,7 @@
 --   pueda crear el índice único UQ_specialties_code_active.
 --   MUEVE DATOS: actualiza parametro.specialties.code de una fila. No toca
 --   doctores, departamentos, citas ni historias (referencian por id, no por código).
--- Estado: NO EJECUTADO. Requiere decisión de producto (qué fila cambia y a qué código).
+-- Estado: EJECUTADO el 2026-09-25 en bd_gestion_medica con specialty_id=fc6618f2-a886-4396-a269-6cc4792daa59, nuevo_codigo=MS.
 --   Datos al 2026-09-25 (ids y conteos):
 --     a0c83b33-8003-4731-9411-e4891be7e88b  "Medicina del Trabajo"  0 doctores, 0 departamentos, 0 citas, 0 historias
 --     fc6618f2-a886-4396-a269-6cc4792daa59  "mastología"            3 doctores, 1 departamento, 15 citas, 14 historias
@@ -16,8 +16,7 @@
 --   - Ejecutar con: psql -v specialty_id=<uuid> -v nuevo_codigo=<código> -f <este archivo>
 -- Idempotente: sí (fija el valor; repetirlo no cambia nada más).
 -- Transacción: sí (BEGIN/COMMIT). Aborta si el código nuevo ya está en uso.
--- Orden: 1) este script; 2) mover src/database/migrations-pending/1790399100000-SpecialtiesUniqueCodeAndName.ts
---   a src/database/migrations y declarar los índices en Specialty; 3) npm run migration:run.
+-- Orden: 1) este script; 2) npm run migration:run (aplica 1790399100000-SpecialtiesUniqueCodeAndName, que aborta si quedan códigos repetidos).
 --   Independiente de la depuración de persona_comun (M-18).
 -- =============================================================================
 

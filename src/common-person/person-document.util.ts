@@ -5,7 +5,7 @@ import { CommonPerson } from './entities/common-person.entity';
 export const PERSON_DOCUMENT_CONFLICT =
   'El número de documento ya está registrado para otra persona.';
 
-/** Partial unique index on persona_comun(letra, documento); pending until the duplicate group is resolved (M-18). */
+/** Partial unique index on persona_comun(letra, documento) (M-18). */
 export const PERSON_DOCUMENT_INDEX = 'UQ_persona_comun_documento_activo';
 
 /** Active person holding exactly this document; a missing letter matches NULL, never "any letter". */

@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { FindOperator } from 'typeorm';
 import { SpecialtyService } from './specialty.service';
 
@@ -21,6 +21,15 @@ describe('SpecialtyService.create — case-insensitive name (M-19)', () => {
     expect(nameFilter.type).toBe('raw');
     expect(nameFilter.getSql?.('"specialty"."name"')).toBe('LOWER("specialty"."name") = LOWER(:name)');
     expect(nameFilter.objectLiteralParameters).toEqual({ name: 'Mastología' });
+  });
+
+  it('a race that reaches UQ_specialties_* (23505) answers 409', async () => {
+    const { service, repo } = setup(null);
+    repo.save.mockRejectedValue(Object.assign(new Error('duplicate key'), { code: '23505' }));
+
+    await expect(service.create({ name: 'Nueva', code: 'NV' } as any)).rejects.toThrow(
+      ConflictException,
+    );
   });
 
   it('rejects "Mastología" when "mastología" exists and writes nothing', async () => {

@@ -2,6 +2,7 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   ManyToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
@@ -17,6 +18,9 @@ import { Department } from 'src/departments/entities/department.entity';
  * (Cardiología, Pediatría, Traumatología, etc.)
  */
 @Entity({ schema: 'parametro', name: 'specialties' })
+@Index('UQ_specialties_code_active', ['code'], { unique: true, where: '"deleted_at" IS NULL' })
+// Expression index lower(name), created by migration; synchronize: false keeps generate from dropping it (M-19).
+@Index('UQ_specialties_name_lower_active', { synchronize: false })
 export class Specialty {
   @PrimaryGeneratedColumn('uuid')
   id: string;

@@ -10,6 +10,7 @@ import { Cache } from 'cache-manager';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { IsNull, Raw, Repository } from 'typeorm';
 import { Specialty } from '../entities/specialty.entity';
+import { uniqueViolationToConflict } from 'src/common-person/person-document.util';
 import { CreateSpecialtyDto } from '../dto/specialty/create-specialty.dto';
 import { UpdateSpecialtyDto } from '../dto/specialty/update-specialty.dto';
 import { SpecialtyQueryDto } from '../dto/specialty/specialty-query.dto';
@@ -91,6 +92,8 @@ export class SpecialtyService {
       return specialty;
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
+      const conflict = uniqueViolationToConflict(error);
+      if (conflict) throw conflict;
       throw new BadRequestException(
         `Error al crear la especialidad: ${error.message}`,
       );
@@ -250,6 +253,8 @@ export class SpecialtyService {
 
       return updated;
     } catch (error) {
+      const conflict = uniqueViolationToConflict(error);
+      if (conflict) throw conflict;
       if (error instanceof NotFoundException || error instanceof BadRequestException) {
         throw error;
       }

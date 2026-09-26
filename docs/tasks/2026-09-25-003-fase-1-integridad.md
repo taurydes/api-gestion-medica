@@ -260,3 +260,19 @@ Todas las referencias son por id, así que recodificar no mueve relaciones. `MT`
 - **Despliegue**: seguir el procedimiento de M-13 (baseline una vez + `migration:run:prod`).
 - **Frontend**: `docs/info/2026-09-25-fase-1-integracion-frontend.md` (409 de documento, 404 de referencias, reintento del cierre).
 - Bases de trabajo creadas en el servidor local: `bd_gestion_medica_f1` (copia con todas las migraciones), `bd_gestion_medica_f1_empty` y `bd_gestion_medica_f1_fresh`. Se pueden borrar cuando no hagan falta.
+
+## Actualización — M-18 y M-19 aplicados (decisión del usuario: la base es de prueba)
+
+- **M-18**: sin fusión. El documento de `d53ebb57-acd5-4786-986d-6436f62df52c` pasó a **V-990000001** (verificado libre antes). Script `2026-09-25-depurar-persona-comun-duplicada.sql` ejecutado en la real: grupos duplicados 1 → 0. Migración `1790399000000-PersonaComunUniqueDocument` movida al glob y aplicada; `CommonPerson` declara el `@Index` parcial.
+- **M-19**: "mastología" (`fc6618f2-a886-4396-a269-6cc4792daa59`) recodificada a **MS** (verificado libre). Script `2026-09-25-depurar-especialidad-mt.sql` ejecutado: códigos repetidos 1 → 0, nombres repetidos sin mayúsculas 0. Migración `1790399100000-SpecialtiesUniqueCodeAndName` aplicada; `Specialty` declara `UQ_specialties_code_active` y `UQ_specialties_name_lower_active` (este con `synchronize: false`, por ser índice de expresión). `specialty.service` traduce 23505 → 409.
+- Respaldo previo a estos dos cambios: `backups/bd_gestion_medica_pre_fase1_cleanup_20260925-215401.dump`.
+
+| Prueba en la real (`BEGIN … ROLLBACK`) | Resultado |
+|---|---|
+| INSERT de persona con (letra, documento) activo repetido | 23505 `UQ_persona_comun_documento_activo` |
+| Mismo documento con otra letra | OK |
+| Especialidad con código `MT` repetido | 23505 `UQ_specialties_code_active` |
+| "Mastología" con "mastología" existente | 23505 `UQ_specialties_name_lower_active` |
+| `migration:generate` después | Sin cambios |
+
+Con esto `src/database/migrations-pending/` queda vacío y los dos índices están activos: el 409 de documento duplicado ya no depende solo de la validación en el servicio.

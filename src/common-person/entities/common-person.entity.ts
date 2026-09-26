@@ -2,6 +2,7 @@ import { IdentityDocument } from 'src/parameters/entities/identity-document.enti
 import {
   Column,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   OneToMany,
@@ -15,6 +16,11 @@ import { User } from '../../user/entities/user.entity';
 // import { IdentityDocument } from 'src/identity-document/entities/identity-document.entity';
 
 @Entity({ schema: 'public', name: 'persona_comun' })
+// One active person per document; the letter is part of the document (M-18).
+@Index('UQ_persona_comun_documento_activo', ['letter', 'documentNumber'], {
+  unique: true,
+  where: '"documento" IS NOT NULL AND "deleted_at" IS NULL',
+})
 export class CommonPerson {
   @PrimaryGeneratedColumn('uuid')
   id: string;

@@ -5,7 +5,7 @@
 --   Corrige el documento de UNA de las dos personas que comparten (letra, documento)
 --   para que el índice único parcial UQ_persona_comun_documento_activo se pueda crear.
 --   MUEVE DATOS: cambia persona_comun.documento (y opcionalmente letra) de una fila.
--- Estado: NO EJECUTADO. Requiere decisión de producto (ver docs/tasks/2026-09-25-003-fase-1-integridad.md, M-18).
+-- Estado: EJECUTADO el 2026-09-25 en bd_gestion_medica con persona_id=d53ebb57-acd5-4786-986d-6436f62df52c, letra=V, documento=990000001 (datos de prueba).
 --   Datos al 2026-09-25: 7a662859-0c03-4d4e-9271-0d5e57d7cebd (usuario medico + doctor + paciente con
 --   22 citas, 17 historias, 2 recetas, 24 mamografías) y d53ebb57-acd5-4786-986d-6436f62df52c (usuario
 --   medico + doctor, sin actividad clínica). Nombres, teléfono, email, licencia y centro difieren:
@@ -16,8 +16,7 @@
 --   - Ejecutar con: psql -v persona_id=<uuid> -v letra=<V|E|...> -v documento=<nuevo> -f <este archivo>
 -- Idempotente: sí (el UPDATE fija valores; repetirlo no cambia nada más).
 -- Transacción: sí (BEGIN/COMMIT). Aborta si el nuevo documento ya existe en otra persona activa.
--- Orden: 1) este script; 2) mover src/database/migrations-pending/1790399000000-PersonaComunUniqueDocument.ts
---   a src/database/migrations y agregar el @Index a CommonPerson; 3) npm run migration:run.
+-- Orden: 1) este script; 2) npm run migration:run (aplica 1790399000000-PersonaComunUniqueDocument, que aborta si quedan duplicados).
 -- =============================================================================
 
 \set ON_ERROR_STOP on

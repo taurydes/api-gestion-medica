@@ -33,7 +33,7 @@ No hay endpoints nuevos ni campos nuevos en las respuestas. Cambian códigos de 
 
 - Formas de respuesta, rutas, permisos y DTO de entrada.
 - `POST /users` con un email o nombre de usuario activo repetido sigue respondiendo **400** ("Error al crear el usuario: El correo electrónico o nombre ya está en uso.").
-- El índice único de documentos de persona y el de código de especialidad **todavía no están activos** (esperan la depuración de datos, ver la tarea `docs/tasks/2026-09-25-003-fase-1-integridad.md`). La validación en el servicio sí lo está.
+- Los índices únicos de documento de persona y de código y nombre de especialidad están activos: un duplicado por carrera también responde 409.
 
 ## 4. Errores (copiados del código)
 

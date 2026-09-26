@@ -1,9 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-/**
- * M-19, NOT applied: move to ../migrations after docs/info/migrations/2026-09-25-depurar-especialidad-mt.sql
- * and declare both indexes on Specialty with { synchronize: false } (see the phase 1 task doc).
- */
+/** M-19: requires docs/info/migrations/2026-09-25-depurar-especialidad-mt.sql first; aborts if duplicated codes remain. */
 export class SpecialtiesUniqueCodeAndName1790399100000 implements MigrationInterface {
     name = 'SpecialtiesUniqueCodeAndName1790399100000';
 
