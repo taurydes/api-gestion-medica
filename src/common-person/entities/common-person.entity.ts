@@ -53,9 +53,6 @@ export class CommonPerson {
   @Column({ name: 'estatus', type: 'boolean', default: true })
   isActive: boolean;
 
-  @Column({ name: 'user_id', type: 'uuid', nullable: true })
-  userId?: string;
-
   @Column({
     name: 'created_at',
     type: 'timestamp',
@@ -75,8 +72,8 @@ export class CommonPerson {
 
   // RELATIONS
 
+  // Inverse side: users.common_person_id is the only FK (M-23); a second one could diverge.
   @OneToOne(() => User, (user) => user.commonPerson)
-  @JoinColumn({ name: 'user_id' })
   user?: User;
 
   @ManyToOne(() => IdentityDocument, {

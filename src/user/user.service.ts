@@ -150,13 +150,8 @@ export class UserService {
         password: hashedPassword,
         commonPerson: commonPerson, // Asignar relación
       });
+      // users.common_person_id is the only link (M-23); a person that already has a user fails with 23505 → 409.
       await queryRunner.manager.save(user);
-
-      // Vincular CommonPerson con el Usuario (si no tenía usuario o actualizarlo)
-      // Nota: Si commonPerson ya tenía usuario, esto lo sobrescribe.
-      // Si se requiere validación de que commonPerson no tenga usuario, agregarla antes.
-      commonPerson.userId = user.id;
-      await queryRunner.manager.save(commonPerson);
 
       // 4. Crear Doctor (si aplica)
       let savedDoctor: Doctor | null = null;
@@ -456,7 +451,7 @@ export class UserService {
         .createQueryBuilder()
         .update()
         .set({ deletedAt: now, updatedAt: now, isActive: false })
-        .where('user_id = :id', { id })
+        .where('id = (SELECT common_person_id FROM public.users WHERE id = :id)', { id })
         .execute();
 
       // Revocar antes del commit: si Redis falla, el rollback deja al usuario intacto

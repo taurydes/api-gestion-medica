@@ -190,3 +190,16 @@ Todas las referencias son por id, así que recodificar no mueve relaciones. `MT`
 - Validaciones de referencia: `medical-history.create`, `recipe.create` (ver M-14/M-15) y las alergias, enfermedades y medicamentos del paciente (`activeByIds` en lugar de `findByIds`).
 
 **Tests**: `src/common/soft-delete-lookups.spec.ts` (paciente, doctor, receta y departamento borrados → 404) y el caso de historia borrada en `recipe-transaction.spec.ts`.
+
+## M-23 — Un solo dueño de la relación User ↔ CommonPerson
+
+- Lado dueño: `users.common_person_id` (lo usan `getDoctorIdForUser`, el login y los filtros por médico). `CommonPerson.user` queda como lado inverso, sin `@JoinColumn` ni columna `userId`.
+- Migración `1790386160686-SingleUserPersonLink`: aborta si hay divergencias; completa `users.common_person_id` desde `persona_comun.user_id` cuando solo existía ese lado (mueve datos; 0 filas hoy); borra `FK_64ad633807ee33a92952c382bc5`, `UQ_64ad633807ee33a92952c382bc5` y la columna `persona_comun.user_id`. `down()` recrea la columna y la rellena desde `users` (probado en la copia: 15 de 15 vínculos restaurados).
+- `user.create` ya no escribe `persona_comun.user_id`; si la persona ya tiene usuario, el índice único de `users.common_person_id` responde 23505 → 409 (el comentario anterior decía que "sobrescribía", y era falso). `user.remove` borra la persona por `users.common_person_id`.
+
+| Verificación | Resultado |
+|---|---|
+| Divergencias antes (`persona_comun.user_id` vs `users.common_person_id`) | 0 |
+| FKs entre `users` y `persona_comun` antes / después (`information_schema`) | 2 / 1 (`users.FK_e356baae93eb514f72144e6fc42`) |
+| Médicos activos que se resuelven desde un usuario | 15 de 16; el restante no tiene usuario (alta por `/doctors`), no por divergencia |
+| `migration:run` → `revert` → `run` (copia), `migration:generate` (ambas) | OK / sin cambios |
