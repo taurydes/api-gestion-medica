@@ -4,8 +4,8 @@ import { DataSource } from 'typeorm';
 import { DatabaseConnectionName } from './DatabaseConnectionName';
 
 /**
- * Servicio de arranque para crear esquemas faltantes en PostgreSQL
- * y ejecutar la sincronización de TypeORM una vez creados.
+ * Crea los esquemas faltantes en PostgreSQL al arrancar.
+ * El esquema de tablas lo gestionan las migraciones (`npm run migration:run`), no `synchronize()`.
  */
 @Injectable()
 export class SchemaInitService implements OnApplicationBootstrap {
@@ -20,8 +20,5 @@ export class SchemaInitService implements OnApplicationBootstrap {
     for (const schema of schemas) {
       await this.dataSource.query(`CREATE SCHEMA IF NOT EXISTS "${schema}"`);
     }
-
-    // Una vez creados los esquemas, sincronizamos las entidades
-    await this.dataSource.synchronize();
   }
 }
