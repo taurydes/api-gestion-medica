@@ -15,7 +15,7 @@ import { UpdateRoleDto } from './dto/update-role.dto';
 import { AuthUser } from 'src/auth/interfaces/User';
 import { RoleQueryDto } from './dto/role-query.dto';
 import { toHttpException } from 'src/common/exceptions/to-http-exception';
-import { SYSTEM_ROLE_NAMES } from './role.const';
+import { RoleEnum, SYSTEM_ROLE_NAMES } from './role.const';
 
 @Injectable()
 export class RoleService {
@@ -165,6 +165,11 @@ export class RoleService {
           `El rol '${role.name}' es del sistema y no se puede renombrar.`,
         );
       }
+      if (updateRoleDto.isActive === false && role.name === RoleEnum.ADMIN) {
+        throw new BadRequestException(
+          `El rol '${RoleEnum.ADMIN}' no se puede desactivar: dejaría el sistema sin administradores.`,
+        );
+      }
 
       // update() and not save(): findOne loads permissionMenus and save() would walk the relation.
       await this.roleRepository.update(id, { ...updateRoleDto, updatedAt: new Date() });
@@ -185,6 +190,11 @@ export class RoleService {
   async remove(id: string): Promise<void> {
     try {
       const role = await this.findOne(id);
+      if (role.name === RoleEnum.ADMIN) {
+        throw new BadRequestException(
+          `El rol '${RoleEnum.ADMIN}' no se puede eliminar: dejaría el sistema sin administradores.`,
+        );
+      }
 
       await this.roleRepository.remove(role);
 

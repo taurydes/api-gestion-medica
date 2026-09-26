@@ -157,6 +157,13 @@ export class MenuService {
         throw new NotFoundException(`Menú con ID ${id} no encontrado.`);
       }
 
+      // Guards build permission codes as "slug.acción" from constants: a new slug orphans every grant.
+      if (updateMenuDto.slug !== undefined && updateMenuDto.slug !== menu.slug) {
+        throw new BadRequestException(
+          'El slug de un menú no se puede cambiar: los permisos del módulo se verifican por ese slug.',
+        );
+      }
+
       if (
         typeof updateMenuDto.parentId !== 'undefined' &&
         updateMenuDto.parentId !== null

@@ -4,6 +4,7 @@ import { UpdatePermissionDto } from 'src/permission/dto/update-permission.dto';
 import { PermissionService } from 'src/permission/services/permission.service';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { RoleService } from './role.service';
+import { MenuService } from 'src/menu/menu.service';
 
 const pipe = new ValidationPipe({ transform: true, whitelist: true });
 const validate = (metatype: any, body: unknown) => pipe.transform(body, { type: 'body', metatype });
@@ -106,5 +107,30 @@ describe('PATCH /permissions/:id (M-26: catálogo fijo de acciones)', () => {
 
     await expect(service.update('p-1', { name: 'ver' })).rejects.toThrow(BadRequestException);
     expect(table[0].name).toBe('consultar');
+  });
+});
+
+describe('Guardas de administración (fase 2)', () => {
+  it('superusuario no se puede desactivar ni eliminar (400)', async () => {
+    const table: any[] = [{ id: 'r-su', name: 'superusuario', isActive: true, updatedAt: null }];
+    const repo = new FakeRepo(table) as any;
+    repo.remove = jest.fn();
+    const service = new RoleService(repo, fakeCache());
+
+    await expect(service.update('r-su', { isActive: false })).rejects.toThrow(BadRequestException);
+    await expect(service.remove('r-su')).rejects.toThrow(BadRequestException);
+    expect(table[0].isActive).toBe(true);
+    expect(repo.remove).not.toHaveBeenCalled();
+  });
+
+  it('PATCH /menu/:id rechaza cambiar el slug y acepta el resto', async () => {
+    const table: any[] = [{ id: 'm1', name: 'Pacientes', slug: 'patient', order: 40 }];
+    const menus = new MenuService(new FakeRepo(table) as any, fakeCache(), {} as any, {} as any);
+
+    await expect(menus.update('m1', { slug: 'patients' })).rejects.toThrow(BadRequestException);
+    expect(table[0].slug).toBe('patient');
+
+    await menus.update('m1', { slug: 'patient', name: 'Pacientes 2', order: 41 });
+    expect(table[0]).toMatchObject({ slug: 'patient', name: 'Pacientes 2', order: 41 });
   });
 });
