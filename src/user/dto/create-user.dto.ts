@@ -38,12 +38,14 @@ export class CreateUserDto {
   @MinLength(6, { message: 'La contraseña debe tener al menos 6 caracteres' })
   password: string;
 
-  @ApiProperty({
-    description: 'ID del rol (UUID)',
+  @ApiPropertyOptional({
+    description:
+      'ID del rol (UUID). Obligatorio salvo al crear un médico (`doctor` presente): sin él se asigna el rol `medico`',
     example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
   })
+  @IsOptional()
   @IsUUID('4', { message: 'El ID del rol debe ser un UUID válido' })
-  roleId: string;
+  roleId?: string;
 
   @ApiProperty({
     description: 'Indica si es el primer inicio de sesión',

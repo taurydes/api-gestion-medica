@@ -7,18 +7,21 @@ import {
   Injectable,
   NotFoundException,
   ServiceUnavailableException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { Cache } from 'cache-manager';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
-import { DataSource, In, IsNull, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, IsNull, Repository } from 'typeorm';
 
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UserQueryDto } from './dto/user-query.dto copy';
 import { User } from './entities/user.entity';
+import { Role } from 'src/role/entities/role.entity';
+import { RoleEnum } from 'src/role/role.const';
 import { CommonPerson } from '../common-person/entities/common-person.entity';
 import { CommonPersonImage } from '../common-person/entities/common-person-image.entity';
 import {
@@ -113,6 +116,27 @@ export class UserService {
     }
   }
 
+  /** Explicit roleId wins; a doctor without one gets the `medico` role looked up by name (M-33). */
+  private async resolveRoleId(
+    manager: EntityManager,
+    roleId: string | undefined,
+    isDoctor: boolean,
+  ): Promise<string> {
+    if (roleId) return roleId;
+    if (!isDoctor) {
+      throw new BadRequestException('El rol es obligatorio (roleId).');
+    }
+    const role = await manager.getRepository(Role).findOne({
+      where: { name: RoleEnum.DOCTOR, isActive: true, deletedAt: IsNull() },
+    });
+    if (!role) {
+      throw new UnprocessableEntityException(
+        `No existe un rol '${RoleEnum.DOCTOR}' activo para asignar al médico. Créelo o envíe roleId.`,
+      );
+    }
+    return role.id;
+  }
+
   // ============================================================
   // 🟢 Crear usuario
   // ============================================================
@@ -127,6 +151,7 @@ export class UserService {
 
       // 1. Validar usuario existente (email / nombre)
       await this.validateUserData(dto);
+      data.roleId = await this.resolveRoleId(queryRunner.manager, data.roleId, !!doctorDto);
 
       // 2. Resolver CommonPerson por letra + documento (buscar solo por documento vinculaba a otra persona)
       let commonPerson: CommonPerson | null = null;
