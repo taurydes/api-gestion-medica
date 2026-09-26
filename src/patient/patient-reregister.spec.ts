@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import { InMemoryDb } from '../../test/in-memory-db';
 import { PatientService } from './patient.service';
 import { Patient } from './entities/patient.entity';
@@ -53,5 +53,30 @@ describe('PatientService.create — re-registering a soft-deleted patient (M-17)
 
     await expect(service.create(dto, 'u1')).rejects.toThrow(BadRequestException);
     expect(db.rows(Patient)).toHaveLength(1);
+  });
+});
+
+describe('Correo del paciente (fase 2)', () => {
+  const pipe = new ValidationPipe({ transform: true, whitelist: true });
+  const body = {
+    commonPerson: { letter: 'V', documentNumber: '999', firstName: 'Ana', lastName: 'Pérez' },
+    email: 'ana@example.com',
+  };
+
+  it('POST /patient conserva email y lo guarda en patients.email', async () => {
+    const { service, db } = setup(null);
+    const validated = await pipe.transform(body, { type: 'body', metatype: CreatePatientDto });
+
+    const created = await service.create(validated, 'u1');
+
+    expect(db.rows(Patient).find((p) => p.id === created.id)?.email).toBe('ana@example.com');
+  });
+
+  it('rechaza un correo inválido y convierte "" en null', async () => {
+    await expect(
+      pipe.transform({ ...body, email: 'no-es-correo' }, { type: 'body', metatype: CreatePatientDto }),
+    ).rejects.toThrow(BadRequestException);
+    const cleared = await pipe.transform({ ...body, email: '' }, { type: 'body', metatype: CreatePatientDto });
+    expect(cleared.email).toBeNull();
   });
 });

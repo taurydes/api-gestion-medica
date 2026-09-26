@@ -119,6 +119,10 @@ export class Patient {
   })
   insurancePolicyNumber: string;
 
+  // Contact email of the patient: persona_comun has no email and users.email belongs to accounts.
+  @Column({ name: 'email', type: 'varchar', length: 255, nullable: true })
+  email: string | null;
+
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
 

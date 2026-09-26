@@ -1,5 +1,7 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
+  IsEmail,
+  MaxLength,
   ValidateNested,
   IsNotEmpty,
   IsOptional,
@@ -71,6 +73,13 @@ export class CreatePatientDto {
   @IsOptional()
   @IsString()
   bloodType?: string;
+
+  @ApiPropertyOptional({ description: 'Correo de contacto del paciente. "" o null lo borran', example: 'paciente@example.com' })
+  @IsOptional()
+  @Transform(({ value }) => (value === '' ? null : value))
+  @IsEmail({}, { message: 'El correo del paciente no es válido' })
+  @MaxLength(255)
+  email?: string | null;
 
   @ApiProperty({
     description: 'IDs de alergias (UUID)',

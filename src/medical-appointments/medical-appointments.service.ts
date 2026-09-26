@@ -268,6 +268,7 @@ export class MedicalAppointmentsService {
         commonPersonId: commonPerson.id,
         commonPerson,
         patientCode,
+        email: dto.newPatientData?.email ?? null,
       });
       // Set audit field separately to avoid DeepPartial type conflict with null
       (newPatient as any).createdBy = userId ?? null;
