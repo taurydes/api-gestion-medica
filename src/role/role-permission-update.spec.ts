@@ -1,0 +1,94 @@
+import { BadRequestException, ValidationPipe } from '@nestjs/common';
+import { FakeRepo } from '../../test/in-memory-db';
+import { UpdatePermissionDto } from 'src/permission/dto/update-permission.dto';
+import { PermissionService } from 'src/permission/services/permission.service';
+import { UpdateRoleDto } from './dto/update-role.dto';
+import { RoleService } from './role.service';
+
+const pipe = new ValidationPipe({ transform: true, whitelist: true });
+const validate = (metatype: any, body: unknown) => pipe.transform(body, { type: 'body', metatype });
+
+function fakeCache() {
+  const store = new Map<string, unknown>();
+  return {
+    get: jest.fn(async (k: string) => store.get(k)),
+    set: jest.fn(async (k: string, v: unknown) => void store.set(k, v)),
+    del: jest.fn(async (k: string) => void store.delete(k)),
+  } as any;
+}
+
+describe('PATCH /roles/:id con el cuerpo que envía el frontend (M-26)', () => {
+  const rows = () => [
+    { id: 'r-enf', name: 'enfermero', isActive: true, updatedAt: null },
+    { id: 'r-med', name: 'medico', isActive: true, updatedAt: null },
+  ];
+
+  it('el DTO conserva isActive y descarta description (no hay columna)', async () => {
+    const out = await validate(UpdateRoleDto, { name: 'enfermería', description: 'x', isActive: false });
+    expect({ ...out }).toEqual({ name: 'enfermería', isActive: false });
+  });
+
+  it('persiste nombre e isActive', async () => {
+    const table = rows();
+    const service = new RoleService(new FakeRepo(table) as any, fakeCache());
+
+    const updated = await service.update('r-enf', { name: 'enfermería', isActive: false });
+
+    expect(updated).toMatchObject({ id: 'r-enf', name: 'enfermería', isActive: false });
+    expect(table[0].updatedAt).toBeInstanceOf(Date);
+  });
+
+  it('no permite renombrar un rol del sistema, pero sí cambiar su estado sin tocar el nombre', async () => {
+    const table = rows();
+    const service = new RoleService(new FakeRepo(table) as any, fakeCache());
+
+    await expect(service.update('r-med', { name: 'doctor' })).rejects.toThrow(BadRequestException);
+    expect(table[1].name).toBe('medico');
+
+    await expect(service.update('r-med', { name: 'medico', isActive: true })).resolves.toMatchObject({
+      name: 'medico',
+    });
+  });
+});
+
+describe('PATCH /permissions/:id (M-26: catálogo fijo de acciones)', () => {
+  const build = () => {
+    const table: any[] = [{ id: 'p-1', name: 'consultar', displayName: 'Consultar', isActive: true, deletedAt: null }];
+    const service = new PermissionService(
+      new FakeRepo([]) as any,
+      new FakeRepo([]) as any,
+      new FakeRepo(table) as any,
+      new FakeRepo([]) as any,
+      new FakeRepo([]) as any,
+      new FakeRepo([]) as any,
+      fakeCache(),
+    );
+    return { table, service };
+  };
+
+  it('el DTO conserva displayName e isActive y descarta slug/description', async () => {
+    const out = await validate(UpdatePermissionDto, {
+      name: 'consultar',
+      displayName: 'Ver',
+      isActive: false,
+      slug: 'consultar',
+      description: 'x',
+    });
+    expect({ ...out }).toEqual({ name: 'consultar', displayName: 'Ver', isActive: false });
+  });
+
+  it('persiste displayName e isActive cuando el nombre no cambia', async () => {
+    const { table, service } = build();
+
+    await service.update('p-1', { name: 'consultar', displayName: 'Ver', isActive: false });
+
+    expect(table[0]).toMatchObject({ name: 'consultar', displayName: 'Ver', isActive: false });
+  });
+
+  it('rechaza renombrar la acción con 400 y no escribe', async () => {
+    const { table, service } = build();
+
+    await expect(service.update('p-1', { name: 'ver' })).rejects.toThrow(BadRequestException);
+    expect(table[0].name).toBe('consultar');
+  });
+});

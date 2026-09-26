@@ -1,5 +1,13 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { Inject, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  HttpException,
+  Inject,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import type { Cache } from 'cache-manager';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
@@ -37,12 +45,11 @@ import { PermissionMenu } from '../entities/permission-menu.entity';
 import { AuthUser } from 'src/auth/interfaces/User';
 import { User } from 'src/user/entities/user.entity';
 import { QueryPermissionDto } from '../dto/query-permission.dto';
-import { CreatePermissionDto } from '../dto/create-permission.dto';
+import { UpdatePermissionDto } from '../dto/update-permission.dto';
 import { CreatepermissionsRolesDto } from '../dto/create-permission-role.dto';
 import { ModuleItemsMenu } from 'src/menu/menu.const';
 import { safeErrorMessage } from 'src/common/exceptions/to-http-exception';
 
-type UpdatePermissionDto = Partial<CreatePermissionDto>;
 @Injectable()
 export class PermissionService {
   private readonly logger = new Logger(PermissionService.name);
@@ -1054,7 +1061,15 @@ export class PermissionService {
   ): Promise<Permission> {
     try {
       const permission = await this.findOne(id);
-      Object.assign(permission, updatePermissionDto, { updatedAt: new Date() });
+      const { name, ...changes } = updatePermissionDto;
+      if (name !== undefined && this.normalizeAction(name) !== permission.name) {
+        throw new BadRequestException(
+          'El nombre de la acción no se puede cambiar: los permisos de cada módulo se verifican por ese nombre.',
+        );
+      }
+
+      Object.assign(permission, changes, { updatedAt: new Date() });
+      if (changes.isActive === true) permission.deletedAt = null;
 
       const saved = await this.permissionRepo.save(permission);
 
@@ -1064,7 +1079,7 @@ export class PermissionService {
 
       return saved;
     } catch (error) {
-      if (error instanceof NotFoundException) throw error;
+      if (error instanceof HttpException) throw error;
       throw new InternalServerErrorException('Error al actualizar el permiso');
     }
   }

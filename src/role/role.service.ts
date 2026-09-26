@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   Inject,
   NotFoundException,
@@ -14,6 +15,7 @@ import { UpdateRoleDto } from './dto/update-role.dto';
 import { AuthUser } from 'src/auth/interfaces/User';
 import { RoleQueryDto } from './dto/role-query.dto';
 import { toHttpException } from 'src/common/exceptions/to-http-exception';
+import { SYSTEM_ROLE_NAMES } from './role.const';
 
 @Injectable()
 export class RoleService {
@@ -156,15 +158,22 @@ export class RoleService {
     try {
       const role = await this.findOne(id);
 
-      Object.assign(role, updateRoleDto);
+      const renames =
+        updateRoleDto.name !== undefined && updateRoleDto.name !== role.name;
+      if (renames && SYSTEM_ROLE_NAMES.includes(role.name)) {
+        throw new BadRequestException(
+          `El rol '${role.name}' es del sistema y no se puede renombrar.`,
+        );
+      }
 
-      const updated = await this.roleRepository.save(role);
+      // update() and not save(): findOne loads permissionMenus and save() would walk the relation.
+      await this.roleRepository.update(id, { ...updateRoleDto, updatedAt: new Date() });
 
       await this.cacheManager.del(`role:${id}`);
       await this.cacheManager.del('roles:all');
       await this.clearQueryCache();
 
-      return updated;
+      return this.findOne(id);
     } catch (error) {
       throw toHttpException(error, 'Error al actualizar el rol.');
     }

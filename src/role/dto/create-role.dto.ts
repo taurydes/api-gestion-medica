@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsBoolean, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CreateRoleDto {
   @ApiProperty({
@@ -7,6 +7,8 @@ export class CreateRoleDto {
     example: 'Administrador',
   })
   @IsString({ message: 'El nombre debe ser una cadena de texto' })
+  @IsNotEmpty({ message: 'El nombre del rol es obligatorio' })
+  @MaxLength(255, { message: 'El nombre no puede superar los 255 caracteres' })
   name: string;
 
   @ApiProperty({
@@ -16,5 +18,5 @@ export class CreateRoleDto {
   })
   @IsOptional()
   @IsBoolean({ message: 'El estado activo debe ser un valor booleano' })
-  active?: boolean;
+  isActive?: boolean;
 }
