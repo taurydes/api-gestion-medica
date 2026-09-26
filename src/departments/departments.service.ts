@@ -15,6 +15,7 @@ import { Specialty } from 'src/parameters/entities/specialty.entity';
 import { CreateDepartmentDto } from './dto/create-department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
 import { DepartmentQueryDto } from './dto/department-query.dto';
+import { toHttpException } from 'src/common/exceptions/to-http-exception';
 
 @Injectable()
 export class DepartmentsService {
@@ -83,9 +84,7 @@ export class DepartmentsService {
       return this.findOne(saved.id);
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
-      throw new BadRequestException(
-        `Error al crear el departamento: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al crear el departamento.');
     }
   }
 
@@ -164,9 +163,7 @@ export class DepartmentsService {
       return department;
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
-      throw new NotFoundException(
-        `Error al obtener el departamento: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al obtener el departamento.');
     }
   }
 
@@ -226,9 +223,7 @@ export class DepartmentsService {
         error instanceof BadRequestException
       )
         throw error;
-      throw new BadRequestException(
-        `Error al actualizar el departamento: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al actualizar el departamento.');
     }
   }
 
@@ -254,9 +249,7 @@ export class DepartmentsService {
       await this.clearQueryCache();
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
-      throw new NotFoundException(
-        `Error al eliminar el departamento: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al eliminar el departamento.');
     }
   }
 }

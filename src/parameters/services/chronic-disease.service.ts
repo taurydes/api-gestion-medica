@@ -13,6 +13,7 @@ import { CreateChronicDiseaseDto } from '../dto/chronic-disease/create-chronic-d
 import { UpdateChronicDiseaseDto } from '../dto/chronic-disease/update-chronic-disease.dto';
 import { ChronicDiseaseQueryDto } from '../dto/chronic-disease/chronic-disease-query.dto';
 import { ChronicDisease } from '../entities/chronic-disease.entity';
+import { toHttpException } from 'src/common/exceptions/to-http-exception';
 
 @Injectable()
 export class ChronicDiseaseService {
@@ -53,9 +54,7 @@ export class ChronicDiseaseService {
 
       return disease;
     } catch (error) {
-      throw new BadRequestException(
-        `Error al crear la enfermedad crónica: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al crear la enfermedad crónica.');
     }
   }
 

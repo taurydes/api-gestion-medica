@@ -1,6 +1,5 @@
 import {
   Injectable,
-  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -11,6 +10,7 @@ import { UpdateIdentityDocumentDto } from '../dto/update/update-identity-documen
 
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { IdentityDocumentQueryDto } from '../dto/query/identity-document-query.dto';
+import { toHttpException } from 'src/common/exceptions/to-http-exception';
 
 @Injectable()
 export class IdentityDocumentService {
@@ -27,9 +27,7 @@ export class IdentityDocumentService {
       const entity = this.repo.create({ ...dto });
       return await this.repo.save(entity);
     } catch (error) {
-      throw new InternalServerErrorException(
-        `Error creating identity document: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error creating identity document.');
     }
   }
 

@@ -1,6 +1,5 @@
 import {
   Injectable,
-  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -10,6 +9,7 @@ import { CreateMunicipalityDto } from '../dto/create/create-municipality.dto';
 import { UpdateMunicipalityDto } from '../dto/update/update-municipality.dto';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { MunicipalityQueryDto } from '../dto/query/municipality-query.dto';
+import { toHttpException } from 'src/common/exceptions/to-http-exception';
 
 @Injectable()
 export class MunicipalityService {
@@ -26,9 +26,7 @@ export class MunicipalityService {
       const entity = this.repo.create({ ...dto });
       return await this.repo.save(entity);
     } catch (error) {
-      throw new InternalServerErrorException(
-        `Error creating municipality: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error creating municipality.');
     }
   }
 

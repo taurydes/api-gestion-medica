@@ -14,6 +14,7 @@ import { uniqueViolationToConflict } from 'src/common-person/person-document.uti
 import { CreateSpecialtyDto } from '../dto/specialty/create-specialty.dto';
 import { UpdateSpecialtyDto } from '../dto/specialty/update-specialty.dto';
 import { SpecialtyQueryDto } from '../dto/specialty/specialty-query.dto';
+import { toHttpException } from 'src/common/exceptions/to-http-exception';
 
 /** "Mastología" and "mastología" are the same specialty (M-19); parameterized, so no LIKE wildcards. */
 export const sameNameIgnoringCase = (name: string) =>
@@ -94,9 +95,7 @@ export class SpecialtyService {
       if (error instanceof BadRequestException) throw error;
       const conflict = uniqueViolationToConflict(error);
       if (conflict) throw conflict;
-      throw new BadRequestException(
-        `Error al crear la especialidad: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al crear la especialidad.');
     }
   }
 
@@ -185,9 +184,7 @@ export class SpecialtyService {
       return specialty;
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
-      throw new NotFoundException(
-        `Error al obtener la especialidad: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al obtener la especialidad.');
     }
   }
 
@@ -258,9 +255,7 @@ export class SpecialtyService {
       if (error instanceof NotFoundException || error instanceof BadRequestException) {
         throw error;
       }
-      throw new BadRequestException(
-        `Error al actualizar la especialidad: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al actualizar la especialidad.');
     }
   }
 
@@ -290,9 +285,7 @@ export class SpecialtyService {
       await this.clearQueryCache();
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
-      throw new NotFoundException(
-        `Error al eliminar la especialidad: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al eliminar la especialidad.');
     }
   }
 }

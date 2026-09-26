@@ -1,6 +1,5 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import {
-  BadRequestException,
   ConflictException,
   Inject,
   Injectable,
@@ -20,6 +19,7 @@ import {
   personDocumentWhere,
   uniqueViolationToConflict,
 } from './person-document.util';
+import { toHttpException } from 'src/common/exceptions/to-http-exception';
 
 @Injectable()
 export class CommonPersonService {
@@ -82,7 +82,7 @@ export class CommonPersonService {
       if (error instanceof ConflictException) throw error;
       throw (
         uniqueViolationToConflict(error) ??
-        new BadRequestException(`Error al crear la persona: ${error.message}`)
+        toHttpException(error, 'Error al crear la persona.')
       );
     }
   }

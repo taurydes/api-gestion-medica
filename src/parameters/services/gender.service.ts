@@ -1,6 +1,5 @@
 import {
   Injectable,
-  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -10,6 +9,7 @@ import { Gender } from '../entities/gender.entity';
 import { CreateGenderDto } from '../dto/create/create-gender.dto';
 import { UpdateGenderDto } from '../dto/update/update-gender.dto';
 import { GenderQueryDto } from '../dto/query/gender-query.dto';
+import { toHttpException } from 'src/common/exceptions/to-http-exception';
 
 @Injectable()
 export class GenderService {
@@ -26,9 +26,7 @@ export class GenderService {
       const entity = this.repo.create(dto);
       return await this.repo.save(entity);
     } catch (error) {
-      throw new InternalServerErrorException(
-        `Error creating gender: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error creating gender.');
     }
   }
 

@@ -23,6 +23,7 @@ import { MedicalHistory } from 'src/medical-history/entities/medical-history.ent
 import { User } from 'src/user/entities/user.entity';
 import { FilesService } from 'src/files/files.service';
 import { AuthContextService } from 'src/common/services/auth-context.service';
+import { toHttpException } from 'src/common/exceptions/to-http-exception';
 
 /**
  * Servicio para gestionar las recetas médicas
@@ -141,9 +142,7 @@ export class RecipeService {
       return this.findOne(savedRecipe.id);
     } catch (error) {
       if (error instanceof HttpException) throw error;
-      throw new BadRequestException(
-        `Error al crear la receta: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al crear la receta.');
     }
   }
 
@@ -370,7 +369,7 @@ export class RecipeService {
       return recipe;
     } catch (error) {
       if (error instanceof NotFoundException || error instanceof ForbiddenException) throw error;
-      throw new NotFoundException(`Error al obtener la receta: ${error.message}`);
+      throw toHttpException(error, 'Error al obtener la receta.');
     }
   }
 
@@ -398,7 +397,7 @@ export class RecipeService {
 
       return recipes;
     } catch (error) {
-      throw new NotFoundException(`Error al obtener las recetas del paciente: ${error.message}`);
+      throw toHttpException(error, 'Error al obtener las recetas del paciente.');
     }
   }
 
@@ -435,9 +434,7 @@ export class RecipeService {
 
       return scope(recipes);
     } catch (error) {
-      throw new NotFoundException(
-        `Error al obtener las recetas del historial médico: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al obtener las recetas del historial médico.');
     }
   }
 
@@ -507,9 +504,7 @@ export class RecipeService {
       return this.findOne(id);
     } catch (error) {
       if (error instanceof HttpException) throw error;
-      throw new BadRequestException(
-        `Error al actualizar la receta: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al actualizar la receta.');
     }
   }
 
@@ -554,9 +549,7 @@ export class RecipeService {
       if (error instanceof NotFoundException || error instanceof BadRequestException) {
         throw error;
       }
-      throw new BadRequestException(
-        `Error al marcar la receta como dispensada: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al marcar la receta como dispensada.');
     }
   }
 
@@ -602,9 +595,7 @@ export class RecipeService {
       if (error instanceof NotFoundException || error instanceof BadRequestException) {
         throw error;
       }
-      throw new BadRequestException(
-        `Error al cancelar la receta: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al cancelar la receta.');
     }
   }
 
@@ -636,9 +627,7 @@ export class RecipeService {
       await this.clearQueryCache();
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
-      throw new NotFoundException(
-        `Error al eliminar la receta: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al eliminar la receta.');
     }
   }
 }

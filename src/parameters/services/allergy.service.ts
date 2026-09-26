@@ -13,6 +13,7 @@ import { CreateAllergyDto } from '../dto/allergy/create-allergy.dto';
 import { UpdateAllergyDto } from '../dto/allergy/update-allergy.dto';
 import { AllergyQueryDto } from '../dto/allergy/allergy-query.dto';
 import { Allergy } from '../entities/allergy.entity';
+import { toHttpException } from 'src/common/exceptions/to-http-exception';
 
 @Injectable()
 export class AllergyService {
@@ -51,9 +52,7 @@ export class AllergyService {
 
       return allergy;
     } catch (error) {
-      throw new BadRequestException(
-        `Error al crear la alergia: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al crear la alergia.');
     }
   }
 

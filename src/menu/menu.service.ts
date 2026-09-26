@@ -19,6 +19,7 @@ import { UserSecurity } from '../user/entities/user.system.entity';
 import { AuthUser } from 'src/auth/interfaces/User';
 import { UserService } from 'src/user/user.service';
 import { User } from 'src/user/entities/user.entity';
+import { toHttpException } from 'src/common/exceptions/to-http-exception';
 
 @Injectable()
 export class MenuService {
@@ -58,7 +59,7 @@ export class MenuService {
 
       return menu;
     } catch (error) {
-      throw new BadRequestException(`Error al crear el menú: ${error.message}`);
+      throw toHttpException(error, 'Error al crear el menú.');
     }
   }
 
@@ -140,7 +141,7 @@ export class MenuService {
 
       return menu;
     } catch (error) {
-      throw new NotFoundException(`Error al obtener el menú: ${error.message}`);
+      throw toHttpException(error, 'Error al obtener el menú.');
     }
   }
 
@@ -194,9 +195,7 @@ export class MenuService {
 
       return updatedMenu;
     } catch (error) {
-      throw new BadRequestException(
-        `Error al actualizar el menú: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al actualizar el menú.');
     }
   }
 
@@ -218,9 +217,7 @@ export class MenuService {
       await this.cacheManager.del(`menu:${id}`);
       await this.cacheManager.del('menus:all');
     } catch (error) {
-      throw new NotFoundException(
-        `Error al eliminar el menú: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al eliminar el menú.');
     }
   }
 

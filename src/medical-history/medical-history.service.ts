@@ -22,6 +22,7 @@ import { Specialty } from 'src/parameters/entities/specialty.entity';
 import { User } from 'src/user/entities/user.entity';
 import { FilesService } from 'src/files/files.service';
 import { AuthContextService } from 'src/common/services/auth-context.service';
+import { toHttpException } from 'src/common/exceptions/to-http-exception';
 
 /**
  * Servicio para gestionar el historial médico de los pacientes
@@ -204,9 +205,7 @@ export class MedicalHistoryService {
       return this.findOne(savedHistory.id);
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
-      throw new BadRequestException(
-        `Error al crear el historial médico: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al crear el historial médico.');
     }
   }
 
@@ -375,9 +374,7 @@ export class MedicalHistoryService {
       return enrichedHistory;
     } catch (error) {
       if (error instanceof NotFoundException || error instanceof ForbiddenException) throw error;
-      throw new NotFoundException(
-        `Error al obtener el historial médico: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al obtener el historial médico.');
     }
   }
 
@@ -423,9 +420,7 @@ export class MedicalHistoryService {
 
       return histories;
     } catch (error) {
-      throw new NotFoundException(
-        `Error al obtener el historial del paciente: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al obtener el historial del paciente.');
     }
   }
 
@@ -501,9 +496,7 @@ export class MedicalHistoryService {
       if (error instanceof NotFoundException || error instanceof BadRequestException) {
         throw error;
       }
-      throw new BadRequestException(
-        `Error al actualizar el historial médico: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al actualizar el historial médico.');
     }
   }
 
@@ -568,9 +561,7 @@ export class MedicalHistoryService {
       if (error instanceof NotFoundException || error instanceof BadRequestException) {
         throw error;
       }
-      throw new BadRequestException(
-        `Error al crear la reseña médica: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al crear la reseña médica.');
     }
   }
 
@@ -623,9 +614,7 @@ export class MedicalHistoryService {
       if (error instanceof NotFoundException || error instanceof BadRequestException) {
         throw error;
       }
-      throw new BadRequestException(
-        `Error al cancelar la consulta: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al cancelar la consulta.');
     }
   }
 
@@ -656,9 +645,7 @@ export class MedicalHistoryService {
       await this.clearQueryCache();
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
-      throw new NotFoundException(
-        `Error al eliminar el historial médico: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al eliminar el historial médico.');
     }
   }
 }

@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ForbiddenException,
+  InternalServerErrorException,
   ServiceUnavailableException,
   ValidationPipe,
 } from '@nestjs/common';
@@ -221,7 +222,7 @@ describe('UserService.update — users and persona_comun in one transaction', ()
         { email: 'nuevo@example.com', commonPerson: { firstName: 'Marta' } } as UpdateUserDto,
         [],
       ),
-    ).rejects.toThrow(BadRequestException);
+    ).rejects.toThrow(new InternalServerErrorException('Error al actualizar el usuario.'));
     expect(committed).toEqual([]);
   });
 

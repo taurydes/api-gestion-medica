@@ -64,7 +64,9 @@ export class LogsController {
         this.logger.error('Fallo inesperado al autorizar la vista de logs', err?.stack);
       }
       return res.redirect(
-        `/logs/ui/login?error=${encodeURIComponent(err.message)}`,
+        `/logs/ui/login?error=${encodeURIComponent(
+          err instanceof HttpException ? err.message : 'Error de autorización',
+        )}`,
       );
     }
     return res.render('logs/views/logs-page', {

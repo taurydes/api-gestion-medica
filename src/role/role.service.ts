@@ -1,7 +1,6 @@
 import {
   Injectable,
   Inject,
-  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
@@ -14,6 +13,7 @@ import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { AuthUser } from 'src/auth/interfaces/User';
 import { RoleQueryDto } from './dto/role-query.dto';
+import { toHttpException } from 'src/common/exceptions/to-http-exception';
 
 @Injectable()
 export class RoleService {
@@ -60,9 +60,7 @@ export class RoleService {
 
       return saved;
     } catch (error) {
-      throw new InternalServerErrorException(
-        `Error al crear el rol: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al crear el rol.');
     }
   }
 
@@ -147,9 +145,7 @@ export class RoleService {
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
 
-      throw new InternalServerErrorException(
-        `Error al obtener el rol: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al obtener el rol.');
     }
   }
 
@@ -170,9 +166,7 @@ export class RoleService {
 
       return updated;
     } catch (error) {
-      throw new InternalServerErrorException(
-        `Error al actualizar el rol: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al actualizar el rol.');
     }
   }
 
@@ -189,9 +183,7 @@ export class RoleService {
       await this.cacheManager.del('roles:all');
       await this.clearQueryCache();
     } catch (error) {
-      throw new InternalServerErrorException(
-        `Error al eliminar el rol: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al eliminar el rol.');
     }
   }
 }

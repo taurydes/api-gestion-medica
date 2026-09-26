@@ -1,6 +1,5 @@
 import {
   Injectable,
-  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -10,6 +9,7 @@ import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { CreateCivilStatusDto } from '../dto/create/create-civil-status.dto';
 import { UpdateCivilStatusDto } from '../dto/update/update-civil-status.dto';
 import { CivilStatusQueryDto } from '../dto/query/civil-status-query.dto';
+import { toHttpException } from 'src/common/exceptions/to-http-exception';
 
 
 @Injectable()
@@ -27,9 +27,7 @@ export class CivilStatusService {
       const entity = this.repo.create(dto);
       return await this.repo.save(entity);
     } catch (error) {
-      throw new InternalServerErrorException(
-        `Error creating civil status: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error creating civil status.');
     }
   }
 

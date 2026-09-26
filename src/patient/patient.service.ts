@@ -29,6 +29,7 @@ import { Doctor } from 'src/doctors/entities/doctor.entity';
 import { CommonPersonImage } from 'src/common-person/entities/common-person-image.entity';
 import { FilesService } from 'src/files/files.service';
 import { AuthContextService } from 'src/common/services/auth-context.service';
+import { toHttpException } from 'src/common/exceptions/to-http-exception';
 
 /**
  * Servicio para gestionar los pacientes del sistema
@@ -276,7 +277,7 @@ export class PatientService {
       if (error instanceof BadRequestException) throw error;
       throw (
         uniqueViolationToConflict(error) ??
-        new BadRequestException(`Error al crear el paciente: ${error.message}`)
+        toHttpException(error, 'Error al crear el paciente.')
       );
     }
   }
@@ -411,9 +412,7 @@ export class PatientService {
       return result;
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
-      throw new NotFoundException(
-        `Error al obtener el paciente: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al obtener el paciente.');
     }
   }
 
@@ -458,9 +457,7 @@ export class PatientService {
 
       return patient;
     } catch (error) {
-      throw new NotFoundException(
-        `Error al buscar paciente por documento: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al buscar paciente por documento.');
     }
   }
 
@@ -587,7 +584,7 @@ export class PatientService {
       }
       throw (
         uniqueViolationToConflict(error) ??
-        new BadRequestException(`Error al actualizar el paciente: ${error.message}`)
+        toHttpException(error, 'Error al actualizar el paciente.')
       );
     }
   }
@@ -616,9 +613,7 @@ export class PatientService {
       await this.clearQueryCache();
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
-      throw new NotFoundException(
-        `Error al eliminar el paciente: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al eliminar el paciente.');
     }
   }
 }

@@ -36,6 +36,7 @@ import {
   resolveAdminFieldChanges,
   revokeSessionOrFail,
 } from './user-admin-fields';
+import { toHttpException } from 'src/common/exceptions/to-http-exception';
 
 export {
   USER_ROLE_CHANGE_PERMISSION,
@@ -236,7 +237,7 @@ export class UserService {
       if (error instanceof ConflictException) throw error;
       throw (
         uniqueViolationToConflict(error) ??
-        new BadRequestException(`Error al crear el usuario: ${error.message}`)
+        toHttpException(error, 'Error al crear el usuario.')
       );
     }
   }
@@ -418,7 +419,7 @@ export class UserService {
       if (error instanceof HttpException) throw error;
       throw (
         uniqueViolationToConflict(error) ??
-        new BadRequestException(`Error al actualizar el usuario: ${error.message}`)
+        toHttpException(error, 'Error al actualizar el usuario.')
       );
     }
   }
@@ -468,9 +469,7 @@ export class UserService {
     } catch (error) {
       await queryRunner.rollbackTransaction();
       if (error instanceof ServiceUnavailableException) throw error;
-      throw new NotFoundException(
-        `Error al eliminar el usuario: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      throw toHttpException(error, 'Error al eliminar el usuario.');
     } finally {
       await queryRunner.release();
     }

@@ -21,6 +21,7 @@ import {
   resolveAdminFieldChanges,
   revokeSessionOrFail,
 } from './user-admin-fields';
+import { toHttpException } from 'src/common/exceptions/to-http-exception';
 
 @Injectable()
 export class UserSecurityService {
@@ -86,9 +87,7 @@ export class UserSecurityService {
 
       return rest;
     } catch (error) {
-      throw new BadRequestException(
-        `Error al crear el usuario: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al crear el usuario.');
     }
   }
 
@@ -181,9 +180,7 @@ export class UserSecurityService {
 
       return rest;
     } catch (error) {
-      throw new NotFoundException(
-        `Error al obtener el usuario: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al obtener el usuario.');
     }
   }
 
@@ -242,9 +239,7 @@ export class UserSecurityService {
       return rest;
     } catch (error) {
       if (error instanceof HttpException) throw error;
-      throw new BadRequestException(
-        `Error al actualizar el usuario: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al actualizar el usuario.');
     }
   }
 
@@ -267,9 +262,7 @@ export class UserSecurityService {
       await this.clearQueryCache();
     } catch (error) {
       if (error instanceof ServiceUnavailableException) throw error;
-      throw new NotFoundException(
-        `Error al eliminar el usuario: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al eliminar el usuario.');
     }
   }
 }

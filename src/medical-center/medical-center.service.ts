@@ -28,6 +28,7 @@ import {
 import { UpdateMedicalCenterDto } from './dto/update-medical-center.dto';
 import { MedicalCenter } from './entities/medical-center.entity';
 import { MedicalCenterImage } from './entities/medical-center-image.entity';
+import { toHttpException } from 'src/common/exceptions/to-http-exception';
 
 @Injectable()
 export class MedicalCenterService {
@@ -121,9 +122,7 @@ export class MedicalCenterService {
       if (uniqueViolationToConflict(error)) {
         throw new ConflictException('Ya existe un centro médico con ese nombre.');
       }
-      throw new BadRequestException(
-        `Error al crear el centro médico: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al crear el centro médico.');
     }
   }
 
@@ -269,9 +268,7 @@ export class MedicalCenterService {
       ) {
         throw error;
       }
-      throw new NotFoundException(
-        `Error al obtener el centro médico: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al obtener el centro médico.');
     }
   }
 
@@ -327,9 +324,7 @@ export class MedicalCenterService {
 
       return updated;
     } catch (error) {
-      throw new BadRequestException(
-        `Error al actualizar el centro médico: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al actualizar el centro médico.');
     }
   }
 
@@ -352,9 +347,7 @@ export class MedicalCenterService {
       await this.cacheManager.del('medicalCenter:all');
       await this.clearQueryCache();
     } catch (error) {
-      throw new NotFoundException(
-        `Error al eliminar el centro médico: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al eliminar el centro médico.');
     }
   }
 

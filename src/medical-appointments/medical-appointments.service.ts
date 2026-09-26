@@ -42,6 +42,7 @@ import { CompleteConsultationDto } from './dto/complete-consultation.dto';
 import { User } from 'src/user/entities/user.entity';
 import { DoctorScheduleService } from 'src/doctors/doctor-schedule.service';
 import { FilesService } from 'src/files/files.service';
+import { toHttpException } from 'src/common/exceptions/to-http-exception';
 
 @Injectable()
 export class MedicalAppointmentsService {
@@ -594,9 +595,7 @@ export class MedicalAppointmentsService {
         error instanceof NotFoundException
       )
         throw error;
-      throw new BadRequestException(
-        `Error al crear la cita médica: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al crear la cita médica.');
     }
   }
 

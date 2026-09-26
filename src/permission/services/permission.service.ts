@@ -41,6 +41,7 @@ import { QueryPermissionDto } from '../dto/query-permission.dto';
 import { CreatePermissionDto } from '../dto/create-permission.dto';
 import { CreatepermissionsRolesDto } from '../dto/create-permission-role.dto';
 import { ModuleItemsMenu } from 'src/menu/menu.const';
+import { safeErrorMessage } from 'src/common/exceptions/to-http-exception';
 
 type UpdatePermissionDto = Partial<CreatePermissionDto>;
 @Injectable()
@@ -198,7 +199,7 @@ export class PermissionService {
       this.logger.error(`Error checking permission: ${error.message}`);
       return {
         allowed: false,
-        reason: error.message,
+        reason: safeErrorMessage(error),
       };
     }
   }
@@ -783,7 +784,7 @@ export class PermissionService {
         assignedCount++;
       } catch (error) {
         errors.push(
-          `Error asignando permiso ID '${permissionId}': ${error.message}`,
+          `Error asignando permiso ID '${permissionId}': ${safeErrorMessage(error)}`,
         );
       }
     }
@@ -882,7 +883,7 @@ export class PermissionService {
         }
       } catch (error) {
         errors.push(
-          `Error en '${perm.moduleId}.${perm.permissionId}': ${error.message}`,
+          `Error en '${perm.moduleId}.${perm.permissionId}': ${safeErrorMessage(error)}`,
         );
       }
     }
@@ -1004,7 +1005,7 @@ export class PermissionService {
         assignedCount++;
       } catch (error) {
         errors.push(
-          `Error asignando permiso ID '${permissionId}': ${error.message}`,
+          `Error asignando permiso ID '${permissionId}': ${safeErrorMessage(error)}`,
         );
       }
     }

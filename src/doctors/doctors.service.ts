@@ -27,6 +27,7 @@ import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity
 import { Specialty } from 'src/parameters/entities/specialty.entity';
 import { User } from 'src/user/entities/user.entity';
 import { FilesService } from 'src/files/files.service';
+import { toHttpException } from 'src/common/exceptions/to-http-exception';
 
 @Injectable()
 export class DoctorsService {
@@ -176,7 +177,7 @@ export class DoctorsService {
     } catch (error) {
       throw (
         uniqueViolationToConflict(error) ??
-        new BadRequestException(`Error al crear el doctor: ${error.message}`)
+        toHttpException(error, 'Error al crear el doctor.')
       );
     }
   }
@@ -307,9 +308,7 @@ export class DoctorsService {
       if (error instanceof NotFoundException || error instanceof ForbiddenException) {
         throw error;
       }
-      throw new NotFoundException(
-        `Error al obtener el doctor: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al obtener el doctor.');
     }
   }
 
@@ -366,7 +365,7 @@ export class DoctorsService {
       if (error instanceof ConflictException) throw error;
       throw (
         uniqueViolationToConflict(error) ??
-        new BadRequestException(`Error al actualizar el doctor: ${error.message}`)
+        toHttpException(error, 'Error al actualizar el doctor.')
       );
     }
   }
@@ -388,9 +387,7 @@ export class DoctorsService {
       await this.cacheManager.del('doctor:all');
       await this.clearQueryCache();
     } catch (error) {
-      throw new NotFoundException(
-        `Error al eliminar el doctor: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al eliminar el doctor.');
     }
   }
 }

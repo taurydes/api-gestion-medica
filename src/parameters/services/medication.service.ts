@@ -13,6 +13,7 @@ import { CreateMedicationDto } from '../dto/medication/create-medication.dto';
 import { UpdateMedicationDto } from '../dto/medication/update-medication.dto';
 import { MedicationQueryDto } from '../dto/medication/medication-query.dto';
 import { Medication } from '../entities/medication.entity';
+import { toHttpException } from 'src/common/exceptions/to-http-exception';
 
 @Injectable()
 export class MedicationService {
@@ -53,9 +54,7 @@ export class MedicationService {
 
       return medication;
     } catch (error) {
-      throw new BadRequestException(
-        `Error al crear el medicamento: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error al crear el medicamento.');
     }
   }
 

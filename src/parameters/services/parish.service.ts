@@ -1,6 +1,5 @@
 import {
   Injectable,
-  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -10,6 +9,7 @@ import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { CreateParishDto } from '../dto/create/create-parish.dto';
 import { UpdateParishDto } from '../dto/update/update-parish.dto';
 import { ParishQueryDto } from '../dto/query/parish-query.dto';
+import { toHttpException } from 'src/common/exceptions/to-http-exception';
 
 @Injectable()
 export class ParishService {
@@ -26,9 +26,7 @@ export class ParishService {
       const entity = this.repo.create({ ...dto });
       return await this.repo.save(entity);
     } catch (error) {
-      throw new InternalServerErrorException(
-        `Error creating parish: ${error.message}`,
-      );
+      throw toHttpException(error, 'Error creating parish.');
     }
   }
 
