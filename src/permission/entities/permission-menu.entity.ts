@@ -4,12 +4,18 @@ import { Role } from 'src/role/entities/role.entity';
 import {
   Column,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
 
 @Entity({ schema: 'seguridad', name: 'permisos_menus' })
+// One active grant per (role, menu, permission): a duplicate would survive a revoke (M-20).
+@Index('UQ_permisos_menus_rol_menu_permiso_active', ['roleId', 'menuId', 'permissionId'], {
+  unique: true,
+  where: '"deleted_at" IS NULL',
+})
 export class PermissionMenu {
   @PrimaryGeneratedColumn('uuid')
   id: string;
