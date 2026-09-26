@@ -223,3 +223,40 @@ Todas las referencias son por id, así que recodificar no mueve relaciones. `MT`
 - `patient.create`: alergias, enfermedades, medicamentos y `patientCode` se validan antes; persona, verificación de paciente activo, código y paciente van en una transacción. 23505 → 409.
 - `PatientService` y `DoctorsService` reciben el `DataSource` (se ajustaron las specs que los construyen a mano).
 - Tests `src/doctors/doctor-patient-create.spec.ts`: licencia duplicada → 400 y 0 filas nuevas en `persona_comun`; fallo al guardar el doctor o el paciente → la persona nueva se revierte; alergia inexistente → 400 sin persona; alta válida escribe ambas filas.
+
+## Verificación de cierre de fase
+
+| Chequeo | Resultado |
+|---|---|
+| `npm run build` | 0 errores, 0 advertencias |
+| `npx jest` | **28 suites, 130 tests, todos verdes** (línea base anterior: 20 suites, 99 tests; +31). Primera corrida verde, sin commits de corrección |
+| `migration:show` en la real | 7 migraciones aplicadas (`InitialSchema` por baseline + 6) |
+| `migration:generate` en la real | Sin cambios (sin drift) |
+| Base vacía + `migration:run` de las 7 → huella del esquema contra la real | **Idéntica** |
+| Arranque `PORT=8020 BULL_BOARD_PORT=8021 node dist/main.js` | 187 rutas, "Nest application successfully started", 0 líneas de error; detenido después. Huella del esquema antes y después del arranque: idéntica (ya no hay `synchronize()`) |
+| `rg "synchronize\(" src` | Solo comentarios |
+
+**Checklist de verificación de afirmaciones** (skill `claim-verification-review`):
+
+- Cada comentario que afirma un índice único se verificó en `pg_indexes` y con INSERT duplicado → 23505: `UQ_patients_common_person_active`, `UQ_permisos_menus_rol_menu_permiso_active`, los seis de M-21, `UQ_bae767a5…` (citado en `finish-consultation.spec.ts`, p9 del documento de verificación) y `UQ_e356baae…` (citado en `user.create`, presente en `pg_indexes`). Los dos pendientes (M-18, M-19) se probaron en copias depuradas y se dejó constancia de que no están activos.
+- Validaciones nuevas contra los datos: búsqueda por letra + documento (0 personas sin letra); nombre de especialidad sin mayúsculas (0 grupos en 71); índices nuevos (0 duplicados en cada tabla antes de aplicarlos). No hay seeder en el repo.
+- Ningún método nuevo con dos transacciones: `finishConsultation`, `recipe.create/update`, `doctors.create` y `patient.create` usan una sola.
+- Todos los tests nuevos instancian el servicio real (repositorios en memoria o simulados); ninguno lee el fuente ni reimplementa la lógica.
+- Sin endpoints nuevos (no aplica el chequeo de permisos por módulo).
+
+## Qué quedó fuera
+
+- **M-18 paso 1 y 2, M-19 depuración e índices**: esperan decisión de producto (datos arriba). Migraciones en `src/database/migrations-pending/`.
+- **M-16**: es del frontend.
+- `Dockerfile`: no corre `migration:run:prod` antes de arrancar. Se dejó al despliegue para no cambiar el contenedor sin probarlo.
+- `user.update` escribe `users` y `persona_comun` sin transacción (previo a esta fase; M-25 cubre altas).
+- Mutaciones de control (revertir cada fix y ver fallar su test) no se corrieron en esta fase para ahorrar tiempo; los tests afirman el efecto en datos (filas tras rollback), no llamadas.
+- No se probó de punta a punta por HTTP (sin credenciales de prueba); el bloqueo `pessimistic_write` de `finishConsultation` solo se ejercitó con el `DataSource` en memoria.
+- Índice de personas con letra `NULL` (ver M-18, límite conocido).
+
+## Pendiente para otros
+
+- **Producto**: elegir la persona a corregir y su documento correcto (M-18) y el código nuevo de mastología (M-19); luego correr los scripts y activar las migraciones pendientes según los pasos de cada sección.
+- **Despliegue**: seguir el procedimiento de M-13 (baseline una vez + `migration:run:prod`).
+- **Frontend**: `docs/info/2026-09-25-fase-1-integracion-frontend.md` (409 de documento, 404 de referencias, reintento del cierre).
+- Bases de trabajo creadas en el servidor local: `bd_gestion_medica_f1` (copia con todas las migraciones), `bd_gestion_medica_f1_empty` y `bd_gestion_medica_f1_fresh`. Se pueden borrar cuando no hagan falta.
