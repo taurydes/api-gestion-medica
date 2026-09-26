@@ -20,6 +20,7 @@ function build(doctorId: string | null) {
     cache as any,
     userRepo as any,
     {} as any,
+    {} as any,
   );
   return { service, cache };
 }

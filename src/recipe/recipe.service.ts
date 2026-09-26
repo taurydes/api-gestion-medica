@@ -2,14 +2,16 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import {
   BadRequestException,
   ForbiddenException,
+  HttpException,
   Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
-import { Repository } from 'typeorm';
+import { DataSource, EntityManager, In, IsNull, Repository } from 'typeorm';
+import { Medication } from 'src/parameters/entities/medication.entity';
 import { Recipe } from './entities/recipe.entity';
 import { RecipeItem } from './entities/recipe-item.entity';
 import { CreateRecipeDto } from './dto/create-recipe.dto';
@@ -50,6 +52,9 @@ export class RecipeService {
     private readonly userRepository: Repository<User>,
 
     private readonly filesService: FilesService,
+
+    @InjectDataSource(DatabaseConnectionName.DB_MAIN)
+    private readonly dataSource: DataSource,
   ) {}
 
   private async enrichWithImages(record: any): Promise<any> {
@@ -101,12 +106,14 @@ export class RecipeService {
    * Genera un número de receta único
    * Formato: REC-YYYY-XXXXX (ej: REC-2026-00001)
    */
-  private async generateRecipeNumber(): Promise<string> {
+  private async generateRecipeNumber(
+    recipeRepo: Repository<Recipe> = this.recipeRepository,
+  ): Promise<string> {
     const year = new Date().getFullYear();
     const prefix = `REC-${year}-`;
 
     // Obtener el último número de receta del año actual
-    const lastRecipe = await this.recipeRepository
+    const lastRecipe = await recipeRepo
       .createQueryBuilder('recipe')
       .where('recipe.recipeNumber LIKE :prefix', { prefix: `${prefix}%` })
       .orderBy('recipe.recipeNumber', 'DESC')
@@ -127,81 +134,132 @@ export class RecipeService {
    * @param userId - ID del usuario que crea el registro (opcional)
    * @returns Receta creada con sus ítems
    */
-  async create(dto: CreateRecipeDto, userId?: string): Promise<Recipe> {
+  async create(
+    dto: CreateRecipeDto,
+    userId?: string,
+    manager?: EntityManager,
+  ): Promise<Recipe> {
     try {
-      // 1️⃣ Verificar que el historial médico exista
-      const medicalHistory = await this.medicalHistoryRepository.findOne({
-        where: { id: dto.medicalHistoryId },
-      });
+      // Header and items in one transaction; a caller-owned manager (finishConsultation) commits and clears caches.
+      const savedRecipe = manager
+        ? await this.createWithManager(dto, userId, manager)
+        : await this.dataSource.transaction((m) => this.createWithManager(dto, userId, m));
+      if (manager) return savedRecipe;
 
-      if (!medicalHistory) {
-        throw new BadRequestException(
-          `El historial médico con ID ${dto.medicalHistoryId} no existe o ha sido eliminado.`,
-        );
-      }
-
-      // 2️⃣ Verificar que el paciente exista
-      const patient = await this.patientRepository.findOne({
-        where: { id: dto.patientId },
-      });
-
-      if (!patient) {
-        throw new BadRequestException(
-          `El paciente con ID ${dto.patientId} no existe o ha sido eliminado.`,
-        );
-      }
-
-      // 3️⃣ Verificar que el doctor exista
-      const doctor = await this.doctorRepository.findOne({
-        where: { id: dto.doctorId },
-      });
-
-      if (!doctor) {
-        throw new BadRequestException(
-          `El doctor con ID ${dto.doctorId} no existe o ha sido eliminado.`,
-        );
-      }
-
-      // 4️⃣ Generar número de receta único
-      const recipeNumber = await this.generateRecipeNumber();
-
-      // 5️⃣ Crear la receta
-      const { items, ...recipeData } = dto;
-
-      const newRecipe = this.recipeRepository.create({
-        ...recipeData,
-        recipeNumber,
-        issueDate: new Date(),
-        expiryDate: dto.expiryDate ? new Date(dto.expiryDate) : null,
-        status: 'active',
-        createdBy: userId,
-      });
-
-      const savedRecipe = await this.recipeRepository.save(newRecipe);
-
-      // 6️⃣ Crear los ítems de la receta
-      const recipeItems = items.map((item, index) =>
-        this.recipeItemRepository.create({
-          ...item,
-          recipeId: savedRecipe.id,
-          orderNumber: item.orderNumber ?? index + 1,
-        }),
-      );
-
-      await this.recipeItemRepository.save(recipeItems);
-
-      // 🧹 Limpiar cache global
-      await this.cacheManager.del('recipe:all');
-      await this.clearQueryCache();
+      await this.invalidateCaches(savedRecipe);
 
       // Retornar con relaciones cargadas
       return this.findOne(savedRecipe.id);
     } catch (error) {
-      if (error instanceof BadRequestException) throw error;
+      if (error instanceof HttpException) throw error;
       throw new BadRequestException(
         `Error al crear la receta: ${error.message}`,
       );
     }
+  }
+
+  private async createWithManager(
+    dto: CreateRecipeDto,
+    userId: string | undefined,
+    manager: EntityManager,
+  ): Promise<Recipe> {
+    // 1️⃣ Verificar que el historial médico exista
+    const medicalHistory = await manager.getRepository(MedicalHistory).findOne({
+      where: { id: dto.medicalHistoryId, deletedAt: IsNull() },
+    });
+
+    if (!medicalHistory) {
+      throw new NotFoundException(
+        `El historial médico con ID ${dto.medicalHistoryId} no existe o ha sido eliminado.`,
+      );
+    }
+
+    // 2️⃣ Verificar que el paciente exista
+    const patient = await manager.getRepository(Patient).findOne({
+      where: { id: dto.patientId, deletedAt: IsNull() },
+    });
+
+    if (!patient) {
+      throw new NotFoundException(
+        `El paciente con ID ${dto.patientId} no existe o ha sido eliminado.`,
+      );
+    }
+
+    // 3️⃣ Verificar que el doctor exista
+    const doctor = await manager.getRepository(Doctor).findOne({
+      where: { id: dto.doctorId, deletedAt: IsNull() },
+    });
+
+    if (!doctor) {
+      throw new NotFoundException(
+        `El doctor con ID ${dto.doctorId} no existe o ha sido eliminado.`,
+      );
+    }
+
+    // 4️⃣ Verificar los medicamentos antes de escribir
+    await this.assertMedicationsExist(dto.items, manager);
+
+    // 5️⃣ Generar número de receta único
+    const recipeRepo = manager.getRepository(Recipe);
+    const recipeNumber = await this.generateRecipeNumber(recipeRepo);
+
+    // 6️⃣ Crear la receta
+    const { items, ...recipeData } = dto;
+
+    const newRecipe = recipeRepo.create({
+      ...recipeData,
+      recipeNumber,
+      issueDate: new Date(),
+      expiryDate: dto.expiryDate ? new Date(dto.expiryDate) : null,
+      status: 'active',
+      createdBy: userId,
+    });
+
+    const savedRecipe = await recipeRepo.save(newRecipe);
+
+    // 7️⃣ Crear los ítems de la receta
+    const itemRepo = manager.getRepository(RecipeItem);
+    const recipeItems = items.map((item, index) =>
+      itemRepo.create({
+        ...item,
+        recipeId: savedRecipe.id,
+        orderNumber: item.orderNumber ?? index + 1,
+      }),
+    );
+
+    await itemRepo.save(recipeItems);
+
+    return savedRecipe;
+  }
+
+  /** Rejects item medicationIds that do not exist or were soft-deleted, before anything is written. */
+  async assertMedicationsExist(
+    items: { medicationId?: string | null }[] = [],
+    manager: EntityManager = this.dataSource.manager,
+  ): Promise<void> {
+    const ids = [
+      ...new Set(items.map((i) => i.medicationId).filter((id): id is string => !!id)),
+    ];
+    if (ids.length === 0) return;
+
+    const found = await manager.getRepository(Medication).find({
+      select: { id: true },
+      where: { id: In(ids), deletedAt: IsNull() },
+    });
+    const missing = ids.filter((id) => !found.some((m) => m.id === id));
+    if (missing.length > 0) {
+      throw new NotFoundException(
+        `Los medicamentos con ID ${missing.join(', ')} no existen o han sido eliminados.`,
+      );
+    }
+  }
+
+  /** Clears the caches a new or changed recipe affects; public so finishConsultation can call it after commit. */
+  async invalidateCaches(recipe: Pick<Recipe, 'patientId' | 'medicalHistoryId'>): Promise<void> {
+    await this.cacheManager.del(`recipe:patient:${recipe.patientId}`);
+    await this.cacheManager.del(`recipe:medical-history:${recipe.medicalHistoryId}`);
+    await this.cacheManager.del('recipe:all');
+    await this.clearQueryCache();
   }
 
   /**
@@ -408,7 +466,7 @@ export class RecipeService {
   ): Promise<Recipe> {
     try {
       const recipe = await this.recipeRepository.findOne({
-        where: { id },
+        where: { id, deletedAt: IsNull() },
         relations: ['items'],
       });
 
@@ -426,43 +484,40 @@ export class RecipeService {
       }
 
       const { items, ...recipeData } = dto;
+      const itemsToWrite = items && items.length > 0 ? items : null;
+      if (itemsToWrite) await this.assertMedicationsExist(itemsToWrite);
 
-      // Actualizar datos de la receta
-      await this.recipeRepository.update(id, {
-        ...recipeData,
-        expiryDate: dto.expiryDate ? new Date(dto.expiryDate) : undefined,
-        updatedBy: userId,
+      // Header and item replacement commit together: a failed save keeps the previous items.
+      await this.dataSource.transaction(async (manager) => {
+        await manager.getRepository(Recipe).update(id, {
+          ...recipeData,
+          expiryDate: dto.expiryDate ? new Date(dto.expiryDate) : undefined,
+          updatedBy: userId,
+        });
+
+        if (itemsToWrite) {
+          const itemRepo = manager.getRepository(RecipeItem);
+          await itemRepo.delete({ recipeId: id });
+
+          const newItems = itemsToWrite.map((item, index) =>
+            itemRepo.create({
+              ...item,
+              recipeId: id,
+              orderNumber: item.orderNumber ?? index + 1,
+            }),
+          );
+
+          await itemRepo.save(newItems);
+        }
       });
-
-      // Actualizar ítems si se proporcionan
-      if (items && items.length > 0) {
-        // Eliminar ítems existentes
-        await this.recipeItemRepository.delete({ recipeId: id });
-
-        // Crear nuevos ítems
-        const newItems = items.map((item, index) =>
-          this.recipeItemRepository.create({
-            ...item,
-            recipeId: id,
-            orderNumber: item.orderNumber ?? index + 1,
-          }),
-        );
-
-        await this.recipeItemRepository.save(newItems);
-      }
 
       // 🧹 Limpiar caches
       await this.cacheManager.del(`recipe:${id}`);
-      await this.cacheManager.del(`recipe:patient:${recipe.patientId}`);
-      await this.cacheManager.del(`recipe:medical-history:${recipe.medicalHistoryId}`);
-      await this.cacheManager.del('recipe:all');
-      await this.clearQueryCache();
+      await this.invalidateCaches(recipe);
 
       return this.findOne(id);
     } catch (error) {
-      if (error instanceof NotFoundException || error instanceof BadRequestException) {
-        throw error;
-      }
+      if (error instanceof HttpException) throw error;
       throw new BadRequestException(
         `Error al actualizar la receta: ${error.message}`,
       );
