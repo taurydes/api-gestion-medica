@@ -128,11 +128,11 @@ export class MedicalAppointment {
 
   // ─── Relaciones ────────────────────────────────────────────────────────────
 
-  @ManyToOne(() => Patient, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
+  @ManyToOne(() => Patient, { onDelete: 'RESTRICT', onUpdate: 'CASCADE' })
   @JoinColumn({ name: 'patient_id' })
   patient: Patient;
 
-  @ManyToOne(() => Doctor, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
+  @ManyToOne(() => Doctor, { onDelete: 'RESTRICT', onUpdate: 'CASCADE' })
   @JoinColumn({ name: 'doctor_id' })
   doctor: Doctor;
 

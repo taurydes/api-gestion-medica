@@ -31,14 +31,14 @@ export class MedicalHistory {
   @Column({ name: 'patient_id', type: 'uuid' })
   patientId: string;
 
-  @ManyToOne(() => Patient, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
+  @ManyToOne(() => Patient, { onDelete: 'RESTRICT', onUpdate: 'CASCADE' })
   @JoinColumn({ name: 'patient_id' })
   patient: Patient;
 
   @Column({ name: 'doctor_id', type: 'uuid' })
   doctorId: string;
 
-  @ManyToOne(() => Doctor, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
+  @ManyToOne(() => Doctor, { onDelete: 'RESTRICT', onUpdate: 'CASCADE' })
   @JoinColumn({ name: 'doctor_id' })
   doctor: Doctor;
 

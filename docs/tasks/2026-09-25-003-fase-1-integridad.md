@@ -203,3 +203,16 @@ Todas las referencias son por id, así que recodificar no mueve relaciones. `MT`
 | FKs entre `users` y `persona_comun` antes / después (`information_schema`) | 2 / 1 (`users.FK_e356baae93eb514f72144e6fc42`) |
 | Médicos activos que se resuelven desde un usuario | 15 de 16; el restante no tiene usuario (alta por `/doctors`), no por divergencia |
 | `migration:run` → `revert` → `run` (copia), `migration:generate` (ambas) | OK / sin cambios |
+
+## M-24 — FKs clínicas a RESTRICT y tabla huérfana
+
+- Antes de cambiar: ningún servicio borra físicamente pacientes ni doctores (búsqueda de `delete`/`remove` sobre sus repositorios y de `DELETE FROM patients|doctors`: 0 resultados); todos los borrados son lógicos.
+- Migración `1790386338537-ClinicalFksRestrict` (generada): `medical_histories`, `recipes` y `medical_appointments` → `patients`/`doctors` pasan de `ON DELETE CASCADE` a `RESTRICT` (`ON UPDATE CASCADE` se conserva). Entidades actualizadas. No se tocaron las tablas puente (`patient_allergies`, `doctors_specialties`, horarios, etc.): no son historia clínica y su cascada es la esperada.
+- Migración `1790386400000-DropOrphanDepartmentsDoctors` (a mano): borra `parametro.departments_doctors` solo si tiene 0 filas (aborta si no). `down()` la recrea con sus índices y FKs. Al ejecutar en la real: 0 filas. `public.departments_doctors` (13 filas, la que usa la entidad) no se toca.
+
+| Verificación | Copia | Real |
+|---|---|---|
+| `DELETE` de un paciente con historia (`BEGIN … ROLLBACK`) | 23503 (`FK_346f79a6…`) | 23503 |
+| `DELETE` de un doctor con citas | 23503 (`FK_b606c06e…`) | 23503 |
+| `to_regclass('parametro.departments_doctors')` | null | null |
+| `run` → `revert` ×2 (la tabla vuelve) → `run`; `migration:generate` | OK / sin cambios | sin cambios |
