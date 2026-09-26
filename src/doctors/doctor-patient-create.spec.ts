@@ -47,6 +47,7 @@ function patients() {
     {} as any,
     cache() as any,
     db.dataSource,
+    {} as any,
   );
   return { service, db };
 }

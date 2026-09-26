@@ -96,23 +96,6 @@ export class MedicalAppointmentsService {
   // ─── IDOR helper ───────────────────────────────────────────────────────────
 
   /**
-   * Resuelve el doctorId vinculado al usuario autenticado.
-   * Retorna null si el usuario no es un doctor.
-   */
-  private async getDoctorIdForUser(userId: string): Promise<string | null> {
-    const user = await this.userRepository.findOne({
-      where: { id: userId },
-      relations: ['commonPerson'],
-    });
-    if (!user?.commonPerson) return null;
-
-    const doctor = await this.doctorRepository.findOne({
-      where: { commonPersonId: user.commonPerson.id },
-    });
-    return doctor?.id ?? null;
-  }
-
-  /**
    * Resuelve los IDs de centros médicos asociados al doctor del usuario.
    * Retorna null si el usuario no es un doctor.
    */
@@ -653,7 +636,7 @@ export class MedicalAppointmentsService {
 
       if (!isAdmin) {
         // Caso doctor: forzar su propio doctorId
-        const myDoctorId = await this.getDoctorIdForUser(authUser.id);
+        const myDoctorId = await this.authContextService.getDoctorIdForUser(authUser.id);
         if (myDoctorId) {
           effectiveDoctorId = myDoctorId;
           // Si pidió un centro médico, validar que le pertenezca
@@ -777,7 +760,7 @@ export class MedicalAppointmentsService {
     const aptPatientId: string = aptOrDto.patientId ?? aptOrDto.patient?.id;
 
     // Validar acceso de doctor
-    const myDoctorId = await this.getDoctorIdForUser(authUser.id);
+    const myDoctorId = await this.authContextService.getDoctorIdForUser(authUser.id);
     if (myDoctorId) {
       if (aptDoctorId !== myDoctorId) {
         throw new ForbiddenException('No tiene acceso a esta cita médica.');
@@ -1066,7 +1049,7 @@ export class MedicalAppointmentsService {
 
     // IDOR: si el usuario es doctor, solo ve las citas donde es el doctor asignado
     if (authUser?.id) {
-      const myDoctorId = await this.getDoctorIdForUser(authUser.id);
+      const myDoctorId = await this.authContextService.getScopedDoctorId(authUser.id);
       if (myDoctorId) {
         qb.andWhere('apt.doctorId = :myDoctorId', { myDoctorId });
       }
@@ -1103,7 +1086,7 @@ export class MedicalAppointmentsService {
     // IDOR: si el usuario es doctor, forzar su propio doctorId
     let effectiveDoctorId = doctorId;
     if (authUser?.id) {
-      const myDoctorId = await this.getDoctorIdForUser(authUser.id);
+      const myDoctorId = await this.authContextService.getScopedDoctorId(authUser.id);
       if (myDoctorId && myDoctorId !== doctorId) {
         throw new ForbiddenException('Solo puede consultar su propia agenda.');
       }

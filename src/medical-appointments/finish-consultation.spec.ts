@@ -44,6 +44,7 @@ function setup() {
     {} as any,
     cache as any,
     {} as any,
+    {} as any,
   );
   const recipe = new RecipeService(
     db.repo(Recipe),
@@ -55,6 +56,7 @@ function setup() {
     {} as any,
     {} as any,
     db.dataSource,
+    {} as any,
   );
   const service = new MedicalAppointmentsService(
     db.repo(MedicalAppointment),

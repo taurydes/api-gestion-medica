@@ -58,23 +58,6 @@ export class MedicalCenterService {
   // ─── IDOR helpers ──────────────────────────────────────────────────────────
 
   /**
-   * Resuelve el doctorId vinculado al usuario autenticado.
-   * Retorna null si el usuario no tiene perfil de doctor.
-   */
-  private async getDoctorIdForUser(userId: string): Promise<string | null> {
-    const user = await this.userRepository.findOne({
-      where: { id: userId },
-      relations: ['commonPerson'],
-    });
-    if (!user?.commonPerson) return null;
-
-    const doctor = await this.doctorRepository.findOne({
-      where: { commonPersonId: user.commonPerson.id },
-    });
-    return doctor?.id ?? null;
-  }
-
-  /**
    * Resuelve los IDs de centros médicos asociados al doctor del usuario.
    * Retorna null si el usuario no tiene perfil de doctor.
    */
@@ -94,15 +77,6 @@ export class MedicalCenterService {
     if (!doctor) return null;
 
     return doctor.medicalCenters?.map((mc) => mc.id) ?? [];
-  }
-
-  /**
-   * Verifica si el usuario tiene rol de administrador.
-   * Los admins no están sujetos a restricciones IDOR aunque tengan perfil de doctor.
-   */
-  private async isAdminUser(userId: string): Promise<boolean> {
-    // Por permiso del rol, no por subcadena del nombre ("Administrativo" no queda exento)
-    return this.authContextService.isAdmin(userId);
   }
 
   /**
@@ -168,18 +142,9 @@ export class MedicalCenterService {
     // ── IDOR ──────────────────────────────────────────────────────────────────
     let allowedCenterIds: string[] | null = null;
 
-    if (authUser?.id) {
-      const isAdmin = await this.isAdminUser(authUser.id);
-
-      if (!isAdmin) {
-        const myDoctorId = await this.getDoctorIdForUser(authUser.id);
-        if (myDoctorId) {
-          // El usuario es doctor: restringir a sus centros asignados
-          allowedCenterIds =
-            (await this.getMedicalCenterIdsForUser(authUser.id)) ?? [];
-        }
-        // Pacientes, enfermeros y recepcionistas ven todos los centros
-      }
+    // Solo un doctor no admin queda restringido; pacientes, enfermeros y recepcionistas ven todos
+    if (await this.authContextService.getScopedDoctorId(authUser?.id)) {
+      allowedCenterIds = (await this.getMedicalCenterIdsForUser(authUser.id)) ?? [];
     }
 
     const cacheKey = `medicalCenter:query:${JSON.stringify({ ...query, allowedCenterIds })}`;
@@ -320,10 +285,7 @@ export class MedicalCenterService {
   ): Promise<void> {
     if (!authUser?.id) return;
 
-    const isAdmin = await this.isAdminUser(authUser.id);
-    if (isAdmin) return;
-
-    const myDoctorId = await this.getDoctorIdForUser(authUser.id);
+    const myDoctorId = await this.authContextService.getScopedDoctorId(authUser.id);
     if (!myDoctorId) return; // No es doctor: puede ver cualquier centro
 
     const myCenterIds = await this.getMedicalCenterIdsForUser(authUser.id);

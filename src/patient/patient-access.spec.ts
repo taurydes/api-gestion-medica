@@ -1,17 +1,12 @@
 import { ForbiddenException } from '@nestjs/common';
 import { PatientService } from './patient.service';
+import { authContextFor } from '../../test/auth-context-stub';
 
-function build(options: { isDoctor: boolean; hasAppointment: boolean }) {
+function build(options: { isAdmin?: boolean; isDoctor: boolean; hasAppointment: boolean }) {
   const patient = { id: 'p1', commonPersonId: null };
   const patientRepo = {
     findOne: jest.fn().mockResolvedValue(patient),
     query: jest.fn().mockResolvedValue(options.hasAppointment ? [{ '?column?': 1 }] : []),
-  };
-  const userRepo = {
-    findOne: jest.fn().mockResolvedValue({ id: 'u1', commonPerson: { id: 'cp1' } }),
-  };
-  const doctorRepo = {
-    findOne: jest.fn().mockResolvedValue(options.isDoctor ? { id: 'doc-A' } : null),
   };
   const cache = { get: jest.fn().mockResolvedValue(undefined), set: jest.fn() };
   const service = new PatientService(
@@ -20,14 +15,18 @@ function build(options: { isDoctor: boolean; hasAppointment: boolean }) {
     {} as any,
     {} as any,
     {} as any,
-    userRepo as any,
-    doctorRepo as any,
+    {} as any,
+    {} as any,
     {} as any,
     {} as any,
     cache as any,
     {} as any,
+    authContextFor({
+      isAdmin: options.isAdmin ?? false,
+      doctorId: options.isDoctor ? 'doc-A' : null,
+    }),
   );
-  return { service, patientRepo };
+  return { service, patientRepo, cache };
 }
 
 describe('PatientService.findOne — filtro por médico (M-11)', () => {
@@ -46,5 +45,29 @@ describe('PatientService.findOne — filtro por médico (M-11)', () => {
     const { service, patientRepo } = build({ isDoctor: false, hasAppointment: false });
     await expect(service.findOne('p1', { id: 'u1' })).resolves.toMatchObject({ id: 'p1' });
     expect(patientRepo.query).not.toHaveBeenCalled();
+  });
+
+  it('admin con registro de doctor → acceso global, sin filtro', async () => {
+    const { service, patientRepo } = build({ isAdmin: true, isDoctor: true, hasAppointment: false });
+    await expect(service.findOne('p1', { id: 'u1' })).resolves.toMatchObject({ id: 'p1' });
+    expect(patientRepo.query).not.toHaveBeenCalled();
+  });
+});
+
+describe('PatientService.findAll — alcance por médico (M-11)', () => {
+  const query = { page: 1, limit: 10 } as any;
+
+  it('admin con registro de doctor → consulta global (doctorId null)', async () => {
+    const { service, cache } = build({ isAdmin: true, isDoctor: true, hasAppointment: false });
+    cache.get.mockResolvedValue({ data: [] });
+    await service.findAll(query, { id: 'u1' });
+    expect(cache.get).toHaveBeenCalledWith(expect.stringContaining('"doctorId":null'));
+  });
+
+  it('médico común → consulta restringida a su doctorId', async () => {
+    const { service, cache } = build({ isDoctor: true, hasAppointment: false });
+    cache.get.mockResolvedValue({ data: [] });
+    await service.findAll(query, { id: 'u1' });
+    expect(cache.get).toHaveBeenCalledWith(expect.stringContaining('"doctorId":"doc-A"'));
   });
 });

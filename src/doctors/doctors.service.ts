@@ -62,28 +62,9 @@ export class DoctorsService {
 
   // ─── IDOR helpers ──────────────────────────────────────────────────────────
 
-  private async getDoctorIdForUser(userId: string): Promise<string | null> {
-    const user = await this.userRepository.findOne({
-      where: { id: userId },
-      relations: ['commonPerson'],
-    });
-    if (!user?.commonPerson) return null;
-    const doctor = await this.doctorRepository.findOne({
-      where: { commonPersonId: user.commonPerson.id },
-    });
-    return doctor?.id ?? null;
-  }
-
-  private async isAdminUser(userId: string): Promise<boolean> {
-    // Por permiso del rol, no por subcadena del nombre ("Administrativo" no queda exento)
-    return this.authContextService.isAdmin(userId);
-  }
-
   private async assertDoctorAccess(doctorId: string, authUser?: any): Promise<void> {
     if (!authUser?.id) return;
-    const isAdmin = await this.isAdminUser(authUser.id);
-    if (isAdmin) return;
-    const myDoctorId = await this.getDoctorIdForUser(authUser.id);
+    const myDoctorId = await this.authContextService.getScopedDoctorId(authUser.id);
     if (myDoctorId && myDoctorId !== doctorId) {
       throw new ForbiddenException('No tiene acceso a este perfil de doctor.');
     }
@@ -216,13 +197,7 @@ export class DoctorsService {
     } = query;
 
     // ── IDOR ──────────────────────────────────────────────────────────────────
-    let myDoctorId: string | null = null;
-    if (authUser?.id) {
-      const isAdmin = await this.isAdminUser(authUser.id);
-      if (!isAdmin) {
-        myDoctorId = await this.getDoctorIdForUser(authUser.id);
-      }
-    }
+    const myDoctorId = await this.authContextService.getScopedDoctorId(authUser?.id);
 
     const cacheKey = `doctor:query:${JSON.stringify({ ...query, myDoctorId })}`;
     const listKey = 'doctor:query:keys';

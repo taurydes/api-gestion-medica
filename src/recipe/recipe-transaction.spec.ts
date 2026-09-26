@@ -34,6 +34,7 @@ function setup() {
     {} as any,
     { getLatestCommonPersonImageUrl: jest.fn(), getLatestDoctorImageUrl: jest.fn() } as any,
     db.dataSource,
+    {} as any,
   );
   return { service, db };
 }

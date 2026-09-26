@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CommonModule } from 'src/common/common.module';
 import { PatientService } from './patient.service';
 import { PatientController } from './patient.controller';
 
@@ -20,6 +21,7 @@ import { FilesModule } from 'src/files/files.module';
  */
 @Module({
   imports: [
+    CommonModule,
     TypeOrmModule.forFeature(
       [Patient, CommonPerson, Allergy, ChronicDisease, Medication, User, Doctor, CommonPersonImage],
       DatabaseConnectionName.DB_MAIN,

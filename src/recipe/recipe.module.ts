@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CommonModule } from 'src/common/common.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { Recipe } from './entities/recipe.entity';
@@ -13,6 +14,7 @@ import { FilesModule } from 'src/files/files.module';
 
 @Module({
   imports: [
+    CommonModule,
     TypeOrmModule.forFeature(
       [Recipe, RecipeItem, Patient, Doctor, MedicalHistory, User],
       DatabaseConnectionName.DB_MAIN,

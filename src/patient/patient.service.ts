@@ -28,6 +28,7 @@ import { User } from 'src/user/entities/user.entity';
 import { Doctor } from 'src/doctors/entities/doctor.entity';
 import { CommonPersonImage } from 'src/common-person/entities/common-person-image.entity';
 import { FilesService } from 'src/files/files.service';
+import { AuthContextService } from 'src/common/services/auth-context.service';
 
 /**
  * Servicio para gestionar los pacientes del sistema
@@ -67,24 +68,9 @@ export class PatientService {
 
     @InjectDataSource(DatabaseConnectionName.DB_MAIN)
     private readonly dataSource: DataSource,
-  ) {}
 
-  /**
-   * Obtiene el doctorId vinculado al usuario autenticado.
-   * Retorna null si no es doctor.
-   */
-  private async getDoctorIdForUser(user: any): Promise<string | null> {
-    if (!user?.id) return null;
-    const userEntity = await this.userRepository.findOne({
-      where: { id: user.id },
-      relations: ['commonPerson'],
-    });
-    if (!userEntity?.commonPerson) return null;
-    const doctor = await this.doctorRepository.findOne({
-      where: { commonPerson: { id: userEntity.commonPerson.id } },
-    });
-    return doctor?.id ?? null;
-  }
+    private readonly authContextService: AuthContextService,
+  ) {}
 
   /**
    * 🔥 Método para limpiar cache de paginaciones dinámicas
@@ -304,7 +290,7 @@ export class PatientService {
     const { page, limit, order, search, bloodType, isActive } = query;
 
     // IDOR: si es doctor, solo ve pacientes de sus citas
-    const doctorId = user ? await this.getDoctorIdForUser(user) : null;
+    const doctorId = await this.authContextService.getScopedDoctorId(user?.id);
 
     // 🔑 Key única para esta consulta
     const cacheKey = `patient:query:${JSON.stringify({ ...query, doctorId })}`;
@@ -382,7 +368,7 @@ export class PatientService {
    */
   async findOne(id: string, user?: any): Promise<Patient> {
     // IDOR: mismo criterio que findAll — un doctor solo ve pacientes con los que tiene citas
-    const doctorId = user ? await this.getDoctorIdForUser(user) : null;
+    const doctorId = await this.authContextService.getScopedDoctorId(user?.id);
     if (doctorId) {
       const rows = await this.patientRepository.query(
         'SELECT 1 FROM medical_appointments WHERE patient_id = $1 AND doctor_id = $2 LIMIT 1',

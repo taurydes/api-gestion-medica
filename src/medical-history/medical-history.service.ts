@@ -21,6 +21,7 @@ import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity
 import { Specialty } from 'src/parameters/entities/specialty.entity';
 import { User } from 'src/user/entities/user.entity';
 import { FilesService } from 'src/files/files.service';
+import { AuthContextService } from 'src/common/services/auth-context.service';
 
 /**
  * Servicio para gestionar el historial médico de los pacientes
@@ -51,6 +52,8 @@ export class MedicalHistoryService {
     private readonly cacheManager: Cache,
 
     private readonly filesService: FilesService,
+
+    private readonly authContextService: AuthContextService,
   ) {}
 
   private async enrichWithImages(record: any): Promise<any> {
@@ -67,23 +70,6 @@ export class MedicalHistoryService {
       patient: record.patient ? { ...record.patient, imageUrl: patientImageUrl } : null,
       doctor: record.doctor ? { ...record.doctor, imageUrl: doctorImageUrl } : null,
     };
-  }
-
-  /**
-   * Obtiene el doctorId vinculado al usuario autenticado (si es doctor).
-   * Retorna null si es admin u otro rol sin doctor asociado.
-   */
-  private async getDoctorIdForUser(user: any): Promise<string | null> {
-    if (!user?.id) return null;
-    const userEntity = await this.userRepository.findOne({
-      where: { id: user.id },
-      relations: ['commonPerson'],
-    });
-    if (!userEntity?.commonPerson) return null;
-    const doctor = await this.doctorRepository.findOne({
-      where: { commonPerson: { id: userEntity.commonPerson.id } },
-    });
-    return doctor?.id ?? null;
   }
 
   /**
@@ -246,7 +232,7 @@ export class MedicalHistoryService {
     } = query;
 
     // IDOR: si el usuario es doctor, forzar su doctorId
-    const effectiveDoctorId = await this.getDoctorIdForUser(user) ?? doctorId;
+    const effectiveDoctorId = (await this.authContextService.getScopedDoctorId(user?.id)) ?? doctorId;
 
     // 🔑 Key única para esta consulta
     const cacheKey = `medical-history:query:${JSON.stringify({ ...query, effectiveDoctorId })}`;
@@ -347,7 +333,7 @@ export class MedicalHistoryService {
       if (cached) {
         // IDOR: verificar acceso del doctor al registro cacheado
         if (user) {
-          const doctorId = await this.getDoctorIdForUser(user);
+          const doctorId = await this.authContextService.getScopedDoctorId(user?.id);
           if (doctorId && cached.doctorId !== doctorId) {
             throw new ForbiddenException('No tiene acceso a este historial médico.');
           }
@@ -375,7 +361,7 @@ export class MedicalHistoryService {
 
       // IDOR: verificar que el doctor solo acceda a sus historiales
       if (user) {
-        const doctorId = await this.getDoctorIdForUser(user);
+        const doctorId = await this.authContextService.getScopedDoctorId(user?.id);
         if (doctorId && history.doctorId !== doctorId) {
           throw new ForbiddenException('No tiene acceso a este historial médico.');
         }
@@ -408,7 +394,7 @@ export class MedicalHistoryService {
       if (cached) {
         // IDOR: si es doctor, filtrar solo sus registros
         if (user) {
-          const doctorId = await this.getDoctorIdForUser(user);
+          const doctorId = await this.authContextService.getScopedDoctorId(user?.id);
           if (doctorId) return cached.filter(h => h.doctorId === doctorId);
         }
         return cached;
@@ -418,7 +404,7 @@ export class MedicalHistoryService {
 
       // IDOR: si es doctor, solo sus historiales
       if (user) {
-        const doctorId = await this.getDoctorIdForUser(user);
+        const doctorId = await this.authContextService.getScopedDoctorId(user?.id);
         if (doctorId) whereClause.doctorId = doctorId;
       }
 
@@ -546,7 +532,7 @@ export class MedicalHistoryService {
 
       // IDOR: solo el doctor asignado puede agregar diagnóstico
       if (user) {
-        const doctorId = await this.getDoctorIdForUser(user);
+        const doctorId = await this.authContextService.getScopedDoctorId(user?.id);
         if (doctorId && history.doctorId !== doctorId) {
           throw new ForbiddenException('Solo el doctor asignado puede agregar diagnóstico a esta consulta.');
         }
@@ -608,7 +594,7 @@ export class MedicalHistoryService {
 
       // IDOR: solo el doctor asignado puede cancelar la consulta
       if (user) {
-        const doctorId = await this.getDoctorIdForUser(user);
+        const doctorId = await this.authContextService.getScopedDoctorId(user?.id);
         if (doctorId && history.doctorId !== doctorId) {
           throw new ForbiddenException('Solo el doctor asignado puede cancelar esta consulta.');
         }

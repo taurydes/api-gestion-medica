@@ -22,6 +22,7 @@ import { Doctor } from 'src/doctors/entities/doctor.entity';
 import { MedicalHistory } from 'src/medical-history/entities/medical-history.entity';
 import { User } from 'src/user/entities/user.entity';
 import { FilesService } from 'src/files/files.service';
+import { AuthContextService } from 'src/common/services/auth-context.service';
 
 /**
  * Servicio para gestionar las recetas médicas
@@ -55,6 +56,8 @@ export class RecipeService {
 
     @InjectDataSource(DatabaseConnectionName.DB_MAIN)
     private readonly dataSource: DataSource,
+
+    private readonly authContextService: AuthContextService,
   ) {}
 
   private async enrichWithImages(record: any): Promise<any> {
@@ -71,20 +74,6 @@ export class RecipeService {
       patient: record.patient ? { ...record.patient, imageUrl: patientImageUrl } : null,
       doctor: record.doctor ? { ...record.doctor, imageUrl: doctorImageUrl } : null,
     };
-  }
-
-  // ─── IDOR helper ───────────────────────────────────────────────────────────
-
-  private async getDoctorIdForUser(userId: string): Promise<string | null> {
-    const user = await this.userRepository.findOne({
-      where: { id: userId },
-      relations: ['commonPerson'],
-    });
-    if (!user?.commonPerson) return null;
-    const doctor = await this.doctorRepository.findOne({
-      where: { commonPersonId: user.commonPerson.id },
-    });
-    return doctor?.id ?? null;
   }
 
   /**
@@ -284,7 +273,7 @@ export class RecipeService {
     // IDOR: forzar filtro por doctorId si el usuario es doctor
     let effectiveDoctorId = doctorId;
     if (authUser?.id) {
-      const myDoctorId = await this.getDoctorIdForUser(authUser.id);
+      const myDoctorId = await this.authContextService.getScopedDoctorId(authUser.id);
       if (myDoctorId) effectiveDoctorId = myDoctorId;
     }
 
@@ -366,7 +355,7 @@ export class RecipeService {
 
       // IDOR: validar acceso del doctor
       if (authUser?.id) {
-        const myDoctorId = await this.getDoctorIdForUser(authUser.id);
+        const myDoctorId = await this.authContextService.getScopedDoctorId(authUser.id);
         if (myDoctorId && recipe.doctorId !== myDoctorId) {
           throw new ForbiddenException('No tiene acceso a esta receta.');
         }
@@ -397,7 +386,7 @@ export class RecipeService {
 
       // IDOR: filtrar por doctorId si el usuario es doctor
       if (authUser?.id) {
-        const myDoctorId = await this.getDoctorIdForUser(authUser.id);
+        const myDoctorId = await this.authContextService.getScopedDoctorId(authUser.id);
         if (myDoctorId) where.doctorId = myDoctorId;
       }
 
@@ -428,7 +417,7 @@ export class RecipeService {
       // IDOR: mismo criterio que findByPatient — un doctor solo ve sus recetas.
       // Se filtra después de la caché para no multiplicar claves que hoy se invalidan por historial.
       const myDoctorId = authUser?.id
-        ? await this.getDoctorIdForUser(authUser.id)
+        ? await this.authContextService.getScopedDoctorId(authUser.id)
         : null;
       const scope = (list: Recipe[]) =>
         myDoctorId ? list.filter((r) => r.doctorId === myDoctorId) : list;

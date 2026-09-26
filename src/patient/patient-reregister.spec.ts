@@ -25,6 +25,7 @@ function setup(patientDeletedAt: Date | null) {
     {} as any,
     cache as any,
     db.dataSource,
+    {} as any,
   );
   jest
     .spyOn(service, 'findOne')
