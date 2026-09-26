@@ -23,6 +23,10 @@ import { encryptModules } from './utils/permissions-cipher.util';
  * Se encarga de validar credenciales, generar tokens JWT y
  * mantener sesiones activas en Redis (a través de `RedisSessionService`).
  */
+/** Same rule as UserAccessService.isActive: a missing, disabled or deleted role blocks the account. */
+const isRoleActive = (role?: { isActive?: boolean; deletedAt?: Date | null } | null) =>
+  !!role && role.isActive !== false && !role.deletedAt;
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -54,10 +58,13 @@ export class AuthService {
         { email: credential, ...active },
         { name: credential, ...active },
       ],
+      relations: ['role'],
     });
 
-    if (!user) throw new UnauthorizedException('Usuario no encontrado');
-    const { password: _, ...safeUser } = user;
+    // Rol inactivo: mismo mensaje que un usuario inactivo (SessionGuard rechazaría el token igual)
+    if (!user || !isRoleActive(user.role))
+      throw new UnauthorizedException('Usuario no encontrado');
+    const { password: _, role: _role, ...safeUser } = user;
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid)
@@ -83,11 +90,12 @@ export class AuthService {
         { email: credential, ...active },
         { name: credential, ...active },
       ],
+      relations: ['role'],
     });
 
-    if (!user)
+    if (!user || !isRoleActive(user.role))
       throw new UnauthorizedException('Usuario de seguridad no encontrado');
-    const { password: _, ...safeUser } = user;
+    const { password: _, role: _role, ...safeUser } = user;
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid)
@@ -193,7 +201,7 @@ export class AuthService {
     if (!user) {
       throw new UnauthorizedException('Usuario no encontrado');
     }
-    if (user.deletedAt || user.status === false) {
+    if (user.deletedAt || user.status === false || !isRoleActive(user.role)) {
       await this.redisSession.deleteSession(userId);
       throw new UnauthorizedException('Usuario inactivo o eliminado');
     }

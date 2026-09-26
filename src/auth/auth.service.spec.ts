@@ -31,6 +31,7 @@ async function setup(userOverrides: Record<string, any> = {}) {
     roleId: 'r1',
     status: true,
     deletedAt: null,
+    role: { id: 'r1', isActive: true, deletedAt: null },
     ...userOverrides,
   };
   const sessions = new Map<string, any>();
@@ -58,7 +59,13 @@ describe('AuthService — usuarios borrados o desactivados (M-05)', () => {
     ).resolves.toHaveProperty('access_token');
   });
 
-  it.each([{ deletedAt: new Date() }, { status: false }])(
+  it.each([
+    { deletedAt: new Date() },
+    { status: false },
+    { role: { id: 'r1', isActive: false, deletedAt: null } },
+    { role: { id: 'r1', isActive: true, deletedAt: new Date() } },
+    { role: null },
+  ])(
     'login rechazado con 401 para %o',
     async (overrides) => {
       const { service } = await setup(overrides);
@@ -79,6 +86,29 @@ describe('AuthService — usuarios borrados o desactivados (M-05)', () => {
     user.deletedAt = new Date() as any;
     await expect(service.refreshTokens({ refreshToken: refresh_token })).rejects.toThrow(
       UnauthorizedException,
+    );
+    expect(redis.deleteSession).toHaveBeenCalledWith('u1');
+  });
+
+  it('login con rol inactivo → mismo mensaje que un usuario inactivo', async () => {
+    const inactiveUser = await setup({ status: false });
+    const inactiveRole = await setup({ role: { id: 'r1', isActive: false, deletedAt: null } });
+    const creds = { credential: 'marta', password: 'clave123', isSystemUser: false };
+    const expected = await inactiveUser.service.login(creds).catch((e) => e.message);
+    await expect(inactiveRole.service.login(creds)).rejects.toThrow(expected);
+  });
+
+  it('refresh tras desactivar el rol → 401 y se borra la sesión', async () => {
+    const { service, redis, user } = await setup();
+    const { refresh_token } = await service.login({
+      credential: 'marta',
+      password: 'clave123',
+      isSystemUser: false,
+    });
+
+    user.role = { id: 'r1', isActive: false, deletedAt: null };
+    await expect(service.refreshTokens({ refreshToken: refresh_token })).rejects.toThrow(
+      'Usuario inactivo o eliminado',
     );
     expect(redis.deleteSession).toHaveBeenCalledWith('u1');
   });
