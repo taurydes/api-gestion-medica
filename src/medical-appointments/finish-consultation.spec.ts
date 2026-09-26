@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException, ValidationPipe } from '@nestjs/common';
 import { InMemoryDb } from '../../test/in-memory-db';
 import { MedicalAppointmentsService } from './medical-appointments.service';
 import {
@@ -145,5 +145,38 @@ describe('MedicalAppointmentsService.finishConsultation — atomic close (M-14)'
       NotFoundException,
     );
     expect(db.rows(MedicalHistory)).toHaveLength(0);
+  });
+});
+
+describe('finishConsultation — contrato del frontend (M-35)', () => {
+  const pipe = new ValidationPipe({ transform: true, whitelist: true });
+  const body = {
+    observations: 'Notas de la cita',
+    medicalHistory: { consultationDate: '2026-09-26', reasonForVisit: 'control', observations: 'Notas del médico' },
+    recipe: {
+      items: [
+        { medicationId: 'med-1', medicationName: 'Ibuprofeno', dosage: '400mg', frequency: '8h', quantity: 2 },
+        { medicationName: 'Paracetamol', dosage: '500mg', frequency: '12h' },
+      ],
+    },
+  };
+
+  it('persiste medicalHistory.observations y la cantidad de cada ítem (1 si no se envía)', async () => {
+    const { service, db } = setup();
+    const validated = await pipe.transform(body, { type: 'body', metatype: CompleteConsultationDto });
+
+    await service.finishConsultation('apt-1', validated, 'u1');
+
+    expect(db.rows(MedicalHistory)[0].observations).toBe('Notas del médico');
+    expect(db.rows(RecipeItem).map((i) => i.quantity).sort()).toEqual([1, 2]);
+  });
+
+  it('rechaza una cantidad no entera o menor que 1', async () => {
+    for (const quantity of [0, 1.5, '2']) {
+      const bad = { ...body, recipe: { items: [{ ...body.recipe.items[0], quantity }] } };
+      await expect(pipe.transform(bad, { type: 'body', metatype: CompleteConsultationDto })).rejects.toThrow(
+        BadRequestException,
+      );
+    }
   });
 });

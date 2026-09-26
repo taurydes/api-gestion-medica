@@ -1,11 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsInt,
   IsNotEmpty,
   IsOptional,
   IsNumber,
   IsUUID,
   IsString,
   MaxLength,
+  Min,
 } from 'class-validator';
 
 /**
@@ -47,13 +49,15 @@ export class CreateRecipeItemDto {
   @MaxLength(50)
   concentration?: string;
 
-  @ApiProperty({
-    description: 'Cantidad prescrita',
+  @ApiPropertyOptional({
+    description: 'Cantidad prescrita (entero ≥ 1)',
     example: 20,
+    default: 1,
   })
-  @IsNumber()
-  @IsNotEmpty({ message: 'La cantidad es requerida' })
-  quantity: number;
+  @IsOptional()
+  @IsInt({ message: 'La cantidad debe ser un número entero' })
+  @Min(1, { message: 'La cantidad mínima es 1' })
+  quantity?: number = 1;
 
   @ApiPropertyOptional({
     description: 'Unidad de medida',

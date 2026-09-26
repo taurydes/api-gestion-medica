@@ -69,6 +69,8 @@ export class CreateUserDto {
   })
   @Type(() => CreateCommonPersonDto)
   @IsNotEmpty({ message: 'La información de la persona es obligatoria' })
+  // Without it the nested object skipped validation and whitelist: any field reached the entity.
+  @ValidateNested()
   commonPerson: CreateCommonPersonDto;
 
   @ApiPropertyOptional({

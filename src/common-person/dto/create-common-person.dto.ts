@@ -1,10 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   IsBoolean,
-  IsNumber,
   IsOptional,
   IsString,
   Length,
+  Matches,
   MaxLength,
 } from 'class-validator';
 
@@ -85,6 +86,19 @@ export class CreateCommonPersonDto {
   @IsOptional()
   @IsBoolean({ message: 'isActive debe ser un valor booleano' })
   isActive?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Teléfono (columna "telefono"): dígitos, espacios o guiones y un + inicial. "" o null lo borran.',
+    example: '+584141234567',
+  })
+  @IsOptional()
+  @Transform(({ value }) => (value === '' ? null : value))
+  @IsString({ message: 'El teléfono debe ser una cadena de texto' })
+  @MaxLength(20, { message: 'El teléfono no puede superar los 20 caracteres' })
+  @Matches(/^\+?[0-9][0-9\s-]{6,19}$/, {
+    message: 'El teléfono solo admite dígitos, espacios, guiones y un + inicial (mínimo 7 caracteres)',
+  })
+  phoneNumber?: string | null;
 
   @ApiPropertyOptional({
     description: 'URL de la foto de perfil de la persona. Opcional.',

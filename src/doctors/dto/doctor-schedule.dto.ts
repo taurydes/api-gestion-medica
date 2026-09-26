@@ -11,7 +11,13 @@ import {
   IsArray,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
+
+// HH:mm or HH:mm:ss (what GET returns); normalized to HH:mm:ss so string comparisons with stored values hold.
+const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d:[0-5]\d$/;
+const TIME_MESSAGE = 'debe tener formato HH:mm o HH:mm:ss (00:00 a 23:59)';
+const toStoredTime = ({ value }: { value: unknown }) =>
+  typeof value === 'string' && /^\d{2}:\d{2}$/.test(value) ? `${value}:00` : value;
 
 /** Un bloque horario individual */
 export class ScheduleBlockDto {
@@ -21,14 +27,16 @@ export class ScheduleBlockDto {
   @Max(6, { message: 'dayOfWeek máximo es 6 (Sábado)' })
   dayOfWeek: number;
 
-  @ApiProperty({ description: 'Hora de inicio (HH:mm)', example: '08:00' })
+  @ApiProperty({ description: 'Hora de inicio (HH:mm o HH:mm:ss)', example: '08:00' })
+  @Transform(toStoredTime)
   @IsString()
-  @Matches(/^\d{2}:\d{2}$/, { message: 'startTime debe tener formato HH:mm' })
+  @Matches(TIME_PATTERN, { message: `startTime ${TIME_MESSAGE}` })
   startTime: string;
 
-  @ApiProperty({ description: 'Hora de fin (HH:mm)', example: '12:00' })
+  @ApiProperty({ description: 'Hora de fin (HH:mm o HH:mm:ss)', example: '12:00' })
+  @Transform(toStoredTime)
   @IsString()
-  @Matches(/^\d{2}:\d{2}$/, { message: 'endTime debe tener formato HH:mm' })
+  @Matches(TIME_PATTERN, { message: `endTime ${TIME_MESSAGE}` })
   endTime: string;
 
   @ApiPropertyOptional({ description: 'Duración del slot en minutos', example: 30, default: 30 })
@@ -78,16 +86,18 @@ export class UpdateDoctorScheduleBlockDto {
   @Max(6)
   dayOfWeek?: number;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Hora de inicio (HH:mm o HH:mm:ss)', example: '08:00:00' })
   @IsOptional()
+  @Transform(toStoredTime)
   @IsString()
-  @Matches(/^\d{2}:\d{2}$/)
+  @Matches(TIME_PATTERN, { message: `startTime ${TIME_MESSAGE}` })
   startTime?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Hora de fin (HH:mm o HH:mm:ss)', example: '12:00:00' })
   @IsOptional()
+  @Transform(toStoredTime)
   @IsString()
-  @Matches(/^\d{2}:\d{2}$/)
+  @Matches(TIME_PATTERN, { message: `endTime ${TIME_MESSAGE}` })
   endTime?: string;
 
   @ApiPropertyOptional()

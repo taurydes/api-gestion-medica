@@ -8,6 +8,8 @@ import {
   IsArray,
   IsDateString,
   ArrayMinSize,
+  IsInt,
+  Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -40,9 +42,11 @@ export class ConsultationRecipeItemInputDto {
   @IsString()
   instructions?: string;
 
-  @IsNumber()
-  @IsNotEmpty({ message: 'La cantidad es requerida' })
-  quantity: number;
+  @ApiPropertyOptional({ description: 'Cantidad prescrita (entero ≥ 1)', example: 2, default: 1 })
+  @IsOptional()
+  @IsInt({ message: 'La cantidad debe ser un número entero' })
+  @Min(1, { message: 'La cantidad mínima es 1' })
+  quantity?: number = 1;
 }
 
 /**
@@ -104,6 +108,11 @@ export class ConsultationHistoryInputDto {
   @IsOptional()
   @IsNumber()
   oxygenSaturation?: number;
+
+  @ApiPropertyOptional({ description: 'Observaciones de la consulta (medical_histories.observations)' })
+  @IsOptional()
+  @IsString()
+  observations?: string;
 }
 
 /**
