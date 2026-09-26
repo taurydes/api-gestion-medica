@@ -4,6 +4,8 @@ export class InitialSchema1790384118206 implements MigrationInterface {
     name = 'InitialSchema1790384118206'
 
     public async up(queryRunner: QueryRunner): Promise<void> {
+        // A database created by the old synchronize() already has this schema: record the baseline only.
+        if (await queryRunner.hasTable('persona_comun')) return;
         // Baseline of the schema previously created by synchronize(); schemas and uuid extension go first.
         await queryRunner.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`);
         for (const schema of ['seguridad', 'parametro', 'selfManagement', 'auditoria']) {

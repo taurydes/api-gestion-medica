@@ -58,4 +58,5 @@ ARG PORT=8008
 ENV PORT=${PORT}
 EXPOSE 8008
 
-CMD ["node", "dist/main.js"]
+# Aplica las migraciones pendientes antes de arrancar; si una falla, el contenedor no arranca con un esquema viejo
+CMD ["sh", "-c", "npm run migration:run:prod && exec node dist/main.js"]

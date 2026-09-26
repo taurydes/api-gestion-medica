@@ -276,3 +276,14 @@ Todas las referencias son por id, así que recodificar no mueve relaciones. `MT`
 | `migration:generate` después | Sin cambios |
 
 Con esto `src/database/migrations-pending/` queda vacío y los dos índices están activos: el 409 de documento duplicado ya no depende solo de la validación en el servicio.
+
+## Actualización — pendientes resueltos
+
+| Pendiente | Qué se hizo | Verificación |
+|---|---|---|
+| `user.update` sin transacción | Las escrituras de `users` y `persona_comun` van en un `dataSource.transaction()` | `user.service.spec.ts`: si falla la de `persona_comun`, la de `users` no se confirma; si ambas funcionan, se confirman juntas |
+| Despliegue sin `migration:run` | `Dockerfile`: `CMD ["sh", "-c", "npm run migration:run:prod && exec node dist/main.js"]`; si una migración falla, el contenedor no arranca con el esquema viejo | `docker build` OK; dentro de la imagen, `npm run migration:run:prod` contra la real → "No migrations are pending" |
+| Baseline manual | `InitialSchema.up()` no hace nada si `persona_comun` ya existe: en una base creada por `synchronize()` solo registra la fila. El script de baseline sigue sirviendo, pero ya no es obligatorio | Copia del respaldo original (sin tabla `migrations`): sin depurar, `migration:run` aborta en M-18 y revierte todo (0 filas en `migrations`); tras los dos scripts de depuración aplica las 9 y la huella queda **idéntica** a la real. Base vacía: las 9 → idéntica |
+| `SchemaInitService` | Se deja como está: la migración inicial ya crea los esquemas (`CREATE SCHEMA IF NOT EXISTS`), así que el servicio es redundante pero inocuo y no genera drift. Borrar el archivo fue denegado por el sistema de permisos en la primera pasada | — |
+
+**Procedimiento de despliegue actualizado**: 1) en una base con datos anteriores a esta fase, correr los dos scripts de depuración (M-18 y M-19) si aún tiene duplicados; 2) `docker compose up --build` (o `npm run migration:run:prod && node dist/main.js`). No hace falta el baseline manual.
