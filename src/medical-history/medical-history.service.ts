@@ -9,7 +9,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
-import { IsNull, Repository } from 'typeorm';
+import { EntityManager, IsNull, Repository } from 'typeorm';
 import { MedicalHistory } from './entities/medical-history.entity';
 import { CreateMedicalHistoryDto } from './dto/create-medical-history.dto';
 import { UpdateMedicalHistoryDto } from './dto/update-medical-history.dto';
@@ -101,16 +101,24 @@ export class MedicalHistoryService {
     await this.cacheManager.del(listKey);
   }
 
+  /** Clears the global list caches; callers that pass their own transaction call it after commit. */
+  async invalidateListCache(): Promise<void> {
+    await this.cacheManager.del('medical-history:all');
+    await this.clearQueryCache();
+  }
+
   /**
    * Genera un número de consulta único
    * Formato: CONS-YYYY-XXXXX (ej: CONS-2026-00001)
    */
-  private async generateConsultationNumber(): Promise<string> {
+  private async generateConsultationNumber(
+    historyRepo: Repository<MedicalHistory> = this.medicalHistoryRepository,
+  ): Promise<string> {
     const year = new Date().getFullYear();
     const prefix = `CONS-${year}-`;
 
     // Obtener el último número de consulta del año actual
-    const lastHistory = await this.medicalHistoryRepository
+    const lastHistory = await historyRepo
       .createQueryBuilder('history')
       .where('history.consultationNumber LIKE :prefix', { prefix: `${prefix}%` })
       .orderBy('history.consultationNumber', 'DESC')
@@ -134,11 +142,16 @@ export class MedicalHistoryService {
   async create(
     dto: CreateMedicalHistoryDto,
     userId?: string,
+    manager?: EntityManager,
   ): Promise<MedicalHistory> {
+    // With a caller-owned transaction every read/write uses its manager and the caller clears caches.
+    const repo = <T extends object>(entity: new () => T, fallback: Repository<T>) =>
+      manager ? manager.getRepository(entity) : fallback;
+    const historyRepo = repo(MedicalHistory, this.medicalHistoryRepository);
     try {
       // 1️⃣ Verificar que el paciente exista
-      const patient = await this.patientRepository.findOne({
-        where: { id: dto.patientId },
+      const patient = await repo(Patient, this.patientRepository).findOne({
+        where: { id: dto.patientId, deletedAt: IsNull() },
       });
 
       if (!patient) {
@@ -148,8 +161,8 @@ export class MedicalHistoryService {
       }
 
       // 2️⃣ Verificar que el doctor exista
-      const doctor = await this.doctorRepository.findOne({
-        where: { id: dto.doctorId },
+      const doctor = await repo(Doctor, this.doctorRepository).findOne({
+        where: { id: dto.doctorId, deletedAt: IsNull() },
       });
 
       if (!doctor) {
@@ -160,8 +173,8 @@ export class MedicalHistoryService {
 
       // 3️⃣ Verificar centro médico si se proporciona
       if (dto.medicalCenterId) {
-        const medicalCenter = await this.medicalCenterRepository.findOne({
-          where: { id: dto.medicalCenterId },
+        const medicalCenter = await repo(MedicalCenter, this.medicalCenterRepository).findOne({
+          where: { id: dto.medicalCenterId, deletedAt: IsNull() },
         });
 
         if (!medicalCenter) {
@@ -173,8 +186,8 @@ export class MedicalHistoryService {
 
       // 4️⃣ Verificar especialidad si se proporciona
       if (dto.specialtyId) {
-        const specialty = await this.specialtyRepository.findOne({
-          where: { id: dto.specialtyId },
+        const specialty = await repo(Specialty, this.specialtyRepository).findOne({
+          where: { id: dto.specialtyId, deletedAt: IsNull() },
         });
 
         if (!specialty) {
@@ -185,10 +198,10 @@ export class MedicalHistoryService {
       }
 
       // 5️⃣ Generar número de consulta único
-      const consultationNumber = await this.generateConsultationNumber();
+      const consultationNumber = await this.generateConsultationNumber(historyRepo);
 
       // 6️⃣ Crear el registro
-      const newHistory = this.medicalHistoryRepository.create({
+      const newHistory = historyRepo.create({
         ...dto,
         consultationNumber,
         consultationDate: new Date(dto.consultationDate),
@@ -196,11 +209,10 @@ export class MedicalHistoryService {
         createdBy: userId,
       });
 
-      const savedHistory = await this.medicalHistoryRepository.save(newHistory);
+      const savedHistory = await historyRepo.save(newHistory);
+      if (manager) return savedHistory;
 
-      // 🧹 Limpiar cache global
-      await this.cacheManager.del('medical-history:all');
-      await this.clearQueryCache();
+      await this.invalidateListCache();
 
       // Retornar con relaciones cargadas
       return this.findOne(savedHistory.id);

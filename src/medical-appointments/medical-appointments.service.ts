@@ -7,10 +7,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { AuthContextService } from 'src/common/services/auth-context.service';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
-import { IsNull, Repository } from 'typeorm';
+import { DataSource, IsNull, Repository } from 'typeorm';
 import {
   AppointmentStatus,
   AppointmentType,
@@ -87,6 +87,9 @@ export class MedicalAppointmentsService {
     private readonly filesService: FilesService,
 
     private readonly authContextService: AuthContextService,
+
+    @InjectDataSource(DatabaseConnectionName.DB_MAIN)
+    private readonly dataSource: DataSource,
   ) {}
 
   // ─── IDOR helper ───────────────────────────────────────────────────────────
@@ -941,50 +944,64 @@ export class MedicalAppointmentsService {
     dto: CompleteConsultationDto,
     userId?: string,
   ): Promise<MedicalAppointment> {
-    const apt = await this.appointmentRepository.findOne({
-      where: { id, deletedAt: IsNull() },
-    });
-
-    if (!apt) {
-      throw new NotFoundException(`Cita médica con ID ${id} no encontrada.`);
-    }
-
-    if (apt.status === AppointmentStatus.COMPLETED) {
-      throw new BadRequestException('La cita ya está completada.');
-    }
-
-    // 1️⃣ Crear Historial Médico
-    const historyDto = {
-      ...dto.medicalHistory,
-      medicalAppointmentId: id,
-      patientId: apt.patientId,
-      doctorId: apt.doctorId,
-      medicalCenterId: apt.medicalCenterId ?? undefined,
-      specialtyId: apt.specialtyId ?? undefined,
-    };
-
-    const history = await this.historyService.create(historyDto, userId);
-
-    // 2️⃣ Crear Receta si se proporciona
+    // Validate catalog references before opening the transaction, so a bad medicationId writes nothing.
     if (dto.recipe) {
-      const recipeDto = {
-        ...dto.recipe,
-        medicalHistoryId: history.id,
+      await this.recipeService.assertMedicationsExist(dto.recipe.items);
+    }
+
+    // All three writes commit together; a failure rolls back the history so a retry can succeed.
+    const recipeScope = await this.dataSource.transaction(async (manager) => {
+      const aptRepo = manager.getRepository(MedicalAppointment);
+      const apt = await aptRepo.findOne({
+        where: { id, deletedAt: IsNull() },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!apt) {
+        throw new NotFoundException(`Cita médica con ID ${id} no encontrada.`);
+      }
+
+      if (apt.status === AppointmentStatus.COMPLETED) {
+        throw new BadRequestException('La cita ya está completada.');
+      }
+
+      // 1️⃣ Crear Historial Médico
+      const historyDto = {
+        ...dto.medicalHistory,
         medicalAppointmentId: id,
         patientId: apt.patientId,
         doctorId: apt.doctorId,
+        medicalCenterId: apt.medicalCenterId ?? undefined,
+        specialtyId: apt.specialtyId ?? undefined,
       };
-      await this.recipeService.create(recipeDto as any, userId);
-    }
 
-    // 3️⃣ Marcar cita como completada
-    apt.status = AppointmentStatus.COMPLETED;
-    if (dto.observations) apt.observations = dto.observations;
-    apt.updatedBy = userId ?? null;
+      const history = await this.historyService.create(historyDto, userId, manager);
 
-    await this.appointmentRepository.save(apt);
+      // 2️⃣ Crear Receta si se proporciona
+      if (dto.recipe) {
+        const recipeDto = {
+          ...dto.recipe,
+          medicalHistoryId: history.id,
+          medicalAppointmentId: id,
+          patientId: apt.patientId,
+          doctorId: apt.doctorId,
+        };
+        await this.recipeService.create(recipeDto as any, userId, manager);
+      }
 
-    // Limpiar caches
+      // 3️⃣ Marcar cita como completada
+      apt.status = AppointmentStatus.COMPLETED;
+      if (dto.observations) apt.observations = dto.observations;
+      apt.updatedBy = userId ?? null;
+
+      await aptRepo.save(apt);
+
+      return dto.recipe ? { patientId: apt.patientId, medicalHistoryId: history.id } : null;
+    });
+
+    // Limpiar caches (solo después del commit)
+    await this.historyService.invalidateListCache();
+    if (recipeScope) await this.recipeService.invalidateCaches(recipeScope);
     await this.cacheManager.del(`appointment:${id}`);
     await this.cacheManager.del('appointment:all');
     await this.clearQueryCache();
