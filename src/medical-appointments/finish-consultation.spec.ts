@@ -155,7 +155,7 @@ describe('finishConsultation — contrato del frontend (M-35)', () => {
     medicalHistory: { consultationDate: '2026-09-26', reasonForVisit: 'control', observations: 'Notas del médico' },
     recipe: {
       items: [
-        { medicationId: 'med-1', medicationName: 'Ibuprofeno', dosage: '400mg', frequency: '8h', quantity: 2 },
+        { medicationName: 'Ibuprofeno', dosage: '400mg', frequency: '8h', quantity: 2 },
         { medicationName: 'Paracetamol', dosage: '500mg', frequency: '12h' },
       ],
     },
