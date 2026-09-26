@@ -5,6 +5,7 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { CommonPerson } from '../common-person/entities/common-person.entity';
 import {
   USER_ROLE_CHANGE_PERMISSION,
   USER_STATUS_CHANGE_PERMISSION,
@@ -51,7 +52,26 @@ function setup() {
     release: jest.fn(),
     manager: { getRepository: () => queryRunnerRepo },
   };
-  const dataSource = { createQueryRunner: () => queryRunner };
+  // transaction(): writes count as committed only if the callback resolves.
+  const committed: string[] = [];
+  const dataSource = {
+    createQueryRunner: () => queryRunner,
+    transaction: async (work: (manager: any) => Promise<unknown>) => {
+      const pending: string[] = [];
+      const manager = {
+        getRepository: (entity: unknown) => ({
+          update: async (...args: unknown[]) => {
+            const target = entity === CommonPerson ? commonPersonRepo : repo;
+            await (target.update as any)(...args);
+            pending.push(entity === CommonPerson ? 'persona_comun' : 'users');
+          },
+        }),
+      };
+      const result = await work(manager);
+      committed.push(...pending);
+      return result;
+    },
+  };
 
   const service = new UserService(
     repo as any,
@@ -62,7 +82,7 @@ function setup() {
     dataSource as any,
     redisSession as any,
   );
-  return { service, repo, commonPersonRepo, redisSession, queryRunner, queryRunnerRepo };
+  return { service, repo, commonPersonRepo, redisSession, queryRunner, queryRunnerRepo, committed };
 }
 
 describe('UserService.update — escalada por PATCH /users/:id (M-04)', () => {
@@ -187,5 +207,31 @@ describe('UserService.remove — revoca la sesión (M-05, C-03)', () => {
     expect(queryRunner.commitTransaction).not.toHaveBeenCalled();
     expect(queryRunner.rollbackTransaction).toHaveBeenCalled();
     expect(queryRunner.release).toHaveBeenCalled();
+  });
+});
+
+describe('UserService.update — users and persona_comun in one transaction', () => {
+  it('if the persona_comun update fails, the users change is not committed either', async () => {
+    const { service, commonPersonRepo, committed } = setup();
+    commonPersonRepo.update.mockRejectedValue(new Error('db down'));
+
+    await expect(
+      service.update(
+        'u1',
+        { email: 'nuevo@example.com', commonPerson: { firstName: 'Marta' } } as UpdateUserDto,
+        [],
+      ),
+    ).rejects.toThrow(BadRequestException);
+    expect(committed).toEqual([]);
+  });
+
+  it('both writes commit together when they succeed', async () => {
+    const { service, committed } = setup();
+    await service.update(
+      'u1',
+      { email: 'nuevo@example.com', commonPerson: { firstName: 'Marta' } } as UpdateUserDto,
+      [],
+    );
+    expect(committed).toEqual(['users', 'persona_comun']);
   });
 });

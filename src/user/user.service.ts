@@ -389,14 +389,17 @@ export class UserService {
       for (const key of Object.keys(userFields)) {
         if (userFields[key] === undefined) delete userFields[key];
       }
-      if (Object.keys(userFields).length > 0) {
-        await this.repo.update(id, userFields);
-      }
-
-      // Actualizar CommonPerson por separado si se envió
-      if (commonPersonDto && exists.commonPerson?.id) {
-        await this.commonPersonrepo.update(exists.commonPerson.id, commonPersonDto);
-      }
+      // users and persona_comun change together or not at all
+      await this.dataSource.transaction(async (manager) => {
+        if (Object.keys(userFields).length > 0) {
+          await manager.getRepository(User).update(id, userFields);
+        }
+        if (commonPersonDto && exists.commonPerson?.id) {
+          await manager
+            .getRepository(CommonPerson)
+            .update(exists.commonPerson.id, commonPersonDto);
+        }
+      });
 
       const updated = await this.repo.findOneBy({ id });
 
