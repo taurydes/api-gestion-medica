@@ -1,4 +1,4 @@
-import { BadRequestException, ValidationPipe } from '@nestjs/common';
+import { BadRequestException, ConflictException, ValidationPipe } from '@nestjs/common';
 import { FakeRepo } from '../../test/in-memory-db';
 import { UpdatePermissionDto } from 'src/permission/dto/update-permission.dto';
 import { PermissionService } from 'src/permission/services/permission.service';
@@ -53,7 +53,10 @@ describe('PATCH /roles/:id con el cuerpo que envía el frontend (M-26)', () => {
 
 describe('PATCH /permissions/:id (M-26: catálogo fijo de acciones)', () => {
   const build = () => {
-    const table: any[] = [{ id: 'p-1', name: 'consultar', displayName: 'Consultar', isActive: true, deletedAt: null }];
+    const table: any[] = [
+      { id: 'p-1', name: 'consultar', displayName: 'Consultar', isActive: true, deletedAt: null },
+      { id: 'p-2', name: 'aprobar', displayName: 'Aprobar', isActive: true, deletedAt: null },
+    ];
     const service = new PermissionService(
       new FakeRepo([]) as any,
       new FakeRepo([]) as any,
@@ -80,9 +83,22 @@ describe('PATCH /permissions/:id (M-26: catálogo fijo de acciones)', () => {
   it('persiste displayName e isActive cuando el nombre no cambia', async () => {
     const { table, service } = build();
 
-    await service.update('p-1', { name: 'consultar', displayName: 'Ver', isActive: false });
+    await service.update('p-1', { name: 'consultar', displayName: 'Ver' });
+    await service.update('p-2', { name: 'aprobar', isActive: false });
 
-    expect(table[0]).toMatchObject({ name: 'consultar', displayName: 'Ver', isActive: false });
+    expect(table[0]).toMatchObject({ name: 'consultar', displayName: 'Ver', isActive: true });
+    expect(table[1]).toMatchObject({ name: 'aprobar', isActive: false });
+  });
+
+  it('las acciones del sistema no se pueden eliminar ni desactivar (409)', async () => {
+    const { table, service } = build();
+
+    await expect(service.remove('p-1')).rejects.toThrow(ConflictException);
+    await expect(service.update('p-1', { isActive: false })).rejects.toThrow(ConflictException);
+    expect(table[0]).toMatchObject({ isActive: true, deletedAt: null });
+
+    await service.remove('p-2');
+    expect(table[1].isActive).toBe(false);
   });
 
   it('rechaza renombrar la acción con 400 y no escribe', async () => {

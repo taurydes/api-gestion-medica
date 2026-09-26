@@ -1,6 +1,7 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import {
   BadRequestException,
+  ConflictException,
   HttpException,
   Inject,
   Injectable,
@@ -48,7 +49,11 @@ import { QueryPermissionDto } from '../dto/query-permission.dto';
 import { UpdatePermissionDto } from '../dto/update-permission.dto';
 import { CreatepermissionsRolesDto } from '../dto/create-permission-role.dto';
 import { ModuleItemsMenu } from 'src/menu/menu.const';
+import { PermissionActionsMenu } from '../permission.const';
 import { safeErrorMessage } from 'src/common/exceptions/to-http-exception';
+
+/** Actions every @Permission decorator relies on: deleting or deactivating one locks every module. */
+const SYSTEM_ACTIONS = new Set<string>(Object.values(PermissionActionsMenu));
 
 @Injectable()
 export class PermissionService {
@@ -110,6 +115,14 @@ export class PermissionService {
 
   private normalizeAction(action: string): string {
     return (action || '').trim().toLowerCase();
+  }
+
+  private assertNotSystemAction(permission: Permission, verb: string): void {
+    if (SYSTEM_ACTIONS.has(permission.name)) {
+      throw new ConflictException(
+        `La acción '${permission.name}' es del sistema y no se puede ${verb}: la usan los permisos de todos los módulos.`,
+      );
+    }
   }
 
   /** Grant (rol, menú, permiso): prefers the live row, since revoked rows accumulate with deleted_at set. */
@@ -1068,6 +1081,8 @@ export class PermissionService {
         );
       }
 
+      if (changes.isActive === false) this.assertNotSystemAction(permission, 'desactivar');
+
       Object.assign(permission, changes, { updatedAt: new Date() });
       if (changes.isActive === true) permission.deletedAt = null;
 
@@ -1097,6 +1112,7 @@ export class PermissionService {
   async remove(id: string): Promise<void> {
     try {
       const permission = await this.findOne(id);
+      this.assertNotSystemAction(permission, 'eliminar');
       // Soft delete: marcar como inactivo en vez de borrar físicamente
       permission.isActive = false;
       permission.deletedAt = new Date();
@@ -1104,7 +1120,7 @@ export class PermissionService {
 
       await this.invalidateListAndItems([id]);
     } catch (error) {
-      if (error instanceof NotFoundException) throw error;
+      if (error instanceof HttpException) throw error;
       throw new InternalServerErrorException('Error al eliminar el permiso');
     }
   }
