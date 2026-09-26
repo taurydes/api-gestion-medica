@@ -13,10 +13,10 @@ import {
   uniqueViolationToConflict,
 } from 'src/common-person/person-document.util';
 import { AuthContextService } from 'src/common/services/auth-context.service';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
-import { FindOptions, In, IsNull, Repository } from 'typeorm';
+import { DataSource, FindOptions, In, IsNull, Repository } from 'typeorm';
 import { CreateDoctorDto } from './dto/create-doctor.dto';
 import { UpdateDoctorDto } from './dto/update-doctor.dto';
 import { DoctorQueryDto } from './dto/doctor-query.dto';
@@ -55,6 +55,9 @@ export class DoctorsService {
     private readonly filesService: FilesService,
 
     private readonly authContextService: AuthContextService,
+
+    @InjectDataSource(DatabaseConnectionName.DB_MAIN)
+    private readonly dataSource: DataSource,
   ) {}
 
   // ─── IDOR helpers ──────────────────────────────────────────────────────────
@@ -113,46 +116,31 @@ export class DoctorsService {
    */
   async create(dto: CreateDoctorDto): Promise<Doctor> {
     try {
-      // 1. Validar Especialidades
-      let specialties: Specialty[] = [];
-      if (dto.specialtyIds && dto.specialtyIds.length > 0) {
-        specialties = await this.specialtyRepository.findBy({
-          id: In(dto.specialtyIds),
-        });
-        if (specialties.length !== dto.specialtyIds.length) {
-          throw new BadRequestException('Una o más especialidades no existen.');
-        }
-      }
-
-      let commonPerson;
-      // 1. Buscar si ya existe CommonPerson por número de documento
       if (!dto.commonPerson) {
         throw new BadRequestException(
           'La información de la persona es requerida para este endpoint.',
         );
       }
 
-      if (dto.commonPerson.documentNumber) {
-        const existingPerson = await this.commonPersonRepository.findOne({
-          where: personDocumentWhere(dto.commonPerson.letter, dto.commonPerson.documentNumber),
+      // Everything that can fail with a 4xx is checked before writing, so no orphan person is left (M-25).
+      // 1. Validar Especialidades
+      let specialties: Specialty[] = [];
+      if (dto.specialtyIds && dto.specialtyIds.length > 0) {
+        specialties = await this.specialtyRepository.findBy({
+          id: In(dto.specialtyIds),
+          deletedAt: IsNull(),
         });
-
-        if (existingPerson) {
-          commonPerson = existingPerson;
+        if (specialties.length !== dto.specialtyIds.length) {
+          throw new BadRequestException('Una o más especialidades no existen.');
         }
       }
 
-      // 2. Si no existe, crear nuevo CommonPerson
-      if (!commonPerson) {
-        const newPerson = this.commonPersonRepository.create(dto.commonPerson);
-        commonPerson = await this.commonPersonRepository.save(newPerson);
-      }
-
-      // 3. Validar que los centros médicos existan (si se proporcionan)
+      // 2. Validar que los centros médicos existan (si se proporcionan)
       let medicalCenters: MedicalCenter[] = [];
       if (dto.medicalCenterIds && dto.medicalCenterIds.length > 0) {
         medicalCenters = await this.medicalCenterRepository.findBy({
           id: In(dto.medicalCenterIds),
+          deletedAt: IsNull(),
         });
 
         if (medicalCenters.length !== dto.medicalCenterIds.length) {
@@ -162,7 +150,7 @@ export class DoctorsService {
         }
       }
 
-      // 4. Validar que no exista otro doctor con el mismo número de licencia
+      // 3. Validar que no exista otro doctor con el mismo número de licencia
       const existingDoctor = await this.doctorRepository.findOne({
         where: { licenseNumber: dto.licenseNumber },
       });
@@ -173,15 +161,31 @@ export class DoctorsService {
         );
       }
 
-      // 5. Crear doctor asociado al CommonPerson y Centros Médicos
-      const newDoctor = this.doctorRepository.create({
-        ...dto,
-        commonPersonId: commonPerson.id,
-        commonPerson,
-        medicalCenters,
-        specialties,
+      // 4. Persona (buscar por letra + documento o crear) y doctor en una transacción
+      const personDto = dto.commonPerson;
+      const doctor = await this.dataSource.transaction(async (manager) => {
+        const personRepo = manager.getRepository(CommonPerson);
+        const doctorRepo = manager.getRepository(Doctor);
+
+        let commonPerson: CommonPerson | null = null;
+        if (personDto.documentNumber) {
+          commonPerson = await personRepo.findOne({
+            where: personDocumentWhere(personDto.letter, personDto.documentNumber),
+          });
+        }
+        if (!commonPerson) {
+          commonPerson = await personRepo.save(personRepo.create(personDto));
+        }
+
+        const newDoctor = doctorRepo.create({
+          ...dto,
+          commonPersonId: commonPerson.id,
+          commonPerson,
+          medicalCenters,
+          specialties,
+        });
+        return doctorRepo.save(newDoctor);
       });
-      const doctor = await this.doctorRepository.save(newDoctor);
 
       // Limpiar cache global
       await this.cacheManager.del('doctor:all');
@@ -189,8 +193,9 @@ export class DoctorsService {
 
       return doctor;
     } catch (error) {
-      throw new BadRequestException(
-        `Error al crear el doctor: ${error.message}`,
+      throw (
+        uniqueViolationToConflict(error) ??
+        new BadRequestException(`Error al crear el doctor: ${error.message}`)
       );
     }
   }

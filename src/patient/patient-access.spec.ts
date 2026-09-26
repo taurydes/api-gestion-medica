@@ -25,6 +25,7 @@ function build(options: { isDoctor: boolean; hasAppointment: boolean }) {
     {} as any,
     {} as any,
     cache as any,
+    {} as any,
   );
   return { service, patientRepo };
 }

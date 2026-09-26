@@ -21,6 +21,7 @@ describe('findOne ignores soft-deleted rows (M-22)', () => {
       {} as any,
       {} as any,
       cache() as any,
+      {} as any,
     );
     await expect(service.findOne('x1')).rejects.toThrow(NotFoundException);
   });
@@ -36,6 +37,7 @@ describe('findOne ignores soft-deleted rows (M-22)', () => {
       cache() as any,
       {} as any,
       { isAdmin: jest.fn().mockResolvedValue(true) } as any,
+      {} as any,
     );
     await expect(service.findOne('x1')).rejects.toThrow(NotFoundException);
   });

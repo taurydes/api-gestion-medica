@@ -12,9 +12,9 @@ import {
   personDocumentWhere,
   uniqueViolationToConflict,
 } from 'src/common-person/person-document.util';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
-import { In, IsNull, Repository } from 'typeorm';
+import { DataSource, In, IsNull, Repository } from 'typeorm';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { PatientQueryDto } from './dto/patient-query.dto';
@@ -64,6 +64,9 @@ export class PatientService {
 
     @Inject(CACHE_MANAGER)
     private readonly cacheManager: Cache,
+
+    @InjectDataSource(DatabaseConnectionName.DB_MAIN)
+    private readonly dataSource: DataSource,
   ) {}
 
   /**
@@ -121,12 +124,14 @@ export class PatientService {
    * Genera un código de paciente único
    * Formato: PAC-YYYY-XXXXX (ej: PAC-2026-00001)
    */
-  private async generatePatientCode(): Promise<string> {
+  private async generatePatientCode(
+    patientRepo: Repository<Patient> = this.patientRepository,
+  ): Promise<string> {
     const year = new Date().getFullYear();
     const prefix = `PAC-${year}-`;
 
     // Obtener el último código de paciente del año actual
-    const lastPatient = await this.patientRepository
+    const lastPatient = await patientRepo
       .createQueryBuilder('patient')
       .where('patient.patientCode LIKE :prefix', { prefix: `${prefix}%` })
       .orderBy('patient.patientCode', 'DESC')
@@ -153,43 +158,8 @@ export class PatientService {
     userId?: string,
   ): Promise<Patient> {
     try {
-      let commonPerson: CommonPerson | null = null;
-
-      // 1️⃣ Buscar si ya existe CommonPerson por número de documento
-      if (createPatientDto.commonPerson.documentNumber) {
-        const existingPerson = await this.commonPersonRepository.findOne({
-          where: personDocumentWhere(
-            createPatientDto.commonPerson.letter,
-            createPatientDto.commonPerson.documentNumber,
-          ),
-        });
-
-        if (existingPerson) {
-          commonPerson = existingPerson;
-        }
-      }
-
-      // 2️⃣ Si no existe, crear nuevo CommonPerson
-      if (!commonPerson) {
-        const newPerson = this.commonPersonRepository.create(
-          createPatientDto.commonPerson,
-        );
-        commonPerson = await this.commonPersonRepository.save(newPerson);
-      }
-
-      // 3️⃣ Verificar si esta persona ya está registrada como paciente activo
-      // (el índice único es parcial: un paciente borrado no bloquea el nuevo registro)
-      const existingPatient = await this.patientRepository.findOne({
-        where: { commonPersonId: commonPerson.id, deletedAt: IsNull() },
-      });
-
-      if (existingPatient) {
-        throw new BadRequestException(
-          'Esta persona ya está registrada como paciente.',
-        );
-      }
-
-      // 4️⃣ Cargar alergias si se proporcionaron
+      // Catalog ids and patientCode are validated before any write, so a 4xx leaves no orphan person (M-25).
+      // 1️⃣ Cargar alergias si se proporcionaron
       let allergies: Allergy[] = [];
       if (
         createPatientDto.allergyIds &&
@@ -206,7 +176,7 @@ export class PatientService {
         }
       }
 
-      // 5️⃣ Cargar enfermedades crónicas si se proporcionaron
+      // 2️⃣ Cargar enfermedades crónicas si se proporcionaron
       let chronicDiseases: ChronicDisease[] = [];
       if (
         createPatientDto.chronicDiseaseIds &&
@@ -225,7 +195,7 @@ export class PatientService {
         }
       }
 
-      // 6️⃣ Cargar medicamentos si se proporcionaron
+      // 3️⃣ Cargar medicamentos si se proporcionaron
       let medications: Medication[] = [];
       if (
         createPatientDto.medicationIds &&
@@ -242,43 +212,73 @@ export class PatientService {
         }
       }
 
-      // 7️⃣ Generar código de paciente único si no se proporciona
-      let patientCode = createPatientDto.patientCode;
-      if (!patientCode) {
-        patientCode = await this.generatePatientCode();
-      } else {
-        // Verificar que el código no esté en uso
+      // 4️⃣ Verificar que el código no esté en uso
+      if (createPatientDto.patientCode) {
         const existingCode = await this.patientRepository.findOne({
-          where: { patientCode },
+          where: { patientCode: createPatientDto.patientCode },
         });
         if (existingCode) {
           throw new BadRequestException(
-            `El código de paciente "${patientCode}" ya está en uso.`,
+            `El código de paciente "${createPatientDto.patientCode}" ya está en uso.`,
           );
         }
       }
 
-      // 8️⃣ Crear el paciente
-      const {
-        allergyIds,
-        chronicDiseaseIds,
-        medicationIds,
-        commonPerson: _,
-        ...patientData
-      } = createPatientDto;
+      // Person and patient are written in one transaction
+      const savedPatient = await this.dataSource.transaction(async (manager) => {
+        const personRepo = manager.getRepository(CommonPerson);
+        const patientRepo = manager.getRepository(Patient);
 
-      const newPatient = this.patientRepository.create({
-        ...patientData,
-        patientCode,
-        commonPersonId: commonPerson.id,
-        commonPerson,
-        allergies,
-        chronicDiseases,
-        medications,
-        createdBy: userId,
+        // 5️⃣ Buscar la persona por letra + documento, o crearla
+        let commonPerson: CommonPerson | null = null;
+        if (createPatientDto.commonPerson.documentNumber) {
+          commonPerson = await personRepo.findOne({
+            where: personDocumentWhere(
+              createPatientDto.commonPerson.letter,
+              createPatientDto.commonPerson.documentNumber,
+            ),
+          });
+        }
+        if (!commonPerson) {
+          commonPerson = await personRepo.save(
+            personRepo.create(createPatientDto.commonPerson),
+          );
+        }
+
+        // 6️⃣ Verificar si esta persona ya está registrada como paciente activo
+        // (el índice único es parcial: un paciente borrado no bloquea el nuevo registro)
+        const existingPatient = await patientRepo.findOne({
+          where: { commonPersonId: commonPerson.id, deletedAt: IsNull() },
+        });
+        if (existingPatient) {
+          throw new BadRequestException(
+            'Esta persona ya está registrada como paciente.',
+          );
+        }
+
+        // 7️⃣ Crear el paciente
+        const {
+          allergyIds,
+          chronicDiseaseIds,
+          medicationIds,
+          commonPerson: _,
+          ...patientData
+        } = createPatientDto;
+
+        const newPatient = patientRepo.create({
+          ...patientData,
+          patientCode:
+            createPatientDto.patientCode ?? (await this.generatePatientCode(patientRepo)),
+          commonPersonId: commonPerson.id,
+          commonPerson,
+          allergies,
+          chronicDiseases,
+          medications,
+          createdBy: userId,
+        });
+
+        return patientRepo.save(newPatient);
       });
-
-      const savedPatient = await this.patientRepository.save(newPatient);
 
       // 🧹 Limpiar cache global
       await this.cacheManager.del('patient:all');
@@ -288,8 +288,9 @@ export class PatientService {
       return this.findOne(savedPatient.id);
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
-      throw new BadRequestException(
-        `Error al crear el paciente: ${error.message}`,
+      throw (
+        uniqueViolationToConflict(error) ??
+        new BadRequestException(`Error al crear el paciente: ${error.message}`)
       );
     }
   }

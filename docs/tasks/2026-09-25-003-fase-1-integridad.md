@@ -216,3 +216,10 @@ Todas las referencias son por id, así que recodificar no mueve relaciones. `MT`
 | `DELETE` de un doctor con citas | 23503 (`FK_b606c06e…`) | 23503 |
 | `to_regclass('parametro.departments_doctors')` | null | null |
 | `run` → `revert` ×2 (la tabla vuelve) → `run`; `migration:generate` | OK / sin cambios | sin cambios |
+
+## M-25 — Altas de médico y paciente sin personas huérfanas
+
+- `doctors.create`: especialidades, centros (ambos sin borrados) y licencia se validan **antes** de escribir; la persona (buscar por letra + documento o crear) y el doctor se guardan en una transacción. 23505 → 409.
+- `patient.create`: alergias, enfermedades, medicamentos y `patientCode` se validan antes; persona, verificación de paciente activo, código y paciente van en una transacción. 23505 → 409.
+- `PatientService` y `DoctorsService` reciben el `DataSource` (se ajustaron las specs que los construyen a mano).
+- Tests `src/doctors/doctor-patient-create.spec.ts`: licencia duplicada → 400 y 0 filas nuevas en `persona_comun`; fallo al guardar el doctor o el paciente → la persona nueva se revierte; alergia inexistente → 400 sin persona; alta válida escribe ambas filas.
