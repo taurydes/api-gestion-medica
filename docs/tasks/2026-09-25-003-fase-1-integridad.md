@@ -123,3 +123,24 @@ Comparación sin exponer datos: nombres, teléfono, email del usuario, licencia 
 **Límite conocido**: el índice sobre `(letra, documento)` no impide dos filas con el mismo documento y letra `NULL` (en PostgreSQL los `NULL` son distintos). Hoy hay 0 personas sin letra.
 
 **Tests**: `src/common-person/person-document.spec.ts` (E-123 con V-123 existente crea una persona E-123; documento duplicado en alta → 409 sin escribir; `update` a un documento ajeno → 409; reenviar el mismo documento no es conflicto; 23505 de `QueryFailedError` → 409).
+
+## M-19 — Código de especialidad duplicado y nombre sin distinguir mayúsculas
+
+**Qué se hizo**
+
+- `specialty.service`: la verificación de nombre en `create`/`update` compara `LOWER(name) = LOWER(:name)` (parámetro enlazado, sin comodines de `LIKE`); la de código ignora especialidades borradas.
+- Script `docs/info/migrations/2026-09-25-depurar-especialidad-mt.sql` (**no ejecutado**): recodifica la especialidad elegida, con guarda y verificación. Probado en una copia desechable: 0 códigos y 0 nombres duplicados después; la guarda aborta si el código nuevo está en uso.
+- Migración pendiente `src/database/migrations-pending/1790399100000-SpecialtiesUniqueCodeAndName.ts` (**no aplicada**): `UQ_specialties_code_active (code) WHERE deleted_at IS NULL` y `UQ_specialties_name_lower_active (lower(name)) WHERE deleted_at IS NULL`. Su `up()` aborta si quedan códigos repetidos. En la copia depurada: INSERT con `MT` repetido → 23505; "Mastología" frente a "mastología" → 23505.
+
+**Datos para decidir**
+
+| id | nombre | doctores | departamentos | citas | historias |
+|---|---|---|---|---|---|
+| `a0c83b33-8003-4731-9411-e4891be7e88b` | Medicina del Trabajo | 0 | 0 | 0 | 0 |
+| `fc6618f2-a886-4396-a269-6cc4792daa59` | mastología | 3 | 1 | 15 | 14 |
+
+Todas las referencias son por id, así que recodificar no mueve relaciones. `MT` es la sigla natural de Medicina del Trabajo; la propuesta es recodificar mastología (`MS` está libre). Hoy no hay nombres repetidos sin distinguir mayúsculas (0 grupos en 71 especialidades).
+
+**Para activar**: correr el script; mover la migración a `src/database/migrations`; declarar en `Specialty` `@Index('UQ_specialties_code_active', { synchronize: false })` y `@Index('UQ_specialties_name_lower_active', { synchronize: false })` (el índice de expresión no se puede describir con columnas y, sin la declaración, `migration:generate` propondría borrarlos); `migration:run` y comprobar que no hay drift.
+
+**Tests**: `src/parameters/services/specialty.service.spec.ts` (el filtro de nombre es `LOWER(col) = LOWER(:name)` con parámetro; "Mastología" con "mastología" existente → 400 sin escribir).

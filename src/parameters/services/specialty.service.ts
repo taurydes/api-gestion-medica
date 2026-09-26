@@ -8,11 +8,15 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
-import { IsNull, Repository } from 'typeorm';
+import { IsNull, Raw, Repository } from 'typeorm';
 import { Specialty } from '../entities/specialty.entity';
 import { CreateSpecialtyDto } from '../dto/specialty/create-specialty.dto';
 import { UpdateSpecialtyDto } from '../dto/specialty/update-specialty.dto';
 import { SpecialtyQueryDto } from '../dto/specialty/specialty-query.dto';
+
+/** "Mastología" and "mastología" are the same specialty (M-19); parameterized, so no LIKE wildcards. */
+export const sameNameIgnoringCase = (name: string) =>
+  Raw((alias) => `LOWER(${alias}) = LOWER(:name)`, { name });
 
 /**
  * Servicio para gestionar las especialidades médicas
@@ -55,7 +59,7 @@ export class SpecialtyService {
     try {
       // Verificar si ya existe una especialidad con el mismo nombre
       const existingByName = await this.specialtyRepository.findOne({
-        where: { name: createSpecialtyDto.name },
+        where: { name: sameNameIgnoringCase(createSpecialtyDto.name) },
       });
 
       if (existingByName) {
@@ -67,7 +71,7 @@ export class SpecialtyService {
       // Verificar si ya existe una especialidad con el mismo código
       if (createSpecialtyDto.code) {
         const existingByCode = await this.specialtyRepository.findOne({
-          where: { code: createSpecialtyDto.code },
+          where: { code: createSpecialtyDto.code, deletedAt: IsNull() },
         });
 
         if (existingByCode) {
@@ -208,7 +212,7 @@ export class SpecialtyService {
       // Verificar nombre duplicado si se está actualizando
       if (updateSpecialtyDto.name && updateSpecialtyDto.name !== specialty.name) {
         const existingByName = await this.specialtyRepository.findOne({
-          where: { name: updateSpecialtyDto.name },
+          where: { name: sameNameIgnoringCase(updateSpecialtyDto.name) },
         });
 
         if (existingByName && existingByName.id !== id) {
@@ -221,7 +225,7 @@ export class SpecialtyService {
       // Verificar código duplicado si se está actualizando
       if (updateSpecialtyDto.code && updateSpecialtyDto.code !== specialty.code) {
         const existingByCode = await this.specialtyRepository.findOne({
-          where: { code: updateSpecialtyDto.code },
+          where: { code: updateSpecialtyDto.code, deletedAt: IsNull() },
         });
 
         if (existingByCode && existingByCode.id !== id) {
