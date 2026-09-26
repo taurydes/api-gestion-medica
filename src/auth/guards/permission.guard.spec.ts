@@ -1,4 +1,4 @@
-import { ExecutionContext, ForbiddenException } from '@nestjs/common';
+import { ExecutionContext, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { UserAccessService } from 'src/common/services/user-access.service';
 import { DashboardController } from 'src/dashboard/dashboard.controller';
@@ -61,21 +61,45 @@ describe('PermissionsGuard (con UserAccessService real y repositorios simulados)
     expect(request.userPermissions).toEqual(['parameters.crear']);
   });
 
-  it('rechaza con 403 si el rol está inactivo (M-05)', async () => {
+  it('rechaza con 401 si el rol está inactivo (M-05, M-29)', async () => {
     const role = buildRole([['parameters', 'crear']], { isActive: false });
     const guard = guardFor(buildUser(role));
     const { ctx } = contextFor(SpecialtyController, 'create');
 
-    await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
+    await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
   });
 
-  it('rechaza con 403 si el usuario está borrado o desactivado (M-05)', async () => {
+  it('rechaza con 401 si el usuario está borrado o desactivado (M-05, M-29)', async () => {
     const role = buildRole([['parameters', 'crear']]);
     for (const overrides of [{ deletedAt: new Date() }, { status: false }]) {
       const guard = guardFor(buildUser(role, overrides));
       const { ctx } = contextFor(SpecialtyController, 'create');
-      await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
+      await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
     }
+  });
+
+  it('rechaza con 401 si no hay usuario autenticado en la request (M-29)', async () => {
+    const guard = guardFor(buildUser(buildRole([['parameters', 'crear']])));
+    const { ctx } = contextFor(SpecialtyController, 'create', undefined);
+    (ctx.switchToHttp().getRequest() as any).user = undefined;
+
+    await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('rechaza con 401 si el usuario no existe o no tiene rol (M-29)', async () => {
+    const guard = guardFor(null, null);
+    const { ctx } = contextFor(SpecialtyController, 'create');
+
+    await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('rechaza con 403 (no 401) cuando solo falta el permiso (M-29)', async () => {
+    const guard = guardFor(buildUser(buildRole([['parameters', 'consultar']])));
+    const { ctx } = contextFor(SpecialtyController, 'create');
+
+    const error = await guard.canActivate(ctx).catch((e) => e);
+    expect(error).toBeInstanceOf(ForbiddenException);
+    expect(error.getStatus()).toBe(403);
   });
 
   it('ignora asignaciones desactivadas en permisos_menus', async () => {

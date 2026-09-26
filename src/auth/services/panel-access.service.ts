@@ -62,7 +62,10 @@ export class PanelAccessService {
     }
 
     const access = await this.userAccessService.resolve(userId);
-    if (!access?.isActive || !access.permissions.includes(permission)) {
+    if (!access?.isActive) {
+      throw new UnauthorizedException('Sesión inválida: usuario inactivo o eliminado');
+    }
+    if (!access.permissions.includes(permission)) {
       throw new ForbiddenException('No tiene permisos para acceder a este panel');
     }
     return access;

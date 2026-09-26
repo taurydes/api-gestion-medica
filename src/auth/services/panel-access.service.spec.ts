@@ -86,10 +86,10 @@ describe('PanelAccessService (Bull Board y vista de logs, M-03)', () => {
     });
   });
 
-  it('rol inactivo → 403 aunque tenga el permiso', async () => {
+  it('rol inactivo → 401 aunque tenga el permiso (es un problema de sesión, no de permiso)', async () => {
     const built = build({ sessionOk: true, role: roleWith([BULL_PERMISSION], false) });
     await expect(built.service.authorize(built.token, BULL_PERMISSION)).rejects.toThrow(
-      ForbiddenException,
+      UnauthorizedException,
     );
   });
 

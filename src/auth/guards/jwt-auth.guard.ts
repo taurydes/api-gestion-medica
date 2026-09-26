@@ -1,8 +1,6 @@
 import {
   CanActivate,
   ExecutionContext,
-  HttpException,
-  HttpStatus,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -16,7 +14,7 @@ import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
  *
  * Valida la autenticación mediante un token JWT.
  * Permite acceso a rutas públicas (decoradas con @Public()).
- * Si no hay token o es inválido, lanza excepción 403 o 401.
+ * Sin token o con token inválido responde 401; el 403 queda para la falta de permiso (PermissionsGuard).
  */
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -54,12 +52,8 @@ export class JwtAuthGuard implements CanActivate {
       token = cookies['access_token'];
     }
 
-    // Si no se encontró token → 403
     if (!token) {
-      throw new HttpException(
-        { message: 'Token requerido para esta petición', code: 403 },
-        HttpStatus.FORBIDDEN,
-      );
+      throw new UnauthorizedException('Token requerido para esta petición');
     }
 
     // Verificar y decodificar JWT

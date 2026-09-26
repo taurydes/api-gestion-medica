@@ -2,9 +2,8 @@ import {
   CanActivate,
   ExecutionContext,
   ForbiddenException,
-  HttpException,
-  HttpStatus,
   Injectable,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import * as jwt from 'jsonwebtoken';
@@ -15,7 +14,7 @@ import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
  *
  * Valida tokens JWT provenientes de solicitudes externas.
  * Permite acceso a rutas públicas (decoradas con @Public()).
- * Si no hay token o es inválido, lanza excepciones 403 o 403.
+ * Sin token o con token inválido responde 401.
  */
 @Injectable()
 export class JwtExternalGuard implements CanActivate {
@@ -39,12 +38,8 @@ export class JwtExternalGuard implements CanActivate {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
 
-    // Si no se envía token → 403
     if (!token) {
-      throw new HttpException(
-        { message: 'Token requerido para esta petición', code: 403 },
-        HttpStatus.FORBIDDEN,
-      );
+      throw new UnauthorizedException('Token requerido para esta petición');
     }
 
     // Verificar JWT con la clave configurada
@@ -53,7 +48,7 @@ export class JwtExternalGuard implements CanActivate {
       req.user = user; // Agrega los datos decodificados al request
       return true;
     } catch (err) {
-      throw new ForbiddenException(
+      throw new UnauthorizedException(
         'Token inválido. Su sesión ha expirado, por favor inicie sesión nuevamente',
       );
     }

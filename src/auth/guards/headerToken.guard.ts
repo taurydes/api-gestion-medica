@@ -1,9 +1,8 @@
 import {
   CanActivate,
   ExecutionContext,
-  HttpException,
-  HttpStatus,
   Injectable,
+  UnauthorizedException,
 } from '@nestjs/common';
 
 /**
@@ -11,7 +10,7 @@ import {
  * 
  * Valida que la solicitud incluya un header `token` con el valor
  * definido en la variable de entorno `TOKEN_VALIDATOR`.
- * Si el token no coincide, lanza un error 403 (No autorizado).
+ * Si el token no coincide, responde 401 (No autorizado).
  */
 @Injectable()
 export class HeaderTokenGuard implements CanActivate {
@@ -30,10 +29,6 @@ export class HeaderTokenGuard implements CanActivate {
       return true;
     }
 
-    // Si el token no es válido, lanza excepción 403
-    throw new HttpException(
-      { message: 'No autorizado', code: 403 },
-      HttpStatus.FORBIDDEN,
-    );
+    throw new UnauthorizedException('No autorizado');
   }
 }

@@ -3,6 +3,7 @@ import {
   ExecutionContext,
   ForbiddenException,
   Injectable,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
@@ -44,7 +45,7 @@ export class PermissionsGuard implements CanActivate {
     const authUser: any = request.user;
 
     if (!authUser || !authUser.id) {
-      throw new ForbiddenException('Usuario no autenticado');
+      throw new UnauthorizedException('Usuario no autenticado');
     }
 
     // 3️⃣ Rol y permisos desde la BD (UserSecurity primero, luego User)
@@ -54,14 +55,13 @@ export class PermissionsGuard implements CanActivate {
         ? cached
         : await this.userAccessService.resolve(authUser.id);
 
+    // Usuario inexistente, sin rol o inactivo es un problema de autenticación (401), no de permiso.
     if (!access) {
-      throw new ForbiddenException(
-        'No posee permisos suficientes para el módulo',
-      );
+      throw new UnauthorizedException('Sesión inválida: usuario sin rol asignado');
     }
 
     if (!access.isActive) {
-      throw new ForbiddenException('El usuario o su rol están inactivos');
+      throw new UnauthorizedException('El usuario o su rol están inactivos');
     }
 
     // Inyectar permisos y rol en la request para uso posterior
