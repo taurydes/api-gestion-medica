@@ -18,6 +18,7 @@ import { GenderQueryDto } from '../dto/query/gender-query.dto';
 import { Public } from 'src/auth/decorators/public.decorator';
 
 
+import { ParseUuid } from 'src/common/pipes/parse-uuid.pipe';
 @ApiTags('Gender')
 @Public()
 @Controller('gender')
@@ -33,7 +34,7 @@ export class GenderController {
   @Get(':id')
   @ApiOperation({ summary: 'Find gender by ID' })
   @ApiParam({ name: 'id', example: 1 })
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseUuid) id: string) {
     return this.service.findOne(id);
   }
 }

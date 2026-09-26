@@ -20,6 +20,7 @@ import { UserSecurityQueryDto } from './dto/user-security-query.dto';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
 
+import { ParseUuid } from 'src/common/pipes/parse-uuid.pipe';
 @ApiTags('Users')
 @ApiBearerAuth()
 @Throttle({ short: {} })
@@ -65,7 +66,7 @@ export class UserController {
   })
   @Get(':id')
   @Permission(`${ModuleItemsMenu.UserModule}.${PermissionActionsMenu.VIEW}`)
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseUuid) id: string) {
     return this.userService.findOne(id);
   }
 
@@ -80,7 +81,7 @@ export class UserController {
   @Patch(':id')
   @Permission(`${ModuleItemsMenu.UserModule}.${PermissionActionsMenu.UPDATE}`)
   update(
-    @Param('id') id: string,
+    @Param('id', ParseUuid) id: string,
     @Body() updateUserDto: UpdateUserDto,
     @Req() req: any,
   ) {
@@ -98,7 +99,7 @@ export class UserController {
   })
   @Delete(':id')
   @Permission(`${ModuleItemsMenu.UserModule}.${PermissionActionsMenu.DELETE}`)
-  remove(@Param('id') id: string) {
+  remove(@Param('id', ParseUuid) id: string) {
     return this.userService.remove(id);
   }
 }

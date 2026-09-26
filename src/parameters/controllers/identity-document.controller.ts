@@ -17,6 +17,7 @@ import { IdentityDocumentQueryDto } from '../dto/query/identity-document-query.d
 import { Public } from 'src/auth/decorators/public.decorator';
 
 
+import { ParseUuid } from 'src/common/pipes/parse-uuid.pipe';
 @ApiTags('Identity Document')
 @Public()
 @Controller('identity-document')
@@ -33,7 +34,7 @@ export class IdentityDocumentController {
   @Get(':id')
   @ApiOperation({ summary: 'Find identity document by ID' })
   @ApiParam({ name: 'id', example: 1 })
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseUuid) id: string) {
     return this.service.findOne(id);
   }
 }

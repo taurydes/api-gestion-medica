@@ -18,6 +18,7 @@ import { CreateChronicDiseaseDto } from '../dto/chronic-disease/create-chronic-d
 import { UpdateChronicDiseaseDto } from '../dto/chronic-disease/update-chronic-disease.dto';
 import { ChronicDiseaseQueryDto } from '../dto/chronic-disease/chronic-disease-query.dto';
 
+import { ParseUuid } from 'src/common/pipes/parse-uuid.pipe';
 @ApiTags('Chronic Diseases')
 @ApiBearerAuth()
 @Throttle({ short: {} })
@@ -42,21 +43,21 @@ export class ChronicDiseaseController {
   @ApiOperation({ summary: 'Obtener enfermedad crónica por ID' })
   @Get(':id')
   @Permission(`${ModuleItemsMenu.ParametersModule}.${PermissionActionsMenu.VIEW}`)
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseUuid) id: string) {
     return this.chronicDiseaseService.findOne(id);
   }
 
   @ApiOperation({ summary: 'Actualizar enfermedad crónica' })
   @Patch(':id')
   @Permission(`${ModuleItemsMenu.ParametersModule}.${PermissionActionsMenu.UPDATE}`)
-  update(@Param('id') id: string, @Body() updateDto: UpdateChronicDiseaseDto) {
+  update(@Param('id', ParseUuid) id: string, @Body() updateDto: UpdateChronicDiseaseDto) {
     return this.chronicDiseaseService.update(id, updateDto);
   }
 
   @ApiOperation({ summary: 'Eliminar enfermedad crónica' })
   @Delete(':id')
   @Permission(`${ModuleItemsMenu.ParametersModule}.${PermissionActionsMenu.DELETE}`)
-  remove(@Param('id') id: string) {
+  remove(@Param('id', ParseUuid) id: string) {
     return this.chronicDiseaseService.remove(id);
   }
 }

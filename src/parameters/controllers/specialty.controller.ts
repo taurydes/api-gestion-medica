@@ -17,6 +17,7 @@ import { Permission } from 'src/auth/decorators/permission.decorator';
 import { ModuleItemsMenu } from 'src/menu/menu.const';
 import { PermissionActionsMenu } from 'src/permission/permission.const';
 
+import { ParseUuid } from 'src/common/pipes/parse-uuid.pipe';
 /**
  * Controlador para gestionar las especialidades médicas
  * Endpoints CRUD con documentación Swagger
@@ -57,7 +58,7 @@ export class SpecialtyController {
   @ApiOperation({ summary: 'Obtener una especialidad por ID' })
   @ApiResponse({ status: 200, description: 'Especialidad encontrada' })
   @ApiResponse({ status: 404, description: 'Especialidad no encontrada' })
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseUuid) id: string) {
     return this.specialtyService.findOne(id);
   }
 
@@ -71,7 +72,7 @@ export class SpecialtyController {
   @ApiResponse({ status: 404, description: 'Especialidad no encontrada' })
   @ApiResponse({ status: 400, description: 'Datos inválidos o duplicados' })
   update(
-    @Param('id') id: string,
+    @Param('id', ParseUuid) id: string,
     @Body() updateSpecialtyDto: UpdateSpecialtyDto,
   ) {
     return this.specialtyService.update(id, updateSpecialtyDto);
@@ -85,7 +86,7 @@ export class SpecialtyController {
   @ApiOperation({ summary: 'Eliminar una especialidad (soft delete)' })
   @ApiResponse({ status: 200, description: 'Especialidad eliminada exitosamente' })
   @ApiResponse({ status: 404, description: 'Especialidad no encontrada' })
-  remove(@Param('id') id: string) {
+  remove(@Param('id', ParseUuid) id: string) {
     return this.specialtyService.remove(id);
   }
 }

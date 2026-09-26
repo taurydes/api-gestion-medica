@@ -18,6 +18,7 @@ import { CreateAllergyDto } from '../dto/allergy/create-allergy.dto';
 import { UpdateAllergyDto } from '../dto/allergy/update-allergy.dto';
 import { AllergyQueryDto } from '../dto/allergy/allergy-query.dto';
 
+import { ParseUuid } from 'src/common/pipes/parse-uuid.pipe';
 @ApiTags('Allergies')
 @ApiBearerAuth()
 @Throttle({ short: {} })
@@ -42,21 +43,21 @@ export class AllergyController {
   @ApiOperation({ summary: 'Obtener alergia por ID' })
   @Get(':id')
   @Permission(`${ModuleItemsMenu.ParametersModule}.${PermissionActionsMenu.VIEW}`)
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseUuid) id: string) {
     return this.allergyService.findOne(id);
   }
 
   @ApiOperation({ summary: 'Actualizar alergia' })
   @Patch(':id')
   @Permission(`${ModuleItemsMenu.ParametersModule}.${PermissionActionsMenu.UPDATE}`)
-  update(@Param('id') id: string, @Body() updateAllergyDto: UpdateAllergyDto) {
+  update(@Param('id', ParseUuid) id: string, @Body() updateAllergyDto: UpdateAllergyDto) {
     return this.allergyService.update(id, updateAllergyDto);
   }
 
   @ApiOperation({ summary: 'Eliminar alergia' })
   @Delete(':id')
   @Permission(`${ModuleItemsMenu.ParametersModule}.${PermissionActionsMenu.DELETE}`)
-  remove(@Param('id') id: string) {
+  remove(@Param('id', ParseUuid) id: string) {
     return this.allergyService.remove(id);
   }
 }

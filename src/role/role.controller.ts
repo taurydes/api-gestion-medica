@@ -20,6 +20,7 @@ import { RoleService } from './role.service';
 import { PermissionActionsMenu } from 'src/permission/permission.const';
 import { ModuleItemsMenu } from 'src/menu/menu.const';
 
+import { ParseUuid } from 'src/common/pipes/parse-uuid.pipe';
 @ApiTags('Roles')
 @ApiBearerAuth()
 @Throttle({ short: {} })
@@ -44,21 +45,21 @@ export class RoleController {
   @Get(':id')
   @ApiOperation({ summary: 'Obtener rol por ID' })
   @Permission(`${ModuleItemsMenu.RoleModule}.${PermissionActionsMenu.VIEW}`)
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseUuid) id: string) {
     return this.roleService.findOne(id);
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Actualizar rol' })
   @Permission(`${ModuleItemsMenu.RoleModule}.${PermissionActionsMenu.UPDATE}`)
-  update(@Param('id') id: string, @Body() dto: UpdateRoleDto) {
+  update(@Param('id', ParseUuid) id: string, @Body() dto: UpdateRoleDto) {
     return this.roleService.update(id, dto);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar rol' })
   @Permission(`${ModuleItemsMenu.RoleModule}.${PermissionActionsMenu.DELETE}`)
-  remove(@Param('id') id: string) {
+  remove(@Param('id', ParseUuid) id: string) {
     return this.roleService.remove(id);
   }
 }

@@ -13,6 +13,7 @@ import { StateService } from '../services/state.service';
 import { StateQueryDto } from '../dto/query/state-query.dto';
 import { Public } from 'src/auth/decorators/public.decorator';
 
+import { ParseUuid } from 'src/common/pipes/parse-uuid.pipe';
 @ApiTags('State')
 @Public()
 @Controller('state')
@@ -28,14 +29,14 @@ export class StateController {
   @Get(':id')
   @ApiOperation({ summary: 'Get state by ID' })
   @ApiParam({ name: 'id', example: 1 })
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseUuid) id: string) {
     return this.service.findOne(id);
   }
 
   @Get(':id/municipalities')
   @ApiOperation({ summary: 'Get a state and its municipalities' })
   @ApiParam({ name: 'id', example: 1 })
-  findWithMunicipalities(@Param('id') id: string) {
+  findWithMunicipalities(@Param('id', ParseUuid) id: string) {
     return this.service.findWithMunicipalities(id);
   }
 }

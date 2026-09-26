@@ -19,6 +19,7 @@ import { Public } from 'src/auth/decorators/public.decorator';
 import { Permission } from 'src/auth/decorators/permission.decorator';
 
 
+import { ParseUuid } from 'src/common/pipes/parse-uuid.pipe';
 @ApiTags('Civil Status')
 @Public()
 @Controller('civil-status')
@@ -34,7 +35,7 @@ export class CivilStatusController {
   @Get(':id')
   @ApiOperation({ summary: 'Get civil status by ID' })
   @ApiParam({ name: 'id', example: 1 })
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseUuid) id: string) {
     return this.service.findOne(id);
   }
 }

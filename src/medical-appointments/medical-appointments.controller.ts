@@ -28,6 +28,7 @@ import { GetUser } from 'src/auth/decorators/get-user.decorator';
 import { ModuleItemsMenu } from 'src/menu/menu.const';
 import { PermissionActionsMenu } from 'src/permission/permission.const';
 
+import { ParseUuid } from 'src/common/pipes/parse-uuid.pipe';
 @ApiTags('Medical Appointments')
 @ApiBearerAuth()
 @Throttle({ short: {} })
@@ -96,7 +97,7 @@ export class MedicalAppointmentsController {
     `${ModuleItemsMenu.MedicalAppointmentsModule}.${PermissionActionsMenu.VIEW}`,
   )
   getPatientHistory(
-    @Param('patientId') patientId: string,
+    @Param('patientId', ParseUuid) patientId: string,
     @Query() query: QueryMedicalAppointmentDto,
     @Req() req: any,
   ) {
@@ -113,7 +114,7 @@ export class MedicalAppointmentsController {
     `${ModuleItemsMenu.MedicalAppointmentsModule}.${PermissionActionsMenu.VIEW}`,
   )
   getDoctorSchedule(
-    @Param('doctorId') doctorId: string,
+    @Param('doctorId', ParseUuid) doctorId: string,
     @Query() query: QueryMedicalAppointmentDto,
     @Req() req: any,
   ) {
@@ -157,7 +158,7 @@ export class MedicalAppointmentsController {
   @Permission(
     `${ModuleItemsMenu.MedicalAppointmentsModule}.${PermissionActionsMenu.VIEW}`,
   )
-  findOne(@Param('id') id: string, @Req() req: any) {
+  findOne(@Param('id', ParseUuid) id: string, @Req() req: any) {
     return this.appointmentsService.findOne(id, req.user);
   }
 
@@ -170,7 +171,7 @@ export class MedicalAppointmentsController {
   @Permission(
     `${ModuleItemsMenu.MedicalAppointmentsModule}.${PermissionActionsMenu.UPDATE}`,
   )
-  update(@Param('id') id: string, @Body() dto: UpdateMedicalAppointmentDto) {
+  update(@Param('id', ParseUuid) id: string, @Body() dto: UpdateMedicalAppointmentDto) {
     return this.appointmentsService.update(id, dto);
   }
 
@@ -196,7 +197,7 @@ export class MedicalAppointmentsController {
     `${ModuleItemsMenu.MedicalAppointmentsModule}.${PermissionActionsMenu.UPDATE}`,
   )
   cancel(
-    @Param('id') id: string,
+    @Param('id', ParseUuid) id: string,
     @Body('cancellationReason') cancellationReason: string,
   ) {
     return this.appointmentsService.cancel(id, cancellationReason);
@@ -211,7 +212,7 @@ export class MedicalAppointmentsController {
   @Permission(
     `${ModuleItemsMenu.MedicalAppointmentsModule}.${PermissionActionsMenu.UPDATE}`,
   )
-  complete(@Param('id') id: string) {
+  complete(@Param('id', ParseUuid) id: string) {
     return this.appointmentsService.complete(id);
   }
 
@@ -225,7 +226,7 @@ export class MedicalAppointmentsController {
     `${ModuleItemsMenu.MedicalAppointmentsModule}.${PermissionActionsMenu.DIAGNOSTICAR}`,
   )
   finishConsultation(
-    @Param('id') id: string,
+    @Param('id', ParseUuid) id: string,
     @Body() dto: CompleteConsultationDto,
     @GetUser('id') userId: string,
   ) {
@@ -240,7 +241,7 @@ export class MedicalAppointmentsController {
   @Permission(
     `${ModuleItemsMenu.MedicalAppointmentsModule}.${PermissionActionsMenu.DELETE}`,
   )
-  remove(@Param('id') id: string) {
+  remove(@Param('id', ParseUuid) id: string) {
     return this.appointmentsService.remove(id);
   }
 }

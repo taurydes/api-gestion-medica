@@ -16,6 +16,7 @@ import { Municipality } from '../entities/municipality.entity';
 import { MunicipalityQueryDto } from '../dto/query/municipality-query.dto';
 import { Public } from 'src/auth/decorators/public.decorator';
 
+import { ParseUuid } from 'src/common/pipes/parse-uuid.pipe';
 @ApiTags('Municipality')
 @Public()
 @Controller('municipality')
@@ -34,7 +35,7 @@ export class MunicipalityController {
   @Get(':id')
   @ApiOperation({ summary: 'Find municipality by ID' })
   @ApiParam({ name: 'id', example: 1 })
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseUuid) id: string) {
     return this.service.findOne(id);
   }
 }

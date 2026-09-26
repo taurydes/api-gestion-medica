@@ -25,6 +25,7 @@ import { ModuleItemsMenu } from 'src/menu/menu.const';
 import { PermissionActionsMenu } from 'src/permission/permission.const';
 import { GetUser } from 'src/auth/decorators/get-user.decorator';
 
+import { ParseUuid } from 'src/common/pipes/parse-uuid.pipe';
 /**
  * Controlador para gestionar los pacientes del sistema
  * Endpoints CRUD completo con documentación Swagger
@@ -102,7 +103,7 @@ export class PatientController {
   @ApiResponse({ status: 404, description: 'Paciente no encontrado' })
   @Get(':id')
   @Permission(`${ModuleItemsMenu.PatientModule}.${PermissionActionsMenu.VIEW}`)
-  async findOne(@Param('id') id: string, @Req() req: any) {
+  async findOne(@Param('id', ParseUuid) id: string, @Req() req: any) {
     return await this.patientService.findOne(id, req.user);
   }
 
@@ -124,7 +125,7 @@ export class PatientController {
     `${ModuleItemsMenu.PatientModule}.${PermissionActionsMenu.UPDATE}`,
   )
   async update(
-    @Param('id') id: string,
+    @Param('id', ParseUuid) id: string,
     @Body() updatePatientDto: UpdatePatientDto,
     @GetUser('id') userId: string,
   ) {
@@ -144,7 +145,7 @@ export class PatientController {
   @Permission(
     `${ModuleItemsMenu.PatientModule}.${PermissionActionsMenu.DELETE}`,
   )
-  async remove(@Param('id') id: string) {
+  async remove(@Param('id', ParseUuid) id: string) {
     return await this.patientService.remove(id);
   }
 }

@@ -20,6 +20,7 @@ import { Permission } from 'src/auth/decorators/permission.decorator';
 import { ModuleItemsMenu } from 'src/menu/menu.const';
 import { PermissionActionsMenu } from 'src/permission/permission.const';
 
+import { ParseUuid } from 'src/common/pipes/parse-uuid.pipe';
 /**
  * Controlador para gestionar las recetas médicas
  * Endpoints CRUD completo con funcionalidad de dispensación y cancelación
@@ -65,7 +66,7 @@ export class RecipeController {
   @ApiResponse({ status: 200, description: 'Receta encontrada' })
   @ApiResponse({ status: 404, description: 'Receta no encontrada' })
   @Permission(`${ModuleItemsMenu.RecipeModule}.${PermissionActionsMenu.VIEW}`)
-  findOne(@Param('id') id: string, @Req() req: any) {
+  findOne(@Param('id', ParseUuid) id: string, @Req() req: any) {
     return this.recipeService.findOne(id, req.user);
   }
 
@@ -76,7 +77,7 @@ export class RecipeController {
   @ApiOperation({ summary: 'Obtener todas las recetas de un paciente' })
   @ApiResponse({ status: 200, description: 'Lista de recetas del paciente' })
   @Permission(`${ModuleItemsMenu.RecipeModule}.${PermissionActionsMenu.VIEW}`)
-  findByPatient(@Param('patientId') patientId: string, @Req() req: any) {
+  findByPatient(@Param('patientId', ParseUuid) patientId: string, @Req() req: any) {
     return this.recipeService.findByPatient(patientId, req.user);
   }
 
@@ -88,7 +89,7 @@ export class RecipeController {
   @ApiResponse({ status: 200, description: 'Lista de recetas del historial' })
   @Permission(`${ModuleItemsMenu.RecipeModule}.${PermissionActionsMenu.VIEW}`)
   findByMedicalHistory(
-    @Param('medicalHistoryId') medicalHistoryId: string,
+    @Param('medicalHistoryId', ParseUuid) medicalHistoryId: string,
     @Req() req: any,
   ) {
     return this.recipeService.findByMedicalHistory(medicalHistoryId, req.user);
@@ -104,7 +105,7 @@ export class RecipeController {
   @ApiResponse({ status: 400, description: 'No se puede actualizar receta dispensada/cancelada' })
   @Permission(`${ModuleItemsMenu.RecipeModule}.${PermissionActionsMenu.UPDATE}`)
   update(
-    @Param('id') id: string,
+    @Param('id', ParseUuid) id: string,
     @Body() updateDto: UpdateRecipeDto,
     @GetUser('id') userId: string,
   ) {
@@ -121,7 +122,7 @@ export class RecipeController {
   @ApiResponse({ status: 400, description: 'Solo se pueden dispensar recetas activas' })
   @Permission(`${ModuleItemsMenu.RecipeModule}.${PermissionActionsMenu.UPDATE}`)
   markAsDispensed(
-    @Param('id') id: string,
+    @Param('id', ParseUuid) id: string,
     @GetUser('id') userId: string,
   ) {
     return this.recipeService.markAsDispensed(id, userId);
@@ -137,7 +138,7 @@ export class RecipeController {
   @ApiResponse({ status: 400, description: 'No se puede cancelar receta dispensada' })
   @Permission(`${ModuleItemsMenu.RecipeModule}.${PermissionActionsMenu.UPDATE}`)
   cancel(
-    @Param('id') id: string,
+    @Param('id', ParseUuid) id: string,
     @GetUser('id') userId: string,
   ) {
     return this.recipeService.cancel(id, userId);
@@ -151,7 +152,7 @@ export class RecipeController {
   @ApiResponse({ status: 200, description: 'Receta eliminada exitosamente' })
   @ApiResponse({ status: 404, description: 'Receta no encontrada' })
   @Permission(`${ModuleItemsMenu.RecipeModule}.${PermissionActionsMenu.DELETE}`)
-  remove(@Param('id') id: string) {
+  remove(@Param('id', ParseUuid) id: string) {
     return this.recipeService.remove(id);
   }
 }

@@ -9,6 +9,7 @@ import { MenuQueryDto } from './dto/menu-query.dto';
 import { PermissionActionsMenu } from 'src/permission/permission.const';
 import { ModuleItemsMenu } from './menu.const';
 
+import { ParseUuid } from 'src/common/pipes/parse-uuid.pipe';
 @ApiTags('Menu')
 @ApiBearerAuth()
 @Throttle({ short: {} })
@@ -54,7 +55,7 @@ export class MenuController {
   })
   @Get(':id')
   @Permission(`${ModuleItemsMenu.MenuModule}.${PermissionActionsMenu.VIEW}`)
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseUuid) id: string) {
     return this.menuService.findOne(id);
   }
 
@@ -68,7 +69,7 @@ export class MenuController {
   })
   @Patch(':id')
   @Permission(`${ModuleItemsMenu.MenuModule}.${PermissionActionsMenu.UPDATE}`)
-  update(@Param('id') id: string, @Body() updateMenuDto: UpdateMenuDto) {
+  update(@Param('id', ParseUuid) id: string, @Body() updateMenuDto: UpdateMenuDto) {
     return this.menuService.update(id, updateMenuDto);
   }
 
@@ -82,7 +83,7 @@ export class MenuController {
   })
   @Delete(':id')
   @Permission(`${ModuleItemsMenu.MenuModule}.${PermissionActionsMenu.DELETE}`)
-  remove(@Param('id') id: string) {
+  remove(@Param('id', ParseUuid) id: string) {
     return this.menuService.remove(id);
   }
 }

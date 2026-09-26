@@ -19,6 +19,7 @@ import { Permission } from 'src/auth/decorators/permission.decorator';
 import { ModuleItemsMenu } from 'src/menu/menu.const';
 import { PermissionActionsMenu } from 'src/permission/permission.const';
 
+import { ParseUuid } from 'src/common/pipes/parse-uuid.pipe';
 @ApiTags('Medical Centers')
 @ApiBearerAuth()
 @Throttle({ short: {} })
@@ -58,7 +59,7 @@ export class MedicalCenterController {
   @Permission(
     `${ModuleItemsMenu.MedicalCenterModule}.${PermissionActionsMenu.VIEW}`,
   )
-  findOne(@Param('id') id: string, @Req() req: any) {
+  findOne(@Param('id', ParseUuid) id: string, @Req() req: any) {
     return this.medicalCenterService.findOne(id, req.user);
   }
 
@@ -70,7 +71,7 @@ export class MedicalCenterController {
   @Permission(
     `${ModuleItemsMenu.MedicalCenterModule}.${PermissionActionsMenu.UPDATE}`,
   )
-  update(@Param('id') id: string, @Body() dto: UpdateMedicalCenterDto) {
+  update(@Param('id', ParseUuid) id: string, @Body() dto: UpdateMedicalCenterDto) {
     return this.medicalCenterService.update(id, dto);
   }
 
@@ -82,7 +83,7 @@ export class MedicalCenterController {
   @Permission(
     `${ModuleItemsMenu.MedicalCenterModule}.${PermissionActionsMenu.DELETE}`,
   )
-  remove(@Param('id') id: string) {
+  remove(@Param('id', ParseUuid) id: string) {
     return this.medicalCenterService.remove(id);
   }
 
@@ -95,7 +96,7 @@ export class MedicalCenterController {
   @Permission(
     `${ModuleItemsMenu.MedicalCenterModule}.${PermissionActionsMenu.VIEW}`,
   )
-  getImages(@Param('id') id: string) {
+  getImages(@Param('id', ParseUuid) id: string) {
     return this.medicalCenterService.getImages(id);
   }
 
@@ -108,8 +109,8 @@ export class MedicalCenterController {
     `${ModuleItemsMenu.MedicalCenterModule}.${PermissionActionsMenu.UPDATE}`,
   )
   assignDoctor(
-    @Param('id') id: string,
-    @Param('doctorId') doctorId: string,
+    @Param('id', ParseUuid) id: string,
+    @Param('doctorId', ParseUuid) doctorId: string,
     @Query('departmentId') departmentId?: string,
   ) {
     return this.medicalCenterService.assignDoctor(
@@ -127,7 +128,7 @@ export class MedicalCenterController {
   @Permission(
     `${ModuleItemsMenu.MedicalCenterModule}.${PermissionActionsMenu.UPDATE}`,
   )
-  removeDoctor(@Param('id') id: string, @Param('doctorId') doctorId: string) {
+  removeDoctor(@Param('id', ParseUuid) id: string, @Param('doctorId', ParseUuid) doctorId: string) {
     return this.medicalCenterService.removeDoctor(id, doctorId);
   }
 }

@@ -18,6 +18,7 @@ import { CreateMedicationDto } from '../dto/medication/create-medication.dto';
 import { UpdateMedicationDto } from '../dto/medication/update-medication.dto';
 import { MedicationQueryDto } from '../dto/medication/medication-query.dto';
 
+import { ParseUuid } from 'src/common/pipes/parse-uuid.pipe';
 @ApiTags('Medications')
 @ApiBearerAuth()
 @Throttle({ long: {} })
@@ -42,21 +43,21 @@ export class MedicationController {
   @ApiOperation({ summary: 'Obtener medicamento por ID' })
   @Get(':id')
   @Permission(`${ModuleItemsMenu.ParametersModule}.${PermissionActionsMenu.VIEW}`)
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseUuid) id: string) {
     return this.medicationService.findOne(id);
   }
 
   @ApiOperation({ summary: 'Actualizar medicamento' })
   @Patch(':id')
   @Permission(`${ModuleItemsMenu.ParametersModule}.${PermissionActionsMenu.UPDATE}`)
-  update(@Param('id') id: string, @Body() updateDto: UpdateMedicationDto) {
+  update(@Param('id', ParseUuid) id: string, @Body() updateDto: UpdateMedicationDto) {
     return this.medicationService.update(id, updateDto);
   }
 
   @ApiOperation({ summary: 'Eliminar medicamento' })
   @Delete(':id')
   @Permission(`${ModuleItemsMenu.ParametersModule}.${PermissionActionsMenu.DELETE}`)
-  remove(@Param('id') id: string) {
+  remove(@Param('id', ParseUuid) id: string) {
     return this.medicationService.remove(id);
   }
 }

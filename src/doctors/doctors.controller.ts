@@ -24,6 +24,7 @@ import {
   UpdateDoctorScheduleBlockDto,
 } from './dto/doctor-schedule.dto';
 
+import { ParseUuid } from 'src/common/pipes/parse-uuid.pipe';
 @ApiTags('Doctors')
 @ApiBearerAuth()
 @Throttle({ short: {} })
@@ -60,7 +61,7 @@ export class DoctorsController {
   })
   @Get(':id')
   @Permission(`${ModuleItemsMenu.DoctorsModule}.${PermissionActionsMenu.VIEW}`)
-  findOne(@Param('id') id: string, @GetUser() authUser: any) {
+  findOne(@Param('id', ParseUuid) id: string, @GetUser() authUser: any) {
     return this.doctorsService.findOne(id, authUser);
   }
 
@@ -70,7 +71,7 @@ export class DoctorsController {
   })
   @Patch(':id')
   @Permission(`${ModuleItemsMenu.DoctorsModule}.${PermissionActionsMenu.UPDATE}`)
-  update(@Param('id') id: string, @Body() dto: UpdateDoctorDto, @GetUser() authUser: any) {
+  update(@Param('id', ParseUuid) id: string, @Body() dto: UpdateDoctorDto, @GetUser() authUser: any) {
     return this.doctorsService.update(id, dto, authUser);
   }
 
@@ -80,7 +81,7 @@ export class DoctorsController {
   })
   @Delete(':id')
   @Permission(`${ModuleItemsMenu.DoctorsModule}.${PermissionActionsMenu.DELETE}`)
-  remove(@Param('id') id: string) {
+  remove(@Param('id', ParseUuid) id: string) {
     return this.doctorsService.remove(id);
   }
 
@@ -105,7 +106,7 @@ export class DoctorsController {
   @Get(':doctorId/schedules')
   @Permission(`${ModuleItemsMenu.DoctorsModule}.${PermissionActionsMenu.VIEW}`)
   getSchedules(
-    @Param('doctorId') doctorId: string,
+    @Param('doctorId', ParseUuid) doctorId: string,
     @Query('medicalCenterId') medicalCenterId?: string,
     @Query('includeInactive') includeInactive?: string,
   ) {
@@ -123,7 +124,7 @@ export class DoctorsController {
   @Patch('schedules/:blockId')
   @Permission(`${ModuleItemsMenu.DoctorsModule}.${PermissionActionsMenu.UPDATE}`)
   updateScheduleBlock(
-    @Param('blockId') blockId: string,
+    @Param('blockId', ParseUuid) blockId: string,
     @Body() dto: UpdateDoctorScheduleBlockDto,
   ) {
     return this.scheduleService.updateBlock(blockId, dto);
@@ -135,7 +136,7 @@ export class DoctorsController {
   })
   @Delete('schedules/:blockId')
   @Permission(`${ModuleItemsMenu.DoctorsModule}.${PermissionActionsMenu.DELETE}`)
-  removeScheduleBlock(@Param('blockId') blockId: string) {
+  removeScheduleBlock(@Param('blockId', ParseUuid) blockId: string) {
     return this.scheduleService.removeBlock(blockId);
   }
 }

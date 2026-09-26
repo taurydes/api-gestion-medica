@@ -18,6 +18,7 @@ import { Permission } from 'src/auth/decorators/permission.decorator';
 import { ModuleItemsMenu } from 'src/menu/menu.const';
 import { PermissionActionsMenu } from 'src/permission/permission.const';
 
+import { ParseUuid } from 'src/common/pipes/parse-uuid.pipe';
 @ApiTags('Departments')
 @ApiBearerAuth()
 @Throttle({ short: {} })
@@ -60,7 +61,7 @@ export class DepartmentsController {
   @Permission(
     `${ModuleItemsMenu.DepartmentsModule}.${PermissionActionsMenu.VIEW}`,
   )
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseUuid) id: string) {
     return this.departmentsService.findOne(id);
   }
 
@@ -72,7 +73,7 @@ export class DepartmentsController {
   @Permission(
     `${ModuleItemsMenu.DepartmentsModule}.${PermissionActionsMenu.UPDATE}`,
   )
-  update(@Param('id') id: string, @Body() dto: UpdateDepartmentDto) {
+  update(@Param('id', ParseUuid) id: string, @Body() dto: UpdateDepartmentDto) {
     return this.departmentsService.update(id, dto);
   }
 
@@ -84,7 +85,7 @@ export class DepartmentsController {
   @Permission(
     `${ModuleItemsMenu.DepartmentsModule}.${PermissionActionsMenu.DELETE}`,
   )
-  remove(@Param('id') id: string) {
+  remove(@Param('id', ParseUuid) id: string) {
     return this.departmentsService.remove(id);
   }
 }

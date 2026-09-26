@@ -16,6 +16,7 @@ import { Parish } from '../entities/parish.entity';
 import { ParishService } from '../services/parish.service';
 import { Public } from '../../auth/decorators/public.decorator';
 
+import { ParseUuid } from 'src/common/pipes/parse-uuid.pipe';
 @ApiTags('Parish')
 @Public()
 @Controller('parish')
@@ -31,7 +32,7 @@ export class ParishController {
   @Get(':id')
   @ApiOperation({ summary: 'Find parish by ID' })
   @ApiParam({ name: 'id', example: 1 })
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseUuid) id: string) {
     return this.service.findOne(id);
   }
 }

@@ -18,6 +18,7 @@ import { CommonPersonQueryDto } from './dto/common-person-query.dto';
 import { CreateCommonPersonDto } from './dto/create-common-person.dto';
 import { UpdateCommonPersonDto } from './dto/update-common-person.dto';
 
+import { ParseUuid } from 'src/common/pipes/parse-uuid.pipe';
 @ApiTags('Common Persons')
 @ApiBearerAuth()
 @Throttle({ short: {} })
@@ -42,7 +43,7 @@ export class CommonPersonController {
   @ApiOperation({ summary: 'Obtener persona por ID' })
   @Get(':id')
   @Permission(`${ModuleItemsMenu.CommonPersonModule}.${PermissionActionsMenu.VIEW}`)
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseUuid) id: string) {
     return this.commonPersonService.findOne(id);
   }
 
@@ -50,7 +51,7 @@ export class CommonPersonController {
   @Patch(':id')
   @Permission(`${ModuleItemsMenu.CommonPersonModule}.${PermissionActionsMenu.UPDATE}`)
   update(
-    @Param('id') id: string,
+    @Param('id', ParseUuid) id: string,
     @Body() updateCommonPersonDto: UpdateCommonPersonDto,
   ) {
     return this.commonPersonService.update(id, updateCommonPersonDto);
@@ -59,7 +60,7 @@ export class CommonPersonController {
   @ApiOperation({ summary: 'Eliminar persona' })
   @Delete(':id')
   @Permission(`${ModuleItemsMenu.CommonPersonModule}.${PermissionActionsMenu.DELETE}`)
-  remove(@Param('id') id: string) {
+  remove(@Param('id', ParseUuid) id: string) {
     return this.commonPersonService.remove(id);
   }
 }

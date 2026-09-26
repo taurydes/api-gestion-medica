@@ -68,6 +68,7 @@ import { UpdatePermissionDto } from '../dto/update-permission.dto';
 import { CreatepermissionsRolesDto } from '../dto/create-permission-role.dto';
 import { PermissionService } from '../services/permission.service';
 
+import { ParseUuid } from 'src/common/pipes/parse-uuid.pipe';
 // =============================================================================
 // CONTROLLER
 // =============================================================================
@@ -110,7 +111,7 @@ export class CaslPermissionController {
     `${ModuleItemsMenu.PermissionModule}.${PermissionActionsMenu.VIEW}`,
   )
   async getUserPermissions(
-    @Param('userId') userId: string,
+    @Param('userId', ParseUuid) userId: string,
   ): Promise<PermissionToFront> {
     return this.permissionService.getUserPermissionsSummary(userId);
   }
@@ -124,7 +125,7 @@ export class CaslPermissionController {
   @Permission(
     `${ModuleItemsMenu.PermissionModule}.${PermissionActionsMenu.VIEW}`,
   )
-  async getRolePermissions(@Param('roleId') roleId: string | number) {
+  async getRolePermissions(@Param('roleId', ParseUuid) roleId: string) {
     return this.permissionService.getMenusForUserAndRole(String(roleId));
   }
 
@@ -319,7 +320,7 @@ export class CaslPermissionController {
   @Permission(
     `${ModuleItemsMenu.PermissionModule}.${PermissionActionsMenu.DELETE}`,
   )
-  async invalidateRoleCache(@Param('roleId') roleId: string | number) {
+  async invalidateRoleCache(@Param('roleId', ParseUuid) roleId: string) {
     await this.permissionService.invalidateRoleCache(roleId as any);
     return { success: true, message: `Cache invalidado para rol ${roleId}` };
   }
@@ -334,7 +335,7 @@ export class CaslPermissionController {
   @Permission(
     `${ModuleItemsMenu.PermissionModule}.${PermissionActionsMenu.DELETE}`,
   )
-  async invalidateUserCache(@Param('userId') userId: string | number) {
+  async invalidateUserCache(@Param('userId', ParseUuid) userId: string) {
     await this.permissionService.invalidateUserCache(userId as any);
     return {
       success: true,
@@ -372,7 +373,7 @@ export class CaslPermissionController {
   @Permission(
     `${ModuleItemsMenu.PermissionModule}.${PermissionActionsMenu.VIEW}`,
   )
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseUuid) id: string) {
     return this.permissionService.findOne(id);
   }
 
@@ -389,7 +390,7 @@ export class CaslPermissionController {
     `${ModuleItemsMenu.PermissionModule}.${PermissionActionsMenu.UPDATE}`,
   )
   update(
-    @Param('id') id: string,
+    @Param('id', ParseUuid) id: string,
     @Body() updatePermissionDto: UpdatePermissionDto,
   ) {
     return this.permissionService.update(id, updatePermissionDto);
@@ -403,7 +404,7 @@ export class CaslPermissionController {
   @Permission(
     `${ModuleItemsMenu.PermissionModule}.${PermissionActionsMenu.DELETE}`,
   )
-  remove(@Param('id') id: string) {
+  remove(@Param('id', ParseUuid) id: string) {
     return this.permissionService.remove(id);
   }
 
@@ -432,7 +433,7 @@ export class CaslPermissionController {
     `${ModuleItemsMenu.PermissionModule}.${PermissionActionsMenu.ASSIGN}`,
   )
   assignAllToRole(
-    @Param('roleId') roleId: string,
+    @Param('roleId', ParseUuid) roleId: string,
     @GetUser() user: AuthUser,
   ) {
     return this.permissionService.assignAllPermissionsToRole(roleId, user);

@@ -19,6 +19,7 @@ import { ModuleItemsMenu } from 'src/menu/menu.const';
 import { Permission } from 'src/auth/decorators/permission.decorator';
 import { PermissionActionsMenu } from 'src/permission/permission.const';
 
+import { ParseUuid } from 'src/common/pipes/parse-uuid.pipe';
 @ApiTags('Users-Security')
 @ApiBearerAuth()
 @Throttle({ short: {} })
@@ -64,7 +65,7 @@ export class UserSecurityController {
   })
   @Get(':id')
   @Permission(`${ModuleItemsMenu.UserSecurityModule}.${PermissionActionsMenu.VIEW}`)
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseUuid) id: string) {
     return this.userSecurityService.findOne(id);
   }
 
@@ -79,7 +80,7 @@ export class UserSecurityController {
   @Patch(':id')
   @Permission(`${ModuleItemsMenu.UserSecurityModule}.${PermissionActionsMenu.UPDATE}`)
   update(
-    @Param('id') id: string,
+    @Param('id', ParseUuid) id: string,
     @Body() updateUserDto: UpdateUserDto,
     @Req() req: any,
   ) {
@@ -101,7 +102,7 @@ export class UserSecurityController {
   })
   @Delete(':id')
   @Permission(`${ModuleItemsMenu.UserSecurityModule}.${PermissionActionsMenu.DELETE}`)
-  remove(@Param('id') id: string) {
+  remove(@Param('id', ParseUuid) id: string) {
     return this.userSecurityService.remove(id);
   }
 }
