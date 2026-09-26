@@ -287,3 +287,12 @@ Con esto `src/database/migrations-pending/` queda vacío y los dos índices est�
 | `SchemaInitService` | Se deja como está: la migración inicial ya crea los esquemas (`CREATE SCHEMA IF NOT EXISTS`), así que el servicio es redundante pero inocuo y no genera drift. Borrar el archivo fue denegado por el sistema de permisos en la primera pasada | — |
 
 **Procedimiento de despliegue actualizado**: 1) en una base con datos anteriores a esta fase, correr los dos scripts de depuración (M-18 y M-19) si aún tiene duplicados; 2) `docker compose up --build` (o `npm run migration:run:prod && node dist/main.js`). No hace falta el baseline manual.
+
+## Cierre final (reemplaza "Qué quedó fuera" y "Pendiente para otros" anteriores)
+
+- `npm run build`: 0/0. `npx jest`: **28 suites, 133 tests en verde** (antes 130; +3: dos de `user.update` transaccional y uno de 409 en especialidades). `migration:generate`: sin cambios. Arranque en 8020: 187 rutas, sin errores, detenido.
+- Migraciones aplicadas en la real: **9** (`InitialSchema` + 8). `src/database/migrations-pending/` quedó vacío.
+- Bases de trabajo `bd_gestion_medica_f1`, `_f1_empty` y `_f1_fresh`: borradas.
+- Correcciones de datos: solo las dos de M-18 y M-19 (scripts en `docs/info/migrations/`, con verificación antes/después).
+- Revisión de consistencia (solo lectura) sin defectos: 0 historias cuya cita no esté completada, 0 historias o recetas con paciente o doctor distinto de su cita o historia, 0 recetas sin ítems, 0 personas activas de usuarios borrados. Hay 7 citas `completed` sin historia: no se tocaron porque `PATCH /medical-appointments/:id/complete` las cierra así por diseño (no es un dato inconsistente).
+- Sigue fuera: M-16 (frontend), pruebas HTTP de punta a punta (sin credenciales) y mutaciones de control.
