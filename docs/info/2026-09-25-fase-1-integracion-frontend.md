@@ -58,3 +58,19 @@ Ejemplo:
 - [ ] El `errorInterceptor` no trata 404/409 como fallos de sesión.
 - [ ] Se envía siempre la letra del documento.
 - [ ] El cierre de consulta ofrece reintento (M-16).
+
+## 6. Correcciones del QA de Fases 0-1 (2026-09-25)
+
+| Cambio | Acción del front |
+|---|---|
+| Un superusuario (permiso `security.consultar`) con registro de doctor ahora ve todos los pacientes, recetas, historiales, citas, doctores y centros (antes veía solo lo suyo). | Ninguna. Si alguna vista compensaba el listado vacío, quitar ese parche. |
+| Ids no UUID en `files` (`video/:id`, `appointment-files/:fileId`, `appointment-files?appointmentId`, `medical-center-images/:imageId`, `doctor-images/:imageId`, `common-person-images/:imageId`) y en `mammography-analyses` (`appointment/:appointmentId`, `:id`, `:id/review`, `:id/image`) → **400**. `appointment-files` sin `appointmentId` también responde 400. | Tratarlo como error de validación. |
+| Todo 500 no controlado responde `"Error interno del servidor."` en vez del mensaje interno. | No mostrar ni parsear el texto de un 500. |
+| Login y refresh de un usuario cuyo **rol** está inactivo → **401** (login: `Usuario no encontrado`; refresh: `Usuario inactivo o eliminado`), igual que un usuario inactivo. | Ninguna: ya se maneja como credencial rechazada. |
+
+```json
+{ "data": null, "error": "El identificador debe ser un UUID válido.", "statusCode": 400 }
+{ "data": null, "error": "Error interno del servidor.", "statusCode": 500 }
+```
+
+Lo que no cambió: rutas, permisos, forma de las respuestas exitosas y el comportamiento para médicos comunes (siguen viendo solo lo suyo).
