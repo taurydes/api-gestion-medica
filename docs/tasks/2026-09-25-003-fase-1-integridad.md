@@ -178,3 +178,15 @@ Todas las referencias son por id, así que recodificar no mueve relaciones. `MT`
 | Reusar email y nombre de un usuario borrado | OK | OK |
 
 `migration:run` → `revert` ×2 → `run` en la copia sin errores; `migration:generate` sin cambios en ambas bases. Tests: `src/medical-center/medical-center-unique.spec.ts` (nombre de un centro borrado reutilizable; activo → 400; 23505 → 409).
+
+## M-22 — Los `findOne` devolvían registros borrados
+
+**Decisión**: `deletedAt: IsNull()` explícito, no `@DeleteDateColumn`. `@DeleteDateColumn` no cambia el esquema, pero cambia el comportamiento de todas las consultas y relaciones de la entidad (incluidas las que hoy muestran borrados a propósito, que necesitarían `withDeleted`). El filtro explícito es acotado y revisable.
+
+**Qué se hizo**
+
+- `findOne` por id con `deletedAt: IsNull()` en `patient`, `doctors`, `common-person`, `user`, `medical-history`, `recipe`, `medication` y `departments` (este usaba `deletedAt: undefined`, que TypeORM ignora).
+- Búsquedas previas a editar o borrar: `patient.update`, `doctors.update`/`remove`, `medical-history.update`/`remove`/`createMedicalReview` (historial, paciente y doctor), `recipe.markAsDispensed`/`cancel`, `departments.create`/`update`/`remove` (departamento y centro) y `medical-appointments` `update`/`cancel`/`confirm`/`remove` y las referencias de especialidad, centro y departamento al crear la cita.
+- Validaciones de referencia: `medical-history.create`, `recipe.create` (ver M-14/M-15) y las alergias, enfermedades y medicamentos del paciente (`activeByIds` en lugar de `findByIds`).
+
+**Tests**: `src/common/soft-delete-lookups.spec.ts` (paciente, doctor, receta y departamento borrados → 404) y el caso de historia borrada en `recipe-transaction.spec.ts`.

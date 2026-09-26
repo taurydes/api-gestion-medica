@@ -315,7 +315,7 @@ export class UserService {
     if (cached) return cached;
 
     const user = await this.repo.findOne({
-      where: { id },
+      where: { id, deletedAt: IsNull() },
       relations: {
         commonPerson: true,
         role: {

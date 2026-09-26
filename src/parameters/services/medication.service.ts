@@ -8,7 +8,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { CreateMedicationDto } from '../dto/medication/create-medication.dto';
 import { UpdateMedicationDto } from '../dto/medication/update-medication.dto';
 import { MedicationQueryDto } from '../dto/medication/medication-query.dto';
@@ -105,7 +105,7 @@ export class MedicationService {
     if (cached) return cached;
 
     const medication = await this.medicationRepository.findOne({
-      where: { id },
+      where: { id, deletedAt: IsNull() },
     });
 
     if (!medication) {

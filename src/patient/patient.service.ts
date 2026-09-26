@@ -14,7 +14,7 @@ import {
 } from 'src/common-person/person-document.util';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
-import { IsNull, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { PatientQueryDto } from './dto/patient-query.dto';
@@ -109,6 +109,14 @@ export class PatientService {
     return img ? this.filesService.getCommonPersonImageUrl(img.id) : null;
   }
 
+  /** Catalog rows by id, ignoring soft-deleted ones, so a deleted allergy or drug is reported as missing (M-22). */
+  private activeByIds<T extends { id: string; deletedAt: Date | null }>(
+    repo: Repository<T>,
+    ids: string[],
+  ): Promise<T[]> {
+    return repo.findBy({ id: In(ids), deletedAt: IsNull() } as any);
+  }
+
   /**
    * Genera un código de paciente único
    * Formato: PAC-YYYY-XXXXX (ej: PAC-2026-00001)
@@ -187,7 +195,7 @@ export class PatientService {
         createPatientDto.allergyIds &&
         createPatientDto.allergyIds.length > 0
       ) {
-        allergies = await this.allergyRepository.findByIds(
+        allergies = await this.activeByIds(this.allergyRepository,
           createPatientDto.allergyIds,
         );
 
@@ -204,7 +212,7 @@ export class PatientService {
         createPatientDto.chronicDiseaseIds &&
         createPatientDto.chronicDiseaseIds.length > 0
       ) {
-        chronicDiseases = await this.chronicDiseaseRepository.findByIds(
+        chronicDiseases = await this.activeByIds(this.chronicDiseaseRepository,
           createPatientDto.chronicDiseaseIds,
         );
 
@@ -223,7 +231,7 @@ export class PatientService {
         createPatientDto.medicationIds &&
         createPatientDto.medicationIds.length > 0
       ) {
-        medications = await this.medicationRepository.findByIds(
+        medications = await this.activeByIds(this.medicationRepository,
           createPatientDto.medicationIds,
         );
 
@@ -392,7 +400,7 @@ export class PatientService {
       if (cached) return cached;
 
       const patient = await this.patientRepository.findOne({
-        where: { id },
+        where: { id, deletedAt: IsNull() },
         relations: [
           'commonPerson',
           'allergies',
@@ -483,7 +491,7 @@ export class PatientService {
   ): Promise<Patient> {
     try {
       const patient = await this.patientRepository.findOne({
-        where: { id },
+        where: { id, deletedAt: IsNull() },
         relations: [
           'commonPerson',
           'allergies',
@@ -513,7 +521,7 @@ export class PatientService {
       if (updatePatientDto.allergyIds !== undefined) {
         let allergies: Allergy[] = [];
         if (updatePatientDto.allergyIds.length > 0) {
-          allergies = await this.allergyRepository.findByIds(
+          allergies = await this.activeByIds(this.allergyRepository,
             updatePatientDto.allergyIds,
           );
           if (allergies.length !== updatePatientDto.allergyIds.length) {
@@ -529,7 +537,7 @@ export class PatientService {
       if (updatePatientDto.chronicDiseaseIds !== undefined) {
         let chronicDiseases: ChronicDisease[] = [];
         if (updatePatientDto.chronicDiseaseIds.length > 0) {
-          chronicDiseases = await this.chronicDiseaseRepository.findByIds(
+          chronicDiseases = await this.activeByIds(this.chronicDiseaseRepository,
             updatePatientDto.chronicDiseaseIds,
           );
           if (
@@ -547,7 +555,7 @@ export class PatientService {
       if (updatePatientDto.medicationIds !== undefined) {
         let medications: Medication[] = [];
         if (updatePatientDto.medicationIds.length > 0) {
-          medications = await this.medicationRepository.findByIds(
+          medications = await this.activeByIds(this.medicationRepository,
             updatePatientDto.medicationIds,
           );
           if (medications.length !== updatePatientDto.medicationIds.length) {

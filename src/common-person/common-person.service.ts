@@ -9,7 +9,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { CreateCommonPersonDto } from './dto/create-common-person.dto';
 import { CommonPersonQueryDto } from './dto/common-person-query.dto';
 import { UpdateCommonPersonDto } from './dto/update-common-person.dto';
@@ -159,7 +159,7 @@ export class CommonPersonService {
     if (cached) return cached;
 
     const person = await this.commonPersonRepository.findOne({
-      where: { id },
+      where: { id, deletedAt: IsNull() },
       relations: ['identityDocument'],
     });
 

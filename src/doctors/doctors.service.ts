@@ -309,7 +309,7 @@ export class DoctorsService {
       if (cached) return cached;
 
       const doctor = await this.doctorRepository.findOne({
-        where: { id },
+        where: { id, deletedAt: IsNull() },
         relations: ['commonPerson', 'medicalCenters', 'specialties'],
       });
 
@@ -340,7 +340,7 @@ export class DoctorsService {
     await this.assertDoctorAccess(id, authUser);
     try {
       const doctor = await this.doctorRepository.findOne({
-        where: { id },
+        where: { id, deletedAt: IsNull() },
         relations: ['commonPerson', 'medicalCenters', 'specialties'],
       });
 
@@ -396,7 +396,7 @@ export class DoctorsService {
    */
   async remove(id: string): Promise<void> {
     try {
-      const doctor = await this.doctorRepository.findOneBy({ id });
+      const doctor = await this.doctorRepository.findOneBy({ id, deletedAt: IsNull() });
       if (!doctor) {
         throw new NotFoundException(`Doctor con ID ${id} no encontrado.`);
       }

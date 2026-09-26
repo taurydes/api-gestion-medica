@@ -356,7 +356,7 @@ export class MedicalHistoryService {
       }
 
       const history = await this.medicalHistoryRepository.findOne({
-        where: { id },
+        where: { id, deletedAt: IsNull() },
         relations: [
           'patient',
           'patient.commonPerson',
@@ -457,7 +457,7 @@ export class MedicalHistoryService {
   ): Promise<MedicalHistory> {
     try {
       const history = await this.medicalHistoryRepository.findOne({
-        where: { id },
+        where: { id, deletedAt: IsNull() },
       });
 
       if (!history) {
@@ -476,7 +476,7 @@ export class MedicalHistoryService {
       // Validaciones de relaciones si se actualizan
       if (dto.patientId && dto.patientId !== history.patientId) {
         const patient = await this.patientRepository.findOne({
-          where: { id: dto.patientId },
+          where: { id: dto.patientId, deletedAt: IsNull() },
         });
         if (!patient) {
           throw new BadRequestException(
@@ -487,7 +487,7 @@ export class MedicalHistoryService {
 
       if (dto.doctorId && dto.doctorId !== history.doctorId) {
         const doctor = await this.doctorRepository.findOne({
-          where: { id: dto.doctorId },
+          where: { id: dto.doctorId, deletedAt: IsNull() },
         });
         if (!doctor) {
           throw new BadRequestException(
@@ -535,7 +535,7 @@ export class MedicalHistoryService {
   ): Promise<MedicalHistory> {
     try {
       const history = await this.medicalHistoryRepository.findOne({
-        where: { id: dto.medicalHistoryId },
+        where: { id: dto.medicalHistoryId, deletedAt: IsNull() },
       });
 
       if (!history) {
@@ -597,7 +597,7 @@ export class MedicalHistoryService {
   async cancelConsultation(id: string, userId?: string, user?: any): Promise<MedicalHistory> {
     try {
       const history = await this.medicalHistoryRepository.findOne({
-        where: { id },
+        where: { id, deletedAt: IsNull() },
       });
 
       if (!history) {

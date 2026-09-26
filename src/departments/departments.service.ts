@@ -8,7 +8,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
-import { In, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import { Department } from './entities/department.entity';
 import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity';
 import { Specialty } from 'src/parameters/entities/specialty.entity';
@@ -54,7 +54,7 @@ export class DepartmentsService {
 
       // Validar que el centro médico exista
       const center = await this.medicalCenterRepository.findOne({
-        where: { id: dto.medicalCenterId },
+        where: { id: dto.medicalCenterId, deletedAt: IsNull() },
       });
       if (!center) {
         throw new NotFoundException(
@@ -152,7 +152,7 @@ export class DepartmentsService {
       if (cached) return cached;
 
       const department = await this.departmentRepository.findOne({
-        where: { id, deletedAt: undefined },
+        where: { id, deletedAt: IsNull() },
         relations: ['medicalCenter', 'specialties'],
       });
 
@@ -182,7 +182,7 @@ export class DepartmentsService {
       const { specialtyIds, ...data } = dto;
 
       const department = await this.departmentRepository.findOne({
-        where: { id },
+        where: { id, deletedAt: IsNull() },
         relations: ['specialties'],
       });
 
@@ -192,7 +192,7 @@ export class DepartmentsService {
 
       if (data.medicalCenterId) {
         const center = await this.medicalCenterRepository.findOne({
-          where: { id: data.medicalCenterId },
+          where: { id: data.medicalCenterId, deletedAt: IsNull() },
         });
         if (!center) {
           throw new NotFoundException(
@@ -238,7 +238,7 @@ export class DepartmentsService {
   async remove(id: string): Promise<void> {
     try {
       const department = await this.departmentRepository.findOne({
-        where: { id },
+        where: { id, deletedAt: IsNull() },
       });
 
       if (!department) {

@@ -550,7 +550,7 @@ export class MedicalAppointmentsService {
       // Validar specialty, center y department si se proporcionan
       if (dto.specialtyId) {
         const specialty = await this.specialtyRepository.findOne({
-          where: { id: dto.specialtyId },
+          where: { id: dto.specialtyId, deletedAt: IsNull() },
         });
         if (!specialty) {
           throw new NotFoundException(
@@ -561,7 +561,7 @@ export class MedicalAppointmentsService {
 
       if (dto.medicalCenterId) {
         const center = await this.medicalCenterRepository.findOne({
-          where: { id: dto.medicalCenterId },
+          where: { id: dto.medicalCenterId, deletedAt: IsNull() },
         });
         if (!center) {
           throw new NotFoundException(
@@ -572,7 +572,7 @@ export class MedicalAppointmentsService {
 
       if (dto.departmentId) {
         const dept = await this.departmentRepository.findOne({
-          where: { id: dto.departmentId },
+          where: { id: dto.departmentId, deletedAt: IsNull() },
         });
         if (!dept) {
           throw new NotFoundException(
@@ -805,7 +805,7 @@ export class MedicalAppointmentsService {
     dto: UpdateMedicalAppointmentDto,
     userId?: string,
   ): Promise<MedicalAppointment> {
-    const apt = await this.appointmentRepository.findOne({ where: { id } });
+    const apt = await this.appointmentRepository.findOne({ where: { id, deletedAt: IsNull() } });
 
     if (!apt) {
       throw new NotFoundException(`Cita médica con ID ${id} no encontrada.`);
@@ -867,7 +867,7 @@ export class MedicalAppointmentsService {
     cancellationReason: string,
     userId?: string,
   ): Promise<MedicalAppointment> {
-    const apt = await this.appointmentRepository.findOne({ where: { id } });
+    const apt = await this.appointmentRepository.findOne({ where: { id, deletedAt: IsNull() } });
 
     if (!apt) {
       throw new NotFoundException(`Cita médica con ID ${id} no encontrada.`);
@@ -900,7 +900,7 @@ export class MedicalAppointmentsService {
    * Completar una cita
    */
   async complete(id: string, userId?: string): Promise<MedicalAppointment> {
-    const apt = await this.appointmentRepository.findOne({ where: { id } });
+    const apt = await this.appointmentRepository.findOne({ where: { id, deletedAt: IsNull() } });
 
     if (!apt) {
       throw new NotFoundException(`Cita médica con ID ${id} no encontrada.`);
@@ -1008,7 +1008,7 @@ export class MedicalAppointmentsService {
    * Soft-delete de una cita
    */
   async remove(id: string, userId?: string): Promise<void> {
-    const apt = await this.appointmentRepository.findOne({ where: { id } });
+    const apt = await this.appointmentRepository.findOne({ where: { id, deletedAt: IsNull() } });
 
     if (!apt) {
       throw new NotFoundException(`Cita médica con ID ${id} no encontrada.`);

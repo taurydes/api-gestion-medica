@@ -36,6 +36,14 @@ export class FakeRepo {
     return this.rows.filter((r) => this.matches(r, opts.where)).map((r) => ({ ...r }));
   }
 
+  async findBy(where: Row) {
+    return this.find({ where });
+  }
+
+  async findOneBy(where: Row) {
+    return this.findOne({ where });
+  }
+
   create<T extends Row>(data: T): T {
     return { ...data };
   }

@@ -347,7 +347,7 @@ export class RecipeService {
     try {
       const cached = await this.cacheManager.get<Recipe>(cacheKey);
       const recipe = cached ?? await this.recipeRepository.findOne({
-        where: { id },
+        where: { id, deletedAt: IsNull() },
         relations: [
           'patient',
           'patient.commonPerson',
@@ -533,7 +533,7 @@ export class RecipeService {
   async markAsDispensed(id: string, userId?: string): Promise<Recipe> {
     try {
       const recipe = await this.recipeRepository.findOne({
-        where: { id },
+        where: { id, deletedAt: IsNull() },
       });
 
       if (!recipe) {
@@ -580,7 +580,7 @@ export class RecipeService {
   async cancel(id: string, userId?: string): Promise<Recipe> {
     try {
       const recipe = await this.recipeRepository.findOne({
-        where: { id },
+        where: { id, deletedAt: IsNull() },
       });
 
       if (!recipe) {
