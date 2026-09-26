@@ -50,3 +50,44 @@
 6. Revertir: `npm run migration:revert` deshace la última migración.
 
 El `Dockerfile` no se modificó: el `CMD` sigue siendo `node dist/main.js`. Correr `migration:run:prod` antes del arranque queda a cargo del despliegue (ver Pendiente).
+
+## M-14 y M-15 — Cierre de consulta y recetas atómicos
+
+**Qué se hizo**
+
+- `finishConsultation` corre en `dataSource.transaction()`: relee la cita con `pessimistic_write` dentro de la transacción, crea el historial, la receta y marca la cita `COMPLETED` con el mismo `EntityManager`. Las cachés se limpian solo después del commit.
+- Antes de abrir la transacción valida los `medicationId` de los ítems (`RecipeService.assertMedicationsExist`): inexistente o borrado → 404 "Los medicamentos con ID … no existen o han sido eliminados." sin escribir nada.
+- `MedicalHistoryService.create(dto, userId, manager?)` y `RecipeService.create(dto, userId, manager?)`: con `manager` usan sus repositorios y no limpian caché ni recargan (el llamador lo hace tras el commit). Sin `manager`, `recipe.create` abre su propia transacción.
+- `recipe.update`: valida medicamentos primero; el `update` de cabecera, el `delete` y el `save` de ítems van en una transacción.
+- `RecipeService.invalidateCaches` también borra `recipe:medical-history:{id}` y `recipe:patient:{id}` al crear (antes solo al editar).
+
+**Decisiones**
+
+| Decisión | Motivo |
+|---|---|
+| Referencias faltantes o borradas en `recipe.create` → 404 (antes 400) | Criterio de M-22 ("crear una receta que referencia una historia borrada → 404"); se aplicó igual a paciente, doctor y medicamentos para que el endpoint sea coherente. `medical-history.create` conserva sus 400 |
+| Bloqueo `pessimistic_write` sobre la cita | Dos cierres simultáneos: el segundo espera y ve `COMPLETED` (400) en lugar de chocar con el índice único |
+| Tests con un `DataSource` falso en memoria (`test/in-memory-db.ts`) | Permite verificar el rollback real (0 filas tras el fallo) y el reintento, invocando los tres servicios reales |
+
+**Verificación (tests de servicio)**: `src/medical-appointments/finish-consultation.spec.ts` (medicamento inexistente → 404 y 0 historiales; fallo tras insertar el historial → rollback y el reintento cierra la cita; cita completada → 400; medicamento borrado = inexistente) y `src/recipe/recipe-transaction.spec.ts` (create/update con fallo o medicamento inexistente no dejan cabecera huérfana ni borran ítems previos).
+
+## M-17 — Paciente borrado se puede volver a registrar
+
+**Qué se hizo**
+
+- Entidad `Patient`: `common_person_id` pierde `unique: true` y gana `@Index('UQ_patients_common_person_active', …, { unique: true, where: '"deleted_at" IS NULL' })`.
+- Migración `1790384775327-PatientsPartialUniquePerson`: quita `UQ_f34e740f037fa739f119134c565` y crea el índice parcial (TypeORM recrea la FK alrededor). `down()` restaura el único total; falla si ya hay una persona con un paciente borrado y otro activo, lo cual es esperable.
+- `patient.create` busca el paciente existente con `deletedAt: IsNull()`. `resolvePatient` (citas por documento) ya filtraba borrados; con el índice parcial su INSERT deja de fallar.
+
+**Decisión**: índice parcial + registro nuevo, no reactivación. Es el mismo comportamiento que ya tenía `resolvePatient`, y un `DELETE /patient/:id` se trata como baja del registro. Contra: la historia del paciente anterior queda asociada al registro borrado. Si se prefiere reactivar, el índice parcial sigue sirviendo.
+
+**Verificación**
+
+| Prueba | Copia `_f1` | Real |
+|---|---|---|
+| `migration:run` → `revert` → `run` | OK | `run` OK |
+| `migration:generate` después | Sin cambios | Sin cambios |
+| `pg_indexes` | `CREATE UNIQUE INDEX "UQ_patients_common_person_active" … (common_person_id) WHERE (deleted_at IS NULL)` | Igual |
+| INSERT duplicado con ambos `deleted_at` nulos (`BEGIN … ROLLBACK`) | 23505 | 23505 |
+| Borrar un paciente y crear otro para la misma persona (`BEGIN … ROLLBACK`) | OK | OK |
+| Tests | `src/patient/patient-reregister.spec.ts`: paciente borrado → se crea uno nuevo activo; paciente activo → 400 | |

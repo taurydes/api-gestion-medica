@@ -170,9 +170,10 @@ export class PatientService {
         commonPerson = await this.commonPersonRepository.save(newPerson);
       }
 
-      // 3️⃣ Verificar si esta persona ya está registrada como paciente
+      // 3️⃣ Verificar si esta persona ya está registrada como paciente activo
+      // (el índice único es parcial: un paciente borrado no bloquea el nuevo registro)
       const existingPatient = await this.patientRepository.findOne({
-        where: { commonPersonId: commonPerson.id },
+        where: { commonPersonId: commonPerson.id, deletedAt: IsNull() },
       });
 
       if (existingPatient) {

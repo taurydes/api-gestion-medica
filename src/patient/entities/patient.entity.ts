@@ -3,6 +3,7 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   JoinColumn,
   JoinTable,
   ManyToMany,
@@ -18,12 +19,17 @@ import { Medication } from 'src/parameters/entities/medication.entity';
 import { Appointment } from 'src/appointment/entities/appointment.entity'; // Si lo tienes */
 
 @Entity({ schema: 'public', name: 'patients' })
+// Partial: a soft-deleted patient must not block registering the same person again (M-17).
+@Index('UQ_patients_common_person_active', ['commonPersonId'], {
+  unique: true,
+  where: '"deleted_at" IS NULL',
+})
 export class Patient {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
   // RELACIÓN CON PERSONA
-  @Column({ name: 'common_person_id', type: 'uuid', unique: true })
+  @Column({ name: 'common_person_id', type: 'uuid' })
   commonPersonId: string;
 
   @ManyToOne(() => CommonPerson, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
