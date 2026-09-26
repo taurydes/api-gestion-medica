@@ -6,7 +6,4 @@ export * from './bulk-assign-permissions.dto';
 export * from './set-permission-status.dto';
 export * from './responses.dto';
 export * from './pagination.dto';
-export * from './module.dto';
-export * from './role.dto';
-export * from './relations.dto';
 export * from './user-permissions.dto';
