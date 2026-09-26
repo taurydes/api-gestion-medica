@@ -1,6 +1,7 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import {
   BadRequestException,
+  ConflictException,
   Inject,
   Injectable,
   NotFoundException,
@@ -13,6 +14,12 @@ import { CreateCommonPersonDto } from './dto/create-common-person.dto';
 import { CommonPersonQueryDto } from './dto/common-person-query.dto';
 import { UpdateCommonPersonDto } from './dto/update-common-person.dto';
 import { CommonPerson } from './entities/common-person.entity';
+import {
+  assertDocumentAvailable,
+  PERSON_DOCUMENT_CONFLICT,
+  personDocumentWhere,
+  uniqueViolationToConflict,
+} from './person-document.util';
 
 @Injectable()
 export class CommonPersonService {
@@ -49,17 +56,15 @@ export class CommonPersonService {
     createCommonPersonDto: CreateCommonPersonDto,
   ): Promise<CommonPerson> {
     try {
-      const { documentNumber } = createCommonPersonDto;
+      const { documentNumber, letter } = createCommonPersonDto;
 
       if (documentNumber) {
         const existingPerson = await this.commonPersonRepository.findOne({
-          where: { documentNumber },
+          where: personDocumentWhere(letter, documentNumber),
         });
 
         if (existingPerson) {
-          throw new BadRequestException(
-            'El número de documento ya está registrado.',
-          );
+          throw new ConflictException(PERSON_DOCUMENT_CONFLICT);
         }
       }
 
@@ -74,8 +79,10 @@ export class CommonPersonService {
 
       return person;
     } catch (error) {
-      throw new BadRequestException(
-        `Error al crear la persona: ${error.message}`,
+      if (error instanceof ConflictException) throw error;
+      throw (
+        uniqueViolationToConflict(error) ??
+        new BadRequestException(`Error al crear la persona: ${error.message}`)
       );
     }
   }
@@ -172,8 +179,13 @@ export class CommonPersonService {
     updateCommonPersonDto: UpdateCommonPersonDto,
   ): Promise<CommonPerson> {
     const person = await this.findOne(id); // Checks existence
+    await assertDocumentAvailable(this.commonPersonRepository, person, updateCommonPersonDto);
 
-    await this.commonPersonRepository.update(id, updateCommonPersonDto);
+    try {
+      await this.commonPersonRepository.update(id, updateCommonPersonDto);
+    } catch (error) {
+      throw uniqueViolationToConflict(error) ?? error;
+    }
     const updated = await this.commonPersonRepository.findOne({
       where: { id },
       relations: ['identityDocument'],

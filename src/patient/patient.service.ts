@@ -1,11 +1,17 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import {
+  ConflictException,
   ForbiddenException,
   Injectable,
   BadRequestException,
   NotFoundException,
   Inject,
 } from '@nestjs/common';
+import {
+  assertDocumentAvailable,
+  personDocumentWhere,
+  uniqueViolationToConflict,
+} from 'src/common-person/person-document.util';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
 import { IsNull, Repository } from 'typeorm';
@@ -143,18 +149,11 @@ export class PatientService {
 
       // 1️⃣ Buscar si ya existe CommonPerson por número de documento
       if (createPatientDto.commonPerson.documentNumber) {
-        const where: any = {
-          documentNumber: createPatientDto.commonPerson.documentNumber,
-          deletedAt: IsNull(),
-        };
-
-        // Si se proporciona letra (tipo de documento), agregarla al filtro
-        if (createPatientDto.commonPerson.letter) {
-          where.letter = createPatientDto.commonPerson.letter;
-        }
-
         const existingPerson = await this.commonPersonRepository.findOne({
-          where,
+          where: personDocumentWhere(
+            createPatientDto.commonPerson.letter,
+            createPatientDto.commonPerson.documentNumber,
+          ),
         });
 
         if (existingPerson) {
@@ -499,6 +498,11 @@ export class PatientService {
 
       // Actualizar CommonPerson si se proporciona
       if (updatePatientDto.commonPerson) {
+        await assertDocumentAvailable(
+          this.commonPersonRepository,
+          patient.commonPerson,
+          updatePatientDto.commonPerson,
+        );
         await this.commonPersonRepository.update(
           patient.commonPersonId,
           updatePatientDto.commonPerson,
@@ -581,12 +585,14 @@ export class PatientService {
     } catch (error) {
       if (
         error instanceof NotFoundException ||
-        error instanceof BadRequestException
+        error instanceof BadRequestException ||
+        error instanceof ConflictException
       ) {
         throw error;
       }
-      throw new BadRequestException(
-        `Error al actualizar el paciente: ${error.message}`,
+      throw (
+        uniqueViolationToConflict(error) ??
+        new BadRequestException(`Error al actualizar el paciente: ${error.message}`)
       );
     }
   }

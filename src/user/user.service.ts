@@ -1,6 +1,7 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import {
   BadRequestException,
+  ConflictException,
   HttpException,
   Inject,
   Injectable,
@@ -20,6 +21,12 @@ import { UserQueryDto } from './dto/user-query.dto copy';
 import { User } from './entities/user.entity';
 import { CommonPerson } from '../common-person/entities/common-person.entity';
 import { CommonPersonImage } from '../common-person/entities/common-person-image.entity';
+import {
+  assertDocumentAvailable,
+  PERSON_DOCUMENT_CONFLICT,
+  personDocumentWhere,
+  uniqueViolationToConflict,
+} from '../common-person/person-document.util';
 import { Doctor } from 'src/doctors/entities/doctor.entity';
 import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity';
 import { Specialty } from 'src/parameters/entities/specialty.entity';
@@ -93,17 +100,14 @@ export class UserService {
       );
     }
 
-    const qbPerson = this.commonPersonrepo
-      .createQueryBuilder('u')
-      .where('u.documentNumber = :documentNumber', {
-        documentNumber: data.commonPerson.documentNumber,
-      })
-      .andWhere('u.letter = :letter', { letter: data.commonPerson.letter });
-    const existsPerson = await qbPerson.getOne();
-    if (existsPerson) {
-      throw new BadRequestException(
-        'el numero de documento ya está registrado.',
-      );
+    const { letter, documentNumber } = data.commonPerson;
+    if (documentNumber) {
+      const existsPerson = await this.commonPersonrepo.findOne({
+        where: personDocumentWhere(letter, documentNumber),
+      });
+      if (existsPerson) {
+        throw new ConflictException(PERSON_DOCUMENT_CONFLICT);
+      }
     }
   }
 
@@ -122,17 +126,15 @@ export class UserService {
       // 1. Validar usuario existente (email / nombre)
       await this.validateUserData(dto);
 
-      // 2. Resolver CommonPerson (Buscar o Crear)
+      // 2. Resolver CommonPerson por letra + documento (buscar solo por documento vinculaba a otra persona)
       let commonPerson: CommonPerson | null = null;
       if (commonPersonDto.documentNumber) {
         commonPerson = await this.commonPersonrepo.findOne({
-          where: { documentNumber: commonPersonDto.documentNumber },
+          where: personDocumentWhere(commonPersonDto.letter, commonPersonDto.documentNumber),
         });
       }
 
       if (!commonPerson) {
-        // Validación adicional si vamos a crear (que no exista por letra+documento si aplicara)
-        // pero arriba ya buscamos por documento.
         commonPerson = queryRunner.manager.create(
           CommonPerson,
           commonPersonDto,
@@ -235,8 +237,10 @@ export class UserService {
     } catch (error) {
       await queryRunner.rollbackTransaction();
       await queryRunner.release(); // Ensure release on error
-      throw new BadRequestException(
-        `Error al crear el usuario: ${error.message}`,
+      if (error instanceof ConflictException) throw error;
+      throw (
+        uniqueViolationToConflict(error) ??
+        new BadRequestException(`Error al crear el usuario: ${error.message}`)
       );
     }
   }
@@ -377,6 +381,10 @@ export class UserService {
       );
       Object.assign(userFields, fields);
 
+      if (commonPersonDto && exists.commonPerson) {
+        await assertDocumentAvailable(this.commonPersonrepo, exists.commonPerson, commonPersonDto);
+      }
+
       // Revocar antes de escribir: si Redis falla, no queda nada persistido
       if (deactivates) {
         await revokeSessionOrFail(this.redisSession, id);
@@ -409,8 +417,9 @@ export class UserService {
       return rest;
     } catch (error) {
       if (error instanceof HttpException) throw error;
-      throw new BadRequestException(
-        `Error al actualizar el usuario: ${error.message}`,
+      throw (
+        uniqueViolationToConflict(error) ??
+        new BadRequestException(`Error al actualizar el usuario: ${error.message}`)
       );
     }
   }

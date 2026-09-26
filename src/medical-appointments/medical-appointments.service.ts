@@ -19,6 +19,7 @@ import {
 import { Patient } from 'src/patient/entities/patient.entity';
 import { Doctor } from 'src/doctors/entities/doctor.entity';
 import { CommonPerson } from 'src/common-person/entities/common-person.entity';
+import { personDocumentWhere } from 'src/common-person/person-document.util';
 import { Specialty } from 'src/parameters/entities/specialty.entity';
 import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity';
 import { Department } from 'src/departments/entities/department.entity';
@@ -238,14 +239,8 @@ export class MedicalAppointmentsService {
       );
     }
 
-    const whereCommon: any = {
-      documentNumber: dto.documentNumber,
-      deletedAt: IsNull(),
-    };
-    if (dto.documentLetter) whereCommon.letter = dto.documentLetter;
-
     let commonPerson = await this.commonPersonRepository.findOne({
-      where: whereCommon,
+      where: personDocumentWhere(dto.documentLetter, dto.documentNumber),
     });
 
     // Crear CommonPerson si no existe

@@ -1,16 +1,22 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import {
+  assertDocumentAvailable,
+  personDocumentWhere,
+  uniqueViolationToConflict,
+} from 'src/common-person/person-document.util';
 import { AuthContextService } from 'src/common/services/auth-context.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
-import { FindOptions, FindOptionsWhere, In, IsNull, Repository } from 'typeorm';
+import { FindOptions, In, IsNull, Repository } from 'typeorm';
 import { CreateDoctorDto } from './dto/create-doctor.dto';
 import { UpdateDoctorDto } from './dto/update-doctor.dto';
 import { DoctorQueryDto } from './dto/doctor-query.dto';
@@ -127,16 +133,8 @@ export class DoctorsService {
       }
 
       if (dto.commonPerson.documentNumber) {
-        const whereConditions: FindOptionsWhere<CommonPerson> = {
-          documentNumber: dto.commonPerson.documentNumber,
-        };
-
-        if (dto.commonPerson.letter) {
-          whereConditions.letter = dto.commonPerson.letter;
-        }
-
         const existingPerson = await this.commonPersonRepository.findOne({
-          where: whereConditions,
+          where: personDocumentWhere(dto.commonPerson.letter, dto.commonPerson.documentNumber),
         });
 
         if (existingPerson) {
@@ -366,6 +364,7 @@ export class DoctorsService {
       }
       // 2. Actualizar CommonPerson si se proporciona
       if (dto.commonPerson && doctor.commonPerson) {
+        await assertDocumentAvailable(this.commonPersonRepository, doctor.commonPerson, dto.commonPerson);
         Object.assign(doctor.commonPerson, dto.commonPerson);
         await this.commonPersonRepository.save(doctor.commonPerson);
       }
@@ -384,8 +383,10 @@ export class DoctorsService {
 
       return updated;
     } catch (error) {
-      throw new BadRequestException(
-        `Error al actualizar el doctor: ${error.message}`,
+      if (error instanceof ConflictException) throw error;
+      throw (
+        uniqueViolationToConflict(error) ??
+        new BadRequestException(`Error al actualizar el doctor: ${error.message}`)
       );
     }
   }

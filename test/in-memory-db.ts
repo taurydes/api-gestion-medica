@@ -20,6 +20,7 @@ export class FakeRepo {
       if (expected instanceof FindOperator) {
         if (expected.type === 'isNull') return row[key] == null;
         if (expected.type === 'in') return (expected.value as any[]).includes(row[key]);
+        if (expected.type === 'not') return row[key] !== expected.value;
         throw new Error(`Operator ${expected.type} not supported by FakeRepo`);
       }
       return row[key] === expected;

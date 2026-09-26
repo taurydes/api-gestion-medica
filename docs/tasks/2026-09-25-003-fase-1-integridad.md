@@ -91,3 +91,35 @@ El `Dockerfile` no se modificó: el `CMD` sigue siendo `node dist/main.js`. Corr
 | INSERT duplicado con ambos `deleted_at` nulos (`BEGIN … ROLLBACK`) | 23505 | 23505 |
 | Borrar un paciente y crear otro para la misma persona (`BEGIN … ROLLBACK`) | OK | OK |
 | Tests | `src/patient/patient-reregister.spec.ts`: paciente borrado → se crea uno nuevo activo; paciente activo → 400 | |
+
+## M-18 — Personas duplicadas por documento
+
+**Qué se hizo (sin la depuración ni el índice)**
+
+- `src/common-person/person-document.util.ts`: `personDocumentWhere(letra, documento)` (persona activa con esa letra **y** ese documento; letra ausente = `NULL`, nunca "cualquier letra"), `assertDocumentAvailable` (409 si el cambio choca con otra persona activa; no hace nada si el documento no cambia) y `uniqueViolationToConflict` (23505 → 409; con el nombre del índice de personas da el mensaje específico).
+- Búsqueda por letra + documento en todas las altas: `user.create` (antes buscaba solo por documento y vinculaba el usuario nuevo a otra persona), `common-person.create`, `doctors.create`, `patient.create` y `resolvePatient` de citas.
+- Validación de duplicados en los `update` que tocan la persona: `user.update`, `common-person.update`, `doctors.update` y `patient.update`.
+- 23505 → 409 "El número de documento ya está registrado para otra persona." en esos caminos (antes 400/500 con el texto del driver). `common-person.create` y `user.create` pasan de 400 a 409 ante documento duplicado.
+- Script de depuración `docs/info/migrations/2026-09-25-depurar-persona-comun-duplicada.sql` (**no ejecutado**): corrige el documento de la persona elegida, con guarda y verificación antes/después. Probado en una copia desechable: pasa de 1 grupo a 0, es idempotente y la guarda aborta si el documento nuevo ya existe.
+- Índice `UQ_persona_comun_documento_activo (letra, documento) WHERE documento IS NOT NULL AND deleted_at IS NULL` escrito como migración en `src/database/migrations-pending/1790399000000-PersonaComunUniqueDocument.ts` (**no aplicado**, fuera del glob de migraciones para no bloquear `migration:run`). Su `up()` aborta si quedan duplicados. En la copia depurada: INSERT duplicado → 23505; misma cédula con otra letra → OK; duplicar una persona borrada → OK. En la real, crear el índice falla hoy con 23505 (confirma que falta la depuración).
+
+**Datos para decidir (solo ids y conteos, consulta de solo lectura)**
+
+| | `7a662859-0c03-4d4e-9271-0d5e57d7cebd` | `d53ebb57-acd5-4786-986d-6436f62df52c` |
+|---|---|---|
+| Letra | V | V |
+| Creada | 2026-02-08 | 2026-03-29 |
+| Usuario (`users.common_person_id` = `persona_comun.user_id`) | `8387ca12-a0ab-4188-ae2f-72b7710e5063`, rol `medico`, activo | `ae8e35ec-3397-4a7b-9491-70dbe9e2a739`, rol `medico`, activo |
+| Doctor | `ea70bf7a-f7ea-4169-83d8-2caea8cc1a4f` (1 centro, 0 horarios) | `56809bb6-5d91-4d83-b118-cccc7519f5ca` (1 centro, 0 horarios) |
+| Paciente | `41841702-db50-43fb-91df-4a373608677d` | — |
+| Citas / historias / recetas como médico | 0 / 0 / 0 | 0 / 0 / 0 |
+| Citas / historias / recetas / mamografías como paciente | 22 / 17 / 2 / 24 | 0 |
+| Imágenes de persona | 7 | 0 |
+
+Comparación sin exponer datos: nombres, teléfono, email del usuario, licencia y centro **difieren**. Son dos personas distintas con el mismo documento, no un registro repetido: la salida propuesta es corregir el documento de una (probablemente `d53ebb57…`, sin actividad clínica), no fusionar. Hace falta el documento correcto, que solo conoce el negocio. Es el único grupo (tampoco hay duplicados por documento solo).
+
+**Para activar el índice**: 1) correr el script con `-v persona_id=… -v letra=… -v documento=…`; 2) mover la migración pendiente a `src/database/migrations`; 3) agregar a `CommonPerson` `@Index('UQ_persona_comun_documento_activo', ['letter', 'documentNumber'], { unique: true, where: '"documento" IS NOT NULL AND "deleted_at" IS NULL' })`; 4) `migration:run` y `migration:generate` (sin drift).
+
+**Límite conocido**: el índice sobre `(letra, documento)` no impide dos filas con el mismo documento y letra `NULL` (en PostgreSQL los `NULL` son distintos). Hoy hay 0 personas sin letra.
+
+**Tests**: `src/common-person/person-document.spec.ts` (E-123 con V-123 existente crea una persona E-123; documento duplicado en alta → 409 sin escribir; `update` a un documento ajeno → 409; reenviar el mismo documento no es conflicto; 23505 de `QueryFailedError` → 409).
