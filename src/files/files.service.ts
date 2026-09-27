@@ -3,6 +3,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
   BadRequestException,
+  PayloadTooLargeException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
@@ -28,6 +29,7 @@ import {
   assertSafeFileName,
   resolveUploadPath,
 } from './upload-path.util';
+import { ANALYSIS_IMAGE_MAX_BYTES, tooLargeMessage } from './upload-limits';
 
 
 @Injectable()
@@ -278,36 +280,50 @@ export class FilesService {
       throw new BadRequestException('Debe enviar un archivo.');
     }
 
-    // Validar tipo de imagen
-    const allowedMimes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/dicom'];
-    if (!allowedMimes.includes(file.mimetype)) {
-      throw new BadRequestException(
-        `Tipo de archivo no permitido: ${file.mimetype}. Solo se aceptan imágenes.`,
+    let filePathRelative: string;
+    let storedName: string;
+    try {
+      // Validar tipo de imagen
+      const allowedMimes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/dicom', 'application/dicom'];
+      if (!allowedMimes.includes(file.mimetype)) {
+        throw new BadRequestException(
+          `Tipo de archivo no permitido: ${file.mimetype}. Solo se aceptan imágenes.`,
+        );
+      }
+      const isDicom = file.mimetype.includes('dicom');
+      if (!isDicom && file.size > ANALYSIS_IMAGE_MAX_BYTES) {
+        throw new PayloadTooLargeException(tooLargeMessage(ANALYSIS_IMAGE_MAX_BYTES));
+      }
+
+      // Estructura: UPLOADS_PATH/userId/medicalCenterId/appointmentId/
+      assertFolderId(data.uploadedBy, 'uploadedBy');
+      assertFolderId(data.medicalCenterId, 'medicalCenterId');
+      assertFolderId(data.appointmentId, 'appointmentId');
+      const relativePath = path.join(
+        data.uploadedBy,
+        data.medicalCenterId,
+        data.appointmentId,
       );
+      const fullDir = resolveUploadPath(this.uploadsDir, relativePath);
+      fs.mkdirSync(fullDir, { recursive: true });
+
+      // Nombre único para evitar colisiones
+      const ext = path.extname(path.basename(file.originalname));
+      storedName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
+      const fullPath = resolveUploadPath(this.uploadsDir, relativePath, storedName);
+
+      // Multer en disco deja el archivo en uploads/.tmp: se mueve sin cargarlo en memoria (M-50)
+      if (file.path) {
+        fs.renameSync(file.path, fullPath);
+      } else {
+        fs.writeFileSync(fullPath, file.buffer);
+      }
+      filePathRelative = path.join(relativePath, storedName).replace(/\\/g, '/');
+    } finally {
+      if (file.path && fs.existsSync(file.path)) {
+        fs.rmSync(file.path, { force: true });
+      }
     }
-
-    // Estructura: UPLOADS_PATH/userId/medicalCenterId/appointmentId/
-    assertFolderId(data.uploadedBy, 'uploadedBy');
-    assertFolderId(data.medicalCenterId, 'medicalCenterId');
-    assertFolderId(data.appointmentId, 'appointmentId');
-    const relativePath = path.join(
-      data.uploadedBy,
-      data.medicalCenterId,
-      data.appointmentId,
-    );
-    const fullDir = resolveUploadPath(this.uploadsDir, relativePath);
-    fs.mkdirSync(fullDir, { recursive: true });
-
-    // Nombre único para evitar colisiones
-    const ext = path.extname(path.basename(file.originalname));
-    const storedName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
-    const fullPath = resolveUploadPath(this.uploadsDir, relativePath, storedName);
-
-    // Guardar archivo binario
-    fs.writeFileSync(fullPath, file.buffer);
-
-    // Ruta relativa a guardar en BD
-    const filePathRelative = path.join(relativePath, storedName).replace(/\\/g, '/');
 
     // Crear registro en BD
     const record = this.appointmentFileRepository.create({

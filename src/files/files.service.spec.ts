@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, PayloadTooLargeException } from '@nestjs/common';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -103,6 +103,32 @@ describe('FilesService — path traversal (M-08)', () => {
     const full = path.resolve(uploadsDir, saved.filePath);
     expect(full.startsWith(path.resolve(uploadsDir) + path.sep)).toBe(true);
     expect(fs.existsSync(full)).toBe(true);
+  });
+
+  it('uploadAppointmentFile: archivo de multer en disco se mueve sin buffer (M-50)', async () => {
+    const { service, uploadsDir } = setup();
+    const tmp = path.join(uploadsDir, 'staged.upload');
+    fs.writeFileSync(tmp, 'imagen');
+    const saved = await service.uploadAppointmentFile(
+      { originalname: 'm.png', mimetype: 'image/png', size: 6, path: tmp } as any,
+      { appointmentId: UUID, patientId: UUID, medicalCenterId: UUID, uploadedBy: UUID },
+    );
+    expect(fs.readFileSync(path.resolve(uploadsDir, saved.filePath), 'utf8')).toBe('imagen');
+    expect(fs.existsSync(tmp)).toBe(false);
+  });
+
+  it('uploadAppointmentFile: imagen de más de 20 MB → 413 y borra el temporal (M-50)', async () => {
+    const { service, uploadsDir, appointmentFileRepo } = setup();
+    const tmp = path.join(uploadsDir, 'big.upload');
+    fs.writeFileSync(tmp, 'x');
+    await expect(
+      service.uploadAppointmentFile(
+        { originalname: 'm.jpg', mimetype: 'image/jpeg', size: 21 * 1024 * 1024, path: tmp } as any,
+        { appointmentId: UUID, patientId: UUID, medicalCenterId: UUID, uploadedBy: UUID },
+      ),
+    ).rejects.toThrow(PayloadTooLargeException);
+    expect(fs.existsSync(tmp)).toBe(false);
+    expect(appointmentFileRepo.save).not.toHaveBeenCalled();
   });
 
   it('serveAppointmentFile: un filePath de BD que sale de uploads → 400', async () => {

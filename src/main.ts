@@ -36,8 +36,9 @@ async function bootstrap() {
   app.setBaseViewsDir(join(__dirname, '..', 'src'));
   app.setViewEngine('hbs');
   app.use(cookieParser());
-  app.use(express.json({ limit: '350mb' }));
-  app.use(express.urlencoded({ limit: '350mb', extended: true }));
+  // 30 MB: cubre el video base64 (MAX_VIDEO_MB = 20 → ~27 MB); los archivos van por multipart (M-50)
+  app.use(express.json({ limit: '30mb' }));
+  app.use(express.urlencoded({ limit: '30mb', extended: true }));
 
   // 🔹 Vistas para logs
   app.useStaticAssets(join(__dirname, '..', 'src', 'logs', 'views'), {

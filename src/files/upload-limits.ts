@@ -9,8 +9,11 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { MulterOptions } from '@nestjs/platform-express/multer/interfaces/multer-options.interface';
+import * as fs from 'fs';
 import * as multer from 'multer';
+import { randomUUID } from 'crypto';
 import { Observable, catchError, throwError } from 'rxjs';
+import { resolveUploadPath } from './upload-path.util';
 
 export const MB = 1024 * 1024;
 
@@ -54,4 +57,20 @@ export function FileUpload(field: string, maxBytes: number, options: MulterOptio
       }),
     ),
   );
+}
+
+/** Multer disk storage in `uploads/.tmp`; the service moves the file to its final folder. */
+export function uploadTmpStorage(): multer.StorageEngine {
+  return multer.diskStorage({
+    destination: (_req, _file, cb) => {
+      try {
+        const dir = resolveUploadPath(process.env.UPLOADS_PATH || 'uploads', '.tmp');
+        fs.mkdirSync(dir, { recursive: true });
+        cb(null, dir);
+      } catch (err) {
+        cb(err as Error, '');
+      }
+    },
+    filename: (_req, _file, cb) => cb(null, `${randomUUID()}.upload`),
+  });
 }

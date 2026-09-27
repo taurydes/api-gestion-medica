@@ -36,6 +36,7 @@ import { ModuleItemsMenu } from 'src/menu/menu.const';
 import { PermissionActionsMenu } from 'src/permission/permission.const';
 import { Permission } from 'src/auth/decorators/permission.decorator';
 import { GetUser } from 'src/auth/decorators/get-user.decorator';
+import { DICOM_MAX_BYTES, FileUpload, uploadTmpStorage } from './upload-limits';
 
 @ApiTags('Files & Videos')
 @ApiBearerAuth()
@@ -140,11 +141,8 @@ export class FilesController {
   })
   @ApiConsumes('multipart/form-data')
   @Post('appointment-upload')
-  @UseInterceptors(
-    FileInterceptor('file', {
-      limits: { fileSize: 300 * 1024 * 1024 }, // 300MB límite (DICOM/tomosíntesis)
-    }),
-  )
+  // En disco (uploads/.tmp) y no en memoria: DICOM hasta 100 MB, imágenes hasta 20 MB (M-50)
+  @FileUpload('file', DICOM_MAX_BYTES, { storage: uploadTmpStorage() })
   @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.CREATE}`)
   async uploadAppointmentFile(
     @UploadedFile() file: Express.Multer.File,
@@ -490,7 +488,7 @@ export class FilesController {
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
-    description: 'Archivo DICOM (.dcm) sin compresión, máx. 300 MB',
+    description: 'Archivo DICOM (.dcm) sin compresión, máx. 100 MB',
     schema: {
       type: 'object',
       properties: {
@@ -500,12 +498,8 @@ export class FilesController {
     },
   })
   @Post('dicom-convert')
-  @UseInterceptors(
-    FileInterceptor('file', {
-      storage: multer.memoryStorage(),
-      limits: { fileSize: 300 * 1024 * 1024 },
-    }),
-  )
+  // dicom-parser necesita el buffer completo: el tope acota el pico de memoria (M-50)
+  @FileUpload('file', DICOM_MAX_BYTES)
   // Escribe los frames en disco: es una acción de creación, no de consulta
   @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.CREATE}`)
   async convertDicom(
