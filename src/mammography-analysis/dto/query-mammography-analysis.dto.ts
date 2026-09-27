@@ -63,7 +63,7 @@ export class QueryMammographyAnalysisDto {
   @IsBoolean()
   isReviewed?: boolean;
 
-  @ApiPropertyOptional({ description: 'Probabilidad mínima (0-100)' })
+  @ApiPropertyOptional({ description: 'Probabilidad mínima de malignidad (0-100), no la confianza en la clase' })
   @IsOptional()
   @Type(() => Number)
   @IsNumber()

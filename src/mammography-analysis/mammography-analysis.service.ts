@@ -32,6 +32,8 @@ import { CreateMammographyAnalysisDto } from './dto/create-mammography-analysis.
 import { QueryMammographyAnalysisDto } from './dto/query-mammography-analysis.dto';
 import { ReviewMammographyAnalysisDto } from './dto/review-mammography-analysis.dto';
 
+const HIGH_RISK_MALIGNANCY = 80;
+
 interface SourceImage {
   buffer: Buffer;
   mimeType: string;
@@ -309,7 +311,7 @@ export class MammographyAnalysisService {
       });
     }
     if (query.minProbability !== undefined) {
-      qb.andWhere('analysis.probability >= :minProbability', {
+      qb.andWhere('analysis.malignancyProbability >= :minProbability', {
         minProbability: query.minProbability,
       });
     }
@@ -332,6 +334,7 @@ export class MammographyAnalysisService {
         appointmentId: string | null;
         appointment: any;
         maxProbability: number;
+        maxMalignancyProbability: number | null;
         hasDanger: boolean;
         maxUrgency: number;
         analyses: any[];
@@ -348,6 +351,7 @@ export class MammographyAnalysisService {
             ? this.serializeAppointment(r.appointment)
             : null,
           maxProbability: Number(r.probability),
+          maxMalignancyProbability: numberOrNull(r.malignancyProbability),
           hasDanger: r.status === 'danger',
           maxUrgency: score,
           analyses: [],
@@ -355,6 +359,10 @@ export class MammographyAnalysisService {
       }
       const g = groupsMap.get(key)!;
       g.maxProbability = Math.max(g.maxProbability, Number(r.probability));
+      const malignancy = numberOrNull(r.malignancyProbability);
+      if (malignancy !== null) {
+        g.maxMalignancyProbability = Math.max(g.maxMalignancyProbability ?? 0, malignancy);
+      }
       g.hasDanger = g.hasDanger || r.status === 'danger';
       g.maxUrgency = Math.max(g.maxUrgency, score);
       g.analyses.push(this.serialize(r));
@@ -404,7 +412,7 @@ export class MammographyAnalysisService {
       qb.andWhere('analysis.status = :status', { status: query.status });
     }
     if (query.minProbability !== undefined) {
-      qb.andWhere('analysis.probability >= :minProbability', {
+      qb.andWhere('analysis.malignancyProbability >= :minProbability', {
         minProbability: query.minProbability,
       });
     }
@@ -534,6 +542,7 @@ export class MammographyAnalysisService {
         'analysis.id',
         'analysis.status',
         'analysis.probability',
+        'analysis.malignancyProbability',
         'analysis.isReviewed',
       ]);
     this.applyDoctorScope(statsQb, scope);
@@ -542,7 +551,10 @@ export class MammographyAnalysisService {
     const total = all.length;
     const danger = all.filter((a) => a.status === 'danger').length;
     const pending = all.filter((a) => !a.isReviewed).length;
-    const highRisk = all.filter((a) => Number(a.probability) >= 80).length;
+    // Alto riesgo = probabilidad de malignidad >= 80 (M-40); `probability` es la confianza en la clase.
+    const highRisk = all.filter(
+      (a) => a.malignancyProbability !== null && Number(a.malignancyProbability) >= HIGH_RISK_MALIGNANCY,
+    ).length;
 
     return {
       dateFrom: query.dateFrom ?? query.date ?? this.todayIsoDate(),
