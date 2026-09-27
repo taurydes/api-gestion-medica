@@ -2,6 +2,7 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   HttpException,
   Inject,
   Injectable,
@@ -36,9 +37,12 @@ import { Specialty } from 'src/parameters/entities/specialty.entity';
 import { FilesService } from 'src/files/files.service';
 import { RedisSessionService } from 'src/redis-session/redis-session.service';
 import {
+  USER_CENTERS_CHANGE_PERMISSION,
   resolveAdminFieldChanges,
   revokeSessionOrFail,
 } from './user-admin-fields';
+import { UserMedicalCenter } from './entities/user-medical-center.entity';
+import { findUserCenters, replaceUserCenters } from './user-centers';
 import { toHttpException } from 'src/common/exceptions/to-http-exception';
 
 export {
@@ -66,7 +70,21 @@ export class UserService {
     private readonly dataSource: DataSource,
 
     private readonly redisSession: RedisSessionService,
+
+    @InjectRepository(UserMedicalCenter, DatabaseConnectionName.DB_MAIN)
+    private readonly userCentersRepo: Repository<UserMedicalCenter>,
   ) {}
+
+  private assertCanChangeCenters(centerIds: string[] | undefined, actorPermissions: string[]): void {
+    if (centerIds !== undefined && !actorPermissions.includes(USER_CENTERS_CHANGE_PERMISSION)) {
+      throw new ForbiddenException('No tiene permiso para asignar centros médicos al usuario.');
+    }
+  }
+
+  private async centerSummaries(userId: string): Promise<Array<{ id: string; name: string }>> {
+    const centers = await findUserCenters(this.userCentersRepo, userId);
+    return centers.map(({ id, name }) => ({ id, name }));
+  }
 
   private async getUserImageUrl(commonPersonId: string): Promise<string | null> {
     const img = await this.commonPersonImageRepo.findOne({
@@ -141,13 +159,23 @@ export class UserService {
   // 🟢 Crear usuario
   // ============================================================
 
-  async create(dto: CreateUserDto): Promise<Omit<User, 'password'>> {
+  async create(
+    dto: CreateUserDto,
+    actorPermissions: string[] = [],
+    actorId: string | null = null,
+  ): Promise<Omit<User, 'password'>> {
+    this.assertCanChangeCenters(dto.medicalCenterIds, actorPermissions);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
-      const { commonPerson: commonPersonDto, doctor: doctorDto, ...data } = dto;
+      const {
+        commonPerson: commonPersonDto,
+        doctor: doctorDto,
+        medicalCenterIds,
+        ...data
+      } = dto;
 
       // 1. Validar usuario existente (email / nombre)
       await this.validateUserData(dto);
@@ -178,6 +206,9 @@ export class UserService {
       });
       // users.common_person_id is the only link (M-23); a person that already has a user fails with 23505 → 409.
       await queryRunner.manager.save(user);
+      if (medicalCenterIds?.length) {
+        await replaceUserCenters(queryRunner.manager, user.id, medicalCenterIds, actorId);
+      }
 
       // 4. Crear Doctor (si aplica)
       let savedDoctor: Doctor | null = null;
@@ -357,7 +388,8 @@ export class UserService {
       ? await this.getUserImageUrl(rest.commonPerson.id)
       : null;
 
-    const result = { ...rest, imageUrl } as any;
+    const medicalCenters = await this.centerSummaries(id);
+    const result = { ...rest, imageUrl, medicalCenters } as any;
 
     await this.cacheManager.set(cacheKey, result, 600);
 
@@ -376,6 +408,7 @@ export class UserService {
     id: string,
     dto: UpdateUserDto,
     actorPermissions: string[] = [],
+    actorId: string | null = null,
   ): Promise<Omit<User, 'password'> | null> {
     try {
       const exists = await this.repo.findOne({
@@ -393,8 +426,10 @@ export class UserService {
         password: _password,
         roleId,
         status,
+        medicalCenterIds,
         ...userFields
       } = dto as any;
+      this.assertCanChangeCenters(medicalCenterIds, actorPermissions);
 
       const { fields, deactivates } = resolveAdminFieldChanges(
         exists,
@@ -424,6 +459,9 @@ export class UserService {
           await manager
             .getRepository(CommonPerson)
             .update(exists.commonPerson.id, commonPersonDto);
+        }
+        if (medicalCenterIds !== undefined) {
+          await replaceUserCenters(manager, id, medicalCenterIds, actorId);
         }
       });
 
@@ -512,7 +550,12 @@ export class UserService {
     const imageUrl = rest.commonPerson?.id
       ? await this.getUserImageUrl(rest.commonPerson.id)
       : null;
-    return { ...rest, role: role ? { id: role.id, name: role.name } : null, imageUrl };
+    return {
+      ...rest,
+      role: role ? { id: role.id, name: role.name } : null,
+      imageUrl,
+      medicalCenters: await this.centerSummaries(userId),
+    };
   }
 
   /** Perfil propio: solo email y datos de persona; nunca rol, estado ni contraseña. */

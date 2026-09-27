@@ -19,6 +19,7 @@ import { Doctor } from 'src/doctors/entities/doctor.entity';
 import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity';
 import { Specialty } from 'src/parameters/entities/specialty.entity';
 import { FilesModule } from 'src/files/files.module';
+import { UserMedicalCenter } from './entities/user-medical-center.entity';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { FilesModule } from 'src/files/files.module';
         Doctor,
         MedicalCenter,
         Specialty,
+        UserMedicalCenter,
       ],
       DatabaseConnectionName.DB_MAIN,
     ),

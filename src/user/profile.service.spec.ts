@@ -87,6 +87,7 @@ describe('GET /auth/profile: perfil propio sin permiso de módulo (fase 2)', () 
     const files = { getCommonPersonImageUrl: jest.fn((id: string) => `/files/common-person-image/${id}`) };
     const userService = new UserService(
       repo as any, {} as any, images as any, files as any, {} as any, {} as any, {} as any,
+      { find: jest.fn().mockResolvedValue([{ medicalCenter: { id: 'mc1', name: 'Centro 1', address: 'x' } }]) } as any,
     );
 
     const profile: any = await userService.getOwnProfile('u1');
@@ -95,6 +96,7 @@ describe('GET /auth/profile: perfil propio sin permiso de módulo (fase 2)', () 
     expect(profile.role).toEqual({ id: 'r1', name: 'enfermero' });
     expect(profile.commonPerson).toMatchObject({ firstName: 'Marta', phoneNumber: '04141234567' });
     expect(profile.imageUrl).toBe('/files/common-person-image/img1');
+    expect(profile.medicalCenters).toEqual([{ id: 'mc1', name: 'Centro 1' }]);
     expect(repo.findOne.mock.calls[0][0].where.id).toBe('u1');
   });
 

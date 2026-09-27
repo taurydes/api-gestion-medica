@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsArray,
   IsBoolean,
   IsEmail,
   IsNotEmpty,
@@ -74,6 +75,16 @@ export class CreateUserDto {
   // Without it the nested object skipped validation and whitelist: any field reached the entity.
   @ValidateNested()
   commonPerson: CreateCommonPersonDto;
+
+  @ApiPropertyOptional({
+    description:
+      'Centros médicos del usuario (personal no médico). Reemplaza el conjunto; exige role.actualizar',
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('all', { each: true, message: 'Cada medicalCenterId debe ser un UUID válido' })
+  medicalCenterIds?: string[];
 
   @ApiPropertyOptional({
     description: 'Datos del doctor (si el usuario es un médico)',

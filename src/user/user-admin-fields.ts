@@ -8,6 +8,8 @@ import { RedisSessionService } from 'src/redis-session/redis-session.service';
 
 /** Cambiar el rol de un usuario exige administrar roles (hoy solo `superusuario`). */
 export const USER_ROLE_CHANGE_PERMISSION = `${ModuleItemsMenu.RoleModule}.${PermissionActionsMenu.UPDATE}`;
+/** Asignar centros a un usuario es una tarea de administración: misma regla que cambiar el rol. */
+export const USER_CENTERS_CHANGE_PERMISSION = USER_ROLE_CHANGE_PERMISSION;
 /** Activar o desactivar un usuario equivale a darlo de baja: exige `user.eliminar`. */
 export const USER_STATUS_CHANGE_PERMISSION = `${ModuleItemsMenu.UserModule}.${PermissionActionsMenu.DELETE}`;
 

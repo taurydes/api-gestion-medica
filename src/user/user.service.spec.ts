@@ -82,6 +82,7 @@ function setup() {
     cache as any,
     dataSource as any,
     redisSession as any,
+    {} as any,
   );
   return { service, repo, commonPersonRepo, redisSession, queryRunner, queryRunnerRepo, committed };
 }

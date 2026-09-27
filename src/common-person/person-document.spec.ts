@@ -43,6 +43,7 @@ function userServiceWith(personRepo: FakeRepo) {
     cache as any,
     { createQueryRunner: () => queryRunner } as any,
     {} as any,
+    {} as any,
   );
   return { service, saved };
 }

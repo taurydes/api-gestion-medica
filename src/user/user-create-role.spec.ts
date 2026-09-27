@@ -49,6 +49,7 @@ function setup(roles: Array<Partial<Role>>) {
     cache as any,
     { createQueryRunner: () => queryRunner } as any,
     {} as any,
+    {} as any,
   );
   const savedUser = () => saved.find((row) => row.__entity === User);
   return { service, savedUser, queryRunner };

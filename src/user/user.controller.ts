@@ -38,8 +38,8 @@ export class UserController {
   })
   @Post()
   @Permission(`${ModuleItemsMenu.UserModule}.${PermissionActionsMenu.CREATE}`)
-  create(@Body() createUserDto: CreateUserDto) {
-    return this.userService.create(createUserDto);
+  create(@Body() createUserDto: CreateUserDto, @Req() req: any) {
+    return this.userService.create(createUserDto, req.userPermissions ?? [], req.user?.id ?? null);
   }
 
   /**
@@ -86,7 +86,7 @@ export class UserController {
     @Req() req: any,
   ) {
     // PermissionsGuard deja en la request los permisos del actor
-    return this.userService.update(id, updateUserDto, req.userPermissions ?? []);
+    return this.userService.update(id, updateUserDto, req.userPermissions ?? [], req.user?.id ?? null);
   }
 
   /**
