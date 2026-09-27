@@ -1,3 +1,4 @@
+import { UserMedicalCenter } from 'src/user/entities/user-medical-center.entity';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
@@ -18,7 +19,7 @@ dotenv.config();
 @Module({
   imports: [
     TypeOrmModule.forFeature(
-      [User, UserSecurity],
+      [User, UserSecurity, UserMedicalCenter],
       DatabaseConnectionName.DB_MAIN,
     ),
     PassportModule,

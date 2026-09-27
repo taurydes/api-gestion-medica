@@ -12,6 +12,8 @@ import { User } from '../user/entities/user.entity';
 import { JwtPayload } from './auth.const';
 import { LoginUserDto } from './dto/login-auth.dto';
 import { MedicalCenterSummaryDto } from './dto/medical-center-summary.dto';
+import { UserMedicalCenter } from 'src/user/entities/user-medical-center.entity';
+import { findUserCenters } from 'src/user/user-centers';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { AuthUser } from './interfaces/User';
 import { PermissionService } from 'src/permission/services/permission.service';
@@ -40,6 +42,9 @@ export class AuthService {
     private readonly redisSession: RedisSessionService,
     private readonly permissionService: PermissionService,
     private readonly authContextService: AuthContextService,
+
+    @InjectRepository(UserMedicalCenter, DatabaseConnectionName.DB_MAIN)
+    private readonly userCentersRepo: Repository<UserMedicalCenter>,
   ) {}
 
   // ======================================================
@@ -307,16 +312,18 @@ export class AuthService {
 
     if (!isSystemUser) {
       doctorId = await this.authContextService.getDoctorIdForUser(userId);
-      if (doctorId) {
-        const centers =
-          await this.authContextService.getMedicalCentersForDoctor(doctorId);
-        medicalCenters = centers.map((mc) => ({
-          id: mc.id,
-          name: mc.name,
-          address: mc.address ?? null,
-          isActive: mc.isActive,
-        }));
-      }
+      // Union of the doctor's centers and the staff link (users_medical_centers), deduped by id.
+      const centers = [
+        ...(doctorId ? await this.authContextService.getMedicalCentersForDoctor(doctorId) : []),
+        ...(await findUserCenters(this.userCentersRepo, userId)),
+      ];
+      const byId = new Map(centers.map((mc) => [mc.id, mc]));
+      medicalCenters = [...byId.values()].map((mc) => ({
+        id: mc.id,
+        name: mc.name,
+        address: mc.address ?? null,
+        isActive: mc.isActive,
+      }));
     }
 
     const data = {

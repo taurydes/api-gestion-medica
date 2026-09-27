@@ -47,6 +47,7 @@ async function setup(userOverrides: Record<string, any> = {}) {
     redis as any,
     {} as any,
     {} as any,
+    {} as any,
   );
   return { service, redis, sessions, user };
 }
