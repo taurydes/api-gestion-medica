@@ -9,6 +9,7 @@ import { MammographyAnalysisController } from './mammography-analysis.controller
 import { AppointmentFile } from 'src/files/entities/appointment-file.entity';
 import { MedicalAppointment } from 'src/medical-appointments/entities/medical-appointment.entity';
 import { User } from 'src/user/entities/user.entity';
+import { DetectorClient } from './detector/detector.client';
 
 @Module({
   imports: [
@@ -19,7 +20,7 @@ import { User } from 'src/user/entities/user.entity';
     ),
   ],
   controllers: [MammographyAnalysisController],
-  providers: [MammographyAnalysisService],
+  providers: [MammographyAnalysisService, DetectorClient],
   exports: [MammographyAnalysisService],
 })
 export class MammographyAnalysisModule {}

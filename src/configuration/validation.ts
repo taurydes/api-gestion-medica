@@ -91,4 +91,15 @@ export const validationSchema = Joi.object({
   // ---------------------------
   CACHE_TTL: Joi.number().default(3600),
   CACHE_MAX: Joi.number().default(1000),
+
+  // ---------------------------
+  // 🔹 Detector de cáncer de mama (servicio ML)
+  // ---------------------------
+  DETECTOR_URL: Joi.string().uri({ scheme: ['http', 'https'] }).required().messages({
+    'any.required': '❌ DETECTOR_URL es obligatorio',
+  }),
+  DETECTOR_SECRET: Joi.string().required().messages({
+    'any.required': '❌ DETECTOR_SECRET es obligatorio',
+  }),
+  DETECTOR_TIMEOUT_MS: Joi.number().integer().min(1000).default(30000),
 });
