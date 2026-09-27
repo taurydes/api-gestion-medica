@@ -5,7 +5,7 @@ import {
   UnprocessableEntityException,
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
-import { DETECTOR_MESSAGES, DetectorClient } from './detector.client';
+import { DETECTOR_MESSAGES, DetectorClient, sniffMimeType } from './detector.client';
 
 const config = {
   get: (key: string) =>
@@ -111,5 +111,14 @@ describe('DetectorClient (M-39)', () => {
     await expect(new DetectorClient(config as any).predict(image)).rejects.toThrow(
       ServiceUnavailableException,
     );
+  });
+});
+
+describe('sniffMimeType', () => {
+  it('uses the magic bytes over the declared type', () => {
+    expect(sniffMimeType(Buffer.from([0xff, 0xd8, 0xff, 0xe0]), 'application/octet-stream')).toBe('image/jpeg');
+    expect(sniffMimeType(Buffer.from('89504e470d0a1a0a00', 'hex'), 'image/jpg')).toBe('image/png');
+    expect(sniffMimeType(Buffer.from('xx'), 'image/jpg')).toBe('image/jpeg');
+    expect(sniffMimeType(Buffer.from('xx'), 'image/tiff')).toBe('image/tiff');
   });
 });
