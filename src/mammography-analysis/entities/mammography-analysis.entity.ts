@@ -11,12 +11,19 @@ import {
   ManyToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
+  ValueTransformer,
 } from 'typeorm';
 
 export enum MammographyAnalysisPrediction {
   MALIGNANT = 'MALIGNANT',
   BENIGN = 'BENIGN',
 }
+
+/** `pg` returns numeric as string; the API exposes numbers. */
+const numericTransformer: ValueTransformer = {
+  to: (value: number | null | undefined) => value,
+  from: (value: string | null) => (value === null || value === undefined ? null : Number(value)),
+};
 
 export enum MammographyAnalysisStatus {
   DANGER = 'danger',
@@ -64,14 +71,40 @@ export class MammographyAnalysis {
   })
   prediction: MammographyAnalysisPrediction;
 
-  /** Probabilidad 0-100. Decimal para preservar precisión del ML */
+  /** Confianza del modelo en la clase predicha (0-100), no la probabilidad de malignidad. */
   @Column({
     name: 'probability',
     type: 'decimal',
     precision: 5,
     scale: 2,
+    transformer: numericTransformer,
   })
   probability: number;
+
+  /** Probabilidad de malignidad (0-100); es la que usan `highRisk` y `minProbability`. */
+  @Column({
+    name: 'malignancy_probability',
+    type: 'decimal',
+    precision: 5,
+    scale: 2,
+    nullable: true,
+    transformer: numericTransformer,
+  })
+  malignancyProbability: number | null;
+
+  /** Salida cruda de la sigmoide (0-1): permite recalcular si cambia el orden de clases. */
+  @Column({ name: 'raw_score', type: 'double precision', nullable: true })
+  rawScore: number | null;
+
+  @Column({ name: 'threshold', type: 'double precision', nullable: true })
+  threshold: number | null;
+
+  @Column({ name: 'model_version', type: 'varchar', length: 100, nullable: true })
+  modelVersion: string | null;
+
+  /** Nota libre del médico al registrar el análisis. */
+  @Column({ name: 'notes', type: 'text', nullable: true })
+  notes: string | null;
 
   @Column({
     name: 'status',
