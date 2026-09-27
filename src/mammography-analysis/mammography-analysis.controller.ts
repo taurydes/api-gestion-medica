@@ -8,7 +8,6 @@ import {
   Query,
   Res,
   UploadedFile,
-  UseInterceptors,
   Req,
 } from '@nestjs/common';
 import {
@@ -18,8 +17,6 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import { FileInterceptor } from '@nestjs/platform-express';
-import * as multer from 'multer';
 import { Throttle } from '@nestjs/throttler';
 
 import { GetUser } from 'src/auth/decorators/get-user.decorator';
@@ -28,6 +25,7 @@ import { ModuleItemsMenu } from 'src/menu/menu.const';
 import { PermissionActionsMenu } from 'src/permission/permission.const';
 
 import { ParseUuid } from 'src/common/pipes/parse-uuid.pipe';
+import { ANALYSIS_IMAGE_MAX_BYTES, FileUpload } from 'src/files/upload-limits';
 import { MammographyAnalysisService } from './mammography-analysis.service';
 import { CreateMammographyAnalysisDto } from './dto/create-mammography-analysis.dto';
 import { QueryMammographyAnalysisDto } from './dto/query-mammography-analysis.dto';
@@ -43,50 +41,45 @@ export class MammographyAnalysisController {
   ) {}
 
   /* ============================================================
-   * REGISTRAR ANÁLISIS
+   * REGISTRAR ANÁLISIS (el backend corre el modelo)
    * ============================================================ */
   @ApiOperation({
-    summary: 'Registrar un análisis ML de mamografía',
+    summary: 'Analizar un archivo de cita y guardar el resultado',
     description:
-      'Persiste el resultado del clasificador junto a la imagen analizada. ' +
-      'Acepta multipart con la imagen y todos los metadatos del resultado.',
-  })
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    description: 'Imagen analizada + resultado del modelo ML',
-    schema: {
-      type: 'object',
-      properties: {
-        file: { type: 'string', format: 'binary' },
-        prediction: { type: 'string', enum: ['MALIGNANT', 'BENIGN'] },
-        probability: { type: 'number' },
-        status: { type: 'string', enum: ['danger', 'success'] },
-        label: { type: 'string' },
-        rawResponseJson: { type: 'string' },
-        appointmentId: { type: 'string' },
-        appointmentFileId: { type: 'string' },
-        patientId: { type: 'string' },
-        sourceFileName: { type: 'string' },
-      },
-      required: ['prediction', 'probability', 'status'],
-    },
+      'Carga la imagen almacenada del archivo de cita, la envía al detector y guarda la respuesta ' +
+      'del detector. El cliente no envía prediction/probability/status/rawResponseJson (400).',
   })
   @Post()
-  @UseInterceptors(
-    FileInterceptor('file', {
-      storage: multer.memoryStorage(),
-      limits: { fileSize: 300 * 1024 * 1024 },
-    }),
-  )
   @Permission(
     `${ModuleItemsMenu.MammographyAnalysisModule}.${PermissionActionsMenu.CREATE}`,
   )
-  create(
-    @UploadedFile() file: Express.Multer.File,
-    @Body() dto: CreateMammographyAnalysisDto,
-    @GetUser('id') userId: string,
-  ) {
-    return this.service.create(dto, file, userId);
+  create(@Body() dto: CreateMammographyAnalysisDto, @Req() req: any) {
+    return this.service.create(dto, req.user);
+  }
+
+  /* ============================================================
+   * VISTA PREVIA (sin guardar)
+   * ============================================================ */
+  @ApiOperation({
+    summary: 'Analizar una imagen sin guardar el resultado',
+    description:
+      'Multipart con `file` (PNG/JPEG o DICOM, máx. 20 MB). Devuelve el resultado del detector; no persiste nada.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { file: { type: 'string', format: 'binary' } },
+      required: ['file'],
+    },
+  })
+  @Post('preview')
+  @FileUpload('file', ANALYSIS_IMAGE_MAX_BYTES)
+  @Permission(
+    `${ModuleItemsMenu.MammographyAnalysisModule}.${PermissionActionsMenu.CREATE}`,
+  )
+  preview(@UploadedFile() file: Express.Multer.File) {
+    return this.service.preview(file);
   }
 
   /* ============================================================
@@ -129,7 +122,7 @@ export class MammographyAnalysisController {
   @ApiOperation({
     summary: 'Estadísticas diarias de análisis ML',
     description:
-      'Total, alertas (danger), pendientes de revisión y casos de alto riesgo (≥80%).',
+      'Total, alertas (danger), pendientes de revisión y casos de alto riesgo (probabilidad de malignidad ≥ 80 %).',
   })
   @Get('stats/daily')
   @Permission(

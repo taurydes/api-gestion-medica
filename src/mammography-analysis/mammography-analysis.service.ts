@@ -4,12 +4,14 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  PayloadTooLargeException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { IsNull, Repository } from 'typeorm';
 import * as fs from 'fs';
 import * as path from 'path';
+import { randomUUID } from 'crypto';
 
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { AppointmentFile } from 'src/files/entities/appointment-file.entity';
@@ -17,11 +19,24 @@ import { MedicalAppointment } from 'src/medical-appointments/entities/medical-ap
 import { User } from 'src/user/entities/user.entity';
 import { AuthContextService } from 'src/common/services/auth-context.service';
 import { resolveUploadPath } from 'src/files/upload-path.util';
+import { DicomConverterService } from 'src/files/dicom-converter.service';
+import {
+  ANALYSIS_IMAGE_MAX_BYTES,
+  DICOM_MAX_BYTES,
+  tooLargeMessage,
+} from 'src/files/upload-limits';
+import { DetectorClient } from './detector/detector.client';
 
 import { MammographyAnalysis } from './entities/mammography-analysis.entity';
 import { CreateMammographyAnalysisDto } from './dto/create-mammography-analysis.dto';
 import { QueryMammographyAnalysisDto } from './dto/query-mammography-analysis.dto';
 import { ReviewMammographyAnalysisDto } from './dto/review-mammography-analysis.dto';
+
+interface SourceImage {
+  buffer: Buffer;
+  mimeType: string;
+  fileName: string;
+}
 
 /** Médico al que se acota la consulta; `null` = sin restricción (admin o usuario que no es médico). */
 type DoctorScope = { doctorId: string; userId: string } | null;
@@ -48,6 +63,10 @@ export class MammographyAnalysisService {
     private readonly configService: ConfigService,
 
     private readonly authContextService: AuthContextService,
+
+    private readonly detector: DetectorClient,
+
+    private readonly dicomConverter: DicomConverterService,
   ) {
     this.uploadsDir =
       this.configService.get<string>('UPLOADS_PATH') || 'uploads';
@@ -58,96 +77,138 @@ export class MammographyAnalysisService {
   }
 
   /* ============================================================
-   * CREATE
+   * CREATE (M-39: el backend llama al detector y guarda su respuesta)
    * ============================================================ */
 
   async create(
     dto: CreateMammographyAnalysisDto,
-    file: Express.Multer.File | undefined,
-    userId: string | null,
-  ): Promise<MammographyAnalysis> {
-    // Si viene appointmentFileId, validamos y reutilizamos su path.
-    let imagePath: string | null = null;
-    let imageMimeType: string | null = null;
-    let resolvedPatientId = dto.patientId ?? null;
-    let resolvedAppointmentId = dto.appointmentId ?? null;
-
-    if (dto.appointmentFileId) {
-      const apptFile = await this.appointmentFileRepo.findOne({
-        where: { id: dto.appointmentFileId, deletedAt: IsNull() },
-      });
-      if (!apptFile) {
-        throw new NotFoundException(
-          'El archivo de mamografía indicado no existe.',
-        );
-      }
-      imagePath = apptFile.filePath;
-      imageMimeType = apptFile.mimeType;
-      resolvedPatientId = resolvedPatientId ?? apptFile.patientId;
-      resolvedAppointmentId = resolvedAppointmentId ?? apptFile.appointmentId;
+    authUser?: { id?: string },
+  ) {
+    const apptFile = await this.appointmentFileRepo.findOne({
+      where: { id: dto.appointmentFileId, deletedAt: IsNull() },
+    });
+    if (!apptFile) {
+      throw new NotFoundException('El archivo de mamografía indicado no existe.');
     }
-
-    // Si no hay file ni appointmentFileId, no podemos guardar imagen.
-    if (!dto.appointmentFileId && !file) {
-      throw new BadRequestException(
-        'Debe enviar un archivo de imagen o un appointmentFileId existente.',
-      );
+    if (dto.appointmentId && dto.appointmentId !== apptFile.appointmentId) {
+      throw new BadRequestException('appointmentId no corresponde al archivo indicado.');
     }
-
-    // Si nos enviaron una imagen nueva, la guardamos en uploads/mammography-analyses/...
-    if (file) {
-      const allowedMimes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
-      if (!allowedMimes.includes(file.mimetype)) {
-        throw new BadRequestException(
-          `Tipo de imagen no permitido: ${file.mimetype}.`,
-        );
-      }
-
-      const folder = resolvedAppointmentId ?? 'standalone';
-      const relativeDir = path.join('mammography-analyses', folder);
-      const fullDir = path.join(process.cwd(), this.uploadsDir, relativeDir);
-      fs.mkdirSync(fullDir, { recursive: true });
-
-      const ext = this.extFromMime(file.mimetype) || path.extname(file.originalname) || '.png';
-      const storedName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
-      const fullPath = path.join(fullDir, storedName);
-      fs.writeFileSync(fullPath, file.buffer);
-
-      imagePath = path.join(relativeDir, storedName).replace(/\\/g, '/');
-      imageMimeType = file.mimetype;
+    if (dto.patientId && dto.patientId !== apptFile.patientId) {
+      throw new BadRequestException('patientId no corresponde al archivo indicado.');
     }
+    await this.assertAppointmentAccess(
+      apptFile.appointmentId,
+      await this.resolveDoctorScope(authUser),
+    );
 
-    let rawResponse: Record<string, any> | null = null;
-    if (dto.rawResponseJson) {
-      try {
-        rawResponse = JSON.parse(dto.rawResponseJson);
-      } catch {
-        rawResponse = { raw: dto.rawResponseJson };
-      }
+    const stored = await this.readStoredFile(apptFile);
+    const image = await this.prepareForDetector(stored);
+    const result = await this.detector.predict(image);
+
+    // Un DICOM se guarda como el JPEG que vio el modelo, para poder servirlo y re-inferir.
+    let imagePath = apptFile.filePath;
+    let imageMimeType = apptFile.mimeType;
+    if (image.converted) {
+      imagePath = this.storeAnalyzedImage(apptFile.appointmentId, image.buffer);
+      imageMimeType = image.mimeType;
     }
-
-    // Defensa de FK: el id del JWT podría no estar en public.users (admin,
-    // super-admin u otra identidad externa). Validamos antes de asignarlo
-    // para no reventar la FK; si no existe, se guarda como null y se loguea.
-    const resolvedAnalyzedBy = await this.resolveAnalyzedBy(userId);
 
     const record = this.analysisRepo.create({
-      appointmentId: resolvedAppointmentId,
-      appointmentFileId: dto.appointmentFileId ?? null,
-      patientId: resolvedPatientId,
-      analyzedBy: resolvedAnalyzedBy,
-      prediction: dto.prediction,
-      probability: dto.probability,
-      status: dto.status,
-      label: dto.label ?? null,
-      rawResponse,
+      appointmentId: apptFile.appointmentId,
+      appointmentFileId: apptFile.id,
+      patientId: apptFile.patientId,
+      analyzedBy: await this.resolveAnalyzedBy(authUser?.id ?? null),
+      prediction: result.prediction,
+      probability: result.probability,
+      malignancyProbability: result.malignancyProbability,
+      rawScore: result.rawScore,
+      threshold: result.threshold,
+      modelVersion: result.modelVersion,
+      status: result.status,
+      label: result.label,
+      rawResponse: result.raw,
+      notes: dto.notes ?? null,
       imagePath,
       imageMimeType,
-      sourceFileName: dto.sourceFileName ?? file?.originalname ?? null,
+      sourceFileName: dto.sourceFileName ?? apptFile.originalName ?? null,
       isReviewed: false,
     });
 
-    return this.analysisRepo.save(record);
+    return this.serialize(await this.analysisRepo.save(record));
+  }
+
+  /** Corre el modelo sobre una imagen subida sin guardar nada (detector independiente). */
+  async preview(file: Express.Multer.File | undefined) {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('Debe enviar un archivo de imagen en el campo "file".');
+    }
+    const image = await this.prepareForDetector({
+      buffer: file.buffer,
+      mimeType: file.mimetype,
+      fileName: file.originalname || 'imagen',
+    });
+    const r = await this.detector.predict(image);
+    return {
+      prediction: r.prediction,
+      probability: r.probability,
+      malignancyProbability: r.malignancyProbability,
+      rawScore: r.rawScore,
+      threshold: r.threshold,
+      modelVersion: r.modelVersion,
+      status: r.status,
+      label: r.label,
+    };
+  }
+
+  private async readStoredFile(apptFile: AppointmentFile): Promise<SourceImage> {
+    const fullPath = resolveUploadPath(this.uploadsDir, apptFile.filePath);
+    let size: number;
+    try {
+      size = (await fs.promises.stat(fullPath)).size;
+    } catch {
+      throw new NotFoundException('El archivo de imagen no existe en el servidor.');
+    }
+    if (size > DICOM_MAX_BYTES) {
+      throw new PayloadTooLargeException(tooLargeMessage(DICOM_MAX_BYTES));
+    }
+    return {
+      buffer: await fs.promises.readFile(fullPath),
+      mimeType: apptFile.mimeType,
+      fileName: apptFile.originalName || path.basename(apptFile.filePath),
+    };
+  }
+
+  /** DICOM -> JPEG del primer frame; una imagen raster pasa tal cual si cabe en el tope del detector. */
+  private async prepareForDetector(src: SourceImage): Promise<SourceImage & { converted: boolean }> {
+    if (DicomConverterService.isDicom(src.buffer)) {
+      const jpeg = await this.dicomConverter.renderFrameJpeg(src.buffer);
+      const base = path.parse(src.fileName).name || 'dicom';
+      return { buffer: jpeg, mimeType: 'image/jpeg', fileName: `${base}.jpg`, converted: true };
+    }
+    if (src.buffer.length > ANALYSIS_IMAGE_MAX_BYTES) {
+      throw new PayloadTooLargeException(tooLargeMessage(ANALYSIS_IMAGE_MAX_BYTES));
+    }
+    return { ...src, converted: false };
+  }
+
+  private storeAnalyzedImage(appointmentId: string, jpeg: Buffer): string {
+    const relativeDir = path.posix.join('mammography-analyses', appointmentId);
+    fs.mkdirSync(resolveUploadPath(this.uploadsDir, relativeDir), { recursive: true });
+    const storedName = `${Date.now()}-${randomUUID().slice(0, 8)}.jpg`;
+    fs.writeFileSync(resolveUploadPath(this.uploadsDir, relativeDir, storedName), jpeg);
+    return path.posix.join(relativeDir, storedName);
+  }
+
+  /** Un médico solo analiza archivos de sus propias citas. */
+  private async assertAppointmentAccess(appointmentId: string, scope: DoctorScope): Promise<void> {
+    if (!scope) return;
+    const appointment = await this.appointmentRepo.findOne({
+      where: { id: appointmentId },
+      select: ['id', 'doctorId'],
+    });
+    if (appointment?.doctorId !== scope.doctorId) {
+      throw new ForbiddenException('No tiene acceso a este archivo.');
+    }
   }
 
   /**
@@ -556,8 +617,13 @@ export class MammographyAnalysisService {
       analyzedBy: r.analyzedBy,
       prediction: r.prediction,
       probability: Number(r.probability),
+      malignancyProbability: numberOrNull(r.malignancyProbability),
+      rawScore: r.rawScore ?? null,
+      threshold: r.threshold ?? null,
+      modelVersion: r.modelVersion ?? null,
       status: r.status,
       label: r.label,
+      notes: r.notes ?? null,
       isReviewed: r.isReviewed,
       reviewedBy: r.reviewedBy,
       reviewedAt: r.reviewedAt,
@@ -609,20 +675,6 @@ export class MammographyAnalysisService {
     return parts.join(' ').trim();
   }
 
-  private extFromMime(mime: string): string | null {
-    switch (mime) {
-      case 'image/png':
-        return '.png';
-      case 'image/jpeg':
-      case 'image/jpg':
-        return '.jpg';
-      case 'image/webp':
-        return '.webp';
-      default:
-        return null;
-    }
-  }
-
   private todayIsoDate(): string {
     const now = new Date();
     const y = now.getFullYear();
@@ -630,4 +682,8 @@ export class MammographyAnalysisService {
     const d = String(now.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
   }
+}
+
+function numberOrNull(value: unknown): number | null {
+  return value === null || value === undefined ? null : Number(value);
 }

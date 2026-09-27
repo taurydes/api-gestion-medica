@@ -10,10 +10,12 @@ import { AppointmentFile } from 'src/files/entities/appointment-file.entity';
 import { MedicalAppointment } from 'src/medical-appointments/entities/medical-appointment.entity';
 import { User } from 'src/user/entities/user.entity';
 import { DetectorClient } from './detector/detector.client';
+import { FilesModule } from 'src/files/files.module';
 
 @Module({
   imports: [
     CommonModule,
+    FilesModule,
     TypeOrmModule.forFeature(
       [MammographyAnalysis, AppointmentFile, MedicalAppointment, User],
       DatabaseConnectionName.DB_MAIN,

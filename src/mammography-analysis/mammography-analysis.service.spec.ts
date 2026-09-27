@@ -29,6 +29,8 @@ function build(scopedDoctorId: string | null, record: any = null) {
     {} as any,
     config as any,
     authContext as any,
+    {} as any,
+    {} as any,
   );
   return { service, andWhere, analysisRepo };
 }
