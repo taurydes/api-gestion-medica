@@ -121,8 +121,9 @@ export class MammographyAnalysisService {
       patientId: apptFile.patientId,
       analyzedBy: await this.resolveAnalyzedBy(authUser?.id ?? null),
       prediction: result.prediction,
-      probability: result.probability,
-      malignancyProbability: result.malignancyProbability,
+      // numeric(5,2): se redondea aquí para que la respuesta del POST coincida con lo que devuelve un GET.
+      probability: round2(result.probability),
+      malignancyProbability: round2(result.malignancyProbability),
       rawScore: result.rawScore,
       threshold: result.threshold,
       modelVersion: result.modelVersion,
@@ -698,4 +699,8 @@ export class MammographyAnalysisService {
 
 function numberOrNull(value: unknown): number | null {
   return value === null || value === undefined ? null : Number(value);
+}
+
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
 }

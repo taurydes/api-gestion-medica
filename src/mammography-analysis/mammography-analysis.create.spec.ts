@@ -18,11 +18,11 @@ const PATIENT_ID = '33333333-3333-4333-8333-333333333333';
 
 const detectorResult = {
   prediction: 'MALIGNANT',
-  probability: 96.19,
+  probability: 96.1880549788475,
   label: 'Neoplasia Maligna (BI-RADS 4/5)',
   status: 'danger',
   rawScore: 0.0381,
-  malignancyProbability: 96.19,
+  malignancyProbability: 96.1880549788475,
   threshold: 0.15,
   modelVersion: 'v1',
   raw: { prediction: 'MALIGNO' },
@@ -155,8 +155,8 @@ describe('MammographyAnalysisService.preview', () => {
     const out = await service.preview({ buffer: Buffer.from([1]), mimetype: 'image/png', originalname: 'a.png' } as any);
     expect(out).toEqual({
       prediction: 'MALIGNANT',
-      probability: 96.19,
-      malignancyProbability: 96.19,
+      probability: 96.1880549788475,
+      malignancyProbability: 96.1880549788475,
       rawScore: 0.0381,
       threshold: 0.15,
       modelVersion: 'v1',
