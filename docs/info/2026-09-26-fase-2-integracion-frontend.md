@@ -1,6 +1,6 @@
 # Fase 2 (contratos frontend ↔ backend) — Guía de integración para el frontend
 
-> Fecha: 2026-09-26 · Backend `api-gestion-medica`, rama `dt/modules` (commits `263d5f0` a `1f48a8f`) · Plan: `app-gestion-medica/docs/plans/2026-09-25-plan-mejoras.md` §2 Fase 2 (M-26 a M-37, parte backend).
+> Fecha: 2026-09-26 · Backend `api-gestion-medica`, rama `dt/modules` (commits `263d5f0` a `178a960`) · Plan: `app-gestion-medica/docs/plans/2026-09-25-plan-mejoras.md` §2 Fase 2 (M-26 a M-37, parte backend).
 > Destinatario: quien mantenga `app-gestion-medica` (interceptor de errores, roles, permisos, menú, médicos, horarios, cierre de consulta, perfil y pacientes).
 > Todo lo que sigue se verificó contra el código y con `curl`/`fetch` sobre el contenedor reconstruido (41/41 casos, ver la tarea `docs/tasks/2026-09-26-001-fase-2-contratos.md`).
 
@@ -35,6 +35,9 @@
 | 15 | M-35 | `quantity` del ítem de receta: opcional, entero ≥ 1, por defecto 1 | cierre de consulta, `POST /recipes`, `PATCH /recipes/:id` | Agregar el campo cantidad o no enviarlo (queda 1). `1.5`, `0` o `"2"` → 400 |
 | 16 | M-37 | Horarios aceptan `HH:mm` o `HH:mm:ss` (00:00–23:59) y se guardan como `HH:mm:ss` | `POST /doctors/schedules`, `PATCH /doctors/schedules/:blockId` | Se puede reenviar el valor leído (`08:00:00`). `24:00`, `8:00` → 400 |
 | 17 | fase 2 | **Nuevo** `GET /auth/profile`: perfil propio con solo sesión (sin `user.consultar`) | `GET /auth/profile` | Usarlo en "Mi perfil" en lugar de `GET /users/:id` |
+| 19 | cierre | `PATCH /menu/:id` no permite cambiar `slug` → 400 | `PATCH /menu/:id` | No ofrecer edición del slug |
+| 20 | cierre | El rol `superusuario` no se puede desactivar ni eliminar → 400 | `PATCH /roles/:id`, `DELETE /roles/:id` | Ocultar esas acciones para ese rol |
+| 21 | M-38 | **Centros del personal no médico**: `medicalCenterIds` en `POST /users` y `PATCH /users/:id` (requiere `role.actualizar`); `medicalCenters` en `GET /users/:id`, `GET /auth/profile` y en `/auth/me` (unión médico + asignados) | ver §3.8 | Selector de centros en el formulario de usuario; el workspace del enfermero ya recibe centros |
 | 18 | fase 2 | Paciente con correo: `email` en el cuerpo, se guarda en `patients.email` | `POST /patient`, `PATCH /patient/:id`, `POST /medical-appointments` (`newPatientData.email`) | Enviar `email` en la raíz del paciente (no dentro de `commonPerson`) |
 
 ## 3. Contratos exactos
@@ -124,13 +127,35 @@ Solo exige sesión válida. Respuesta real (usuario `enfermero`, sin `user.consu
 
 Es la misma forma que `GET /users/:id`, sin `password` y con `role` reducido a `{ id, name }`. Un usuario de `seguridad.users` recibe `commonPerson: null` e `imageUrl: null`. Guardar sigue siendo `PATCH /auth/me`.
 
+### 3.8 Centros del personal no médico (M-38)
+
+Tabla nueva `public.users_medical_centers` (usuario ↔ centro, borrado lógico, único por par vivo). Los médicos siguen usando `medical_centers_doctors`.
+
+| Método y ruta | Cuerpo / respuesta |
+|---|---|
+| `PATCH /users/:id` | `{ "medicalCenterIds": ["<uuid>", …] }` **reemplaza** el conjunto; `[]` quita todos; omitido = sin cambios. Exige `role.actualizar` (misma regla que cambiar el rol, hoy solo `superusuario`); sin él → 403 `No tiene permiso para asignar centros médicos al usuario.` Centro inexistente o borrado → 400 `Uno o más centros médicos no existen.` |
+| `POST /users` | mismo campo `medicalCenterIds` y misma regla (no confundir con `doctor.medicalCenterIds`, que sigue siendo el vínculo del médico) |
+| `GET /users/:id`, `GET /auth/profile` | agregan `"medicalCenters": [{ "id", "name" }]` |
+| `GET /auth/me` | `modules.medicalCenters` (cifrado) = centros del médico vinculado ∪ centros asignados, sin duplicados |
+
+Respuestas reales (usuario `qa.enfermero`, asignado a "el rosal"):
+
+```json
+// GET /auth/profile → data.medicalCenters
+[{"id":"3c8a048b-a172-45fd-9141-9d7cd356b5ac","name":"el rosal"}]
+// GET /auth/me → modules descifrado → medicalCenters
+[{"id":"3c8a048b-a172-45fd-9141-9d7cd356b5ac","name":"el rosal","address":"el rosal","isActive":true}]
+```
+
+**No** se acota por centro a quien no es médico en los endpoints de datos (pacientes, citas, etc.): esta fase solo agrega el vínculo y lo expone. Solo `qa.enfermero` tiene centro asignado hoy; el resto del personal no médico recibe `[]` hasta que un administrador se lo asigne.
+
 ### 3.7 Correo del paciente
 
 `POST /patient` / `PATCH /patient/:id`: `{ "commonPerson": { … }, "email": "paciente@example.com", … }`. En `POST /medical-appointments` por documento: `newPatientData: { "commonPerson": { … }, "email": "…" }`. Se devuelve como `email` en el detalle del paciente. Correo inválido → 400 `El correo del paciente no es válido`; `""` lo borra.
 
 ## 4. Qué NO cambió
 
-- `GET /auth/me`: misma forma. `medicalCenters` (dentro de `modules`, cifrado) sigue saliendo **solo del médico vinculado**. Un usuario que no es médico (p. ej. `enfermero`, o `superusuario` sin doctor) recibe `[]`. **No hay relación usuario ↔ centro en el modelo** (solo `medical_centers_doctors`); ver la tarea, "Brecha de modelo". El frontend tiene que definir la salida para esos usuarios (M-38).
+- `GET /auth/me`: misma forma; `medicalCenters` ahora suma los centros asignados (§3.8). Un `superusuario` sin doctor ni centros asignados sigue recibiendo `[]`.
 - `POST /permissions/assign-to-role` y `POST /permissions/roles/:roleId/assign-all`: sin cambios.
 - `GET /permissions` sigue devolviendo el catálogo (4 acciones hoy).
 - Las respuestas de horarios siguen en `HH:MM:SS`.
@@ -152,6 +177,10 @@ Es la misma forma que `GET /users/:id`, sin `password` y con `role` reducido a `
 | 400 | `La cantidad debe ser un número entero` / `La cantidad mínima es 1` | `quantity` inválida |
 | 400 | `startTime debe tener formato HH:mm o HH:mm:ss (00:00 a 23:59)` (ídem `endTime`) | hora inválida |
 | 400 | `El correo del paciente no es válido` | `email` del paciente inválido |
+| 400 | `El slug de un menú no se puede cambiar: los permisos del módulo se verifican por ese slug.` | `PATCH /menu/:id` con otro slug |
+| 400 | `El rol 'superusuario' no se puede desactivar: dejaría el sistema sin administradores.` (o `eliminar`) | `PATCH`/`DELETE /roles/:id` |
+| 403 | `No tiene permiso para asignar centros médicos al usuario.` | `medicalCenterIds` sin `role.actualizar` |
+| 400 | `Uno o más centros médicos no existen.` | `medicalCenterIds` con un centro inexistente o borrado |
 | 404 | `Usuario no encontrado` | `GET /auth/profile` de un usuario borrado |
 
 ## 6. Checklist de migración del frontend
@@ -165,4 +194,5 @@ Es la misma forma que `GET /users/:id`, sin `password` y con `role` reducido a `
 - [ ] Consulta: campo cantidad (entero ≥ 1) u omitirlo.
 - [ ] "Mi perfil": leer con `GET /auth/profile`.
 - [ ] Alta de paciente/cita: enviar `email` en la raíz del paciente.
-- [ ] Usuarios sin centros (no médicos): definir la salida (el backend no tiene relación usuario ↔ centro).
+- [ ] Formulario de usuario: selector múltiple de centros → `medicalCenterIds` (solo para administradores).
+- [ ] Usuario sin centros tras el login: mensaje para pedir asignación a un administrador.

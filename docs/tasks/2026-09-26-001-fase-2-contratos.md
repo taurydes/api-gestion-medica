@@ -51,31 +51,49 @@
 | `phoneNumber`: `^\+?[0-9][0-9\s-]{6,19}$`, máx. 20, `""` → `null` | Cubre los 12 teléfonos existentes (8–13 dígitos, uno con `+`) y lo que escribe una persona (`0414-123 4567`); 20 es el largo de la columna |
 | Horas: `([01]\d\|2[0-3]):[0-5]\d(:[0-5]\d)?` en lugar de `\d{2}:\d{2}` | `25:00` pasaba el DTO y fallaba en PostgreSQL con 500 |
 
-## Brecha de modelo (no se inventó esquema)
+## Centros del personal no médico (cierre, M-38 backend)
 
-**Centros de usuarios que no son médicos.** `getUserWithPermissions` resuelve `medicalCenters` solo por el doctor vinculado. En el modelo **no existe relación usuario ↔ centro**: las únicas tablas con `medical_center_id` son `medical_centers_doctors`, `departments`, `doctor_schedules`, `medical_appointments`, `medical_histories` y `medical_center_images` (consulta a `information_schema.columns`). Hoy hay 1 usuario `enfermero` (fixture QA) y 1 `superusuario` sin doctor; los 12 `medico` tienen doctor.
+Primero se documentó como brecha: no había relación usuario ↔ centro (solo `medical_centers_doctors`), y `getUserWithPermissions` daba `[]` a todo usuario sin doctor. El coordinador decidió agregar el vínculo.
 
-Además, el backend **no acota por centro** a quien no es médico: `assertFindOneAccess` ("No es doctor: puede ver cualquier centro") y `getScopedDoctorId` devuelven alcance global. Opciones para decidir (producto):
-1. Tabla `users_medical_centers` + gestión en la UI de usuarios (esquema nuevo, migración, y habría que empezar a filtrar por centro a esos roles).
-2. Devolver todos los centros activos a quien no es médico, coherente con la regla de acceso actual (cambia lo que ven los superusuarios con doctor vinculado).
-3. Que el frontend no exija centro a los roles sin doctor.
+- Migración generada `1790466956646-UsersMedicalCenters`: `public.users_medical_centers` (`id`, `user_id` FK a `users` ON DELETE CASCADE, `medical_center_id` FK a `parametro.medical_centers` RESTRICT, `created_by`, `created_at`, `deleted_at`) con `UQ_users_medical_centers_active (user_id, medical_center_id) WHERE deleted_at IS NULL`. Verificado en `pg_indexes` y con INSERT duplicado dentro de `BEGIN … ROLLBACK` → 23505.
+- `medicalCenterIds` en `POST /users` y `PATCH /users/:id`: reemplaza el conjunto (borrado lógico de los que salen); exige `role.actualizar` (`USER_CENTERS_CHANGE_PERMISSION` = misma regla que cambiar el rol).
+- `medicalCenters: [{id, name}]` en `GET /users/:id` y `GET /auth/profile`; `/auth/me` hace la unión médico + vínculo, sin duplicados.
+- **No** se acota por centro a quien no es médico en los endpoints de datos (no se pidió en esta fase; hoy siguen con alcance global, `assertFindOneAccess`).
+- Fixture: `qa.enfermero` quedó asignado a "el rosal" (`3c8a048b-…`) vía la API en el smoke.
 
-Se documentó en la guía de integración; no se cambió el comportamiento.
+## Otros cierres
+
+- `PATCH /menu/:id` rechaza cambiar el `slug` (400): los guards arman `slug.acción` desde constantes. Se eligió rechazar siempre (más simple que mirar si tiene asignaciones).
+- El rol `superusuario` no se puede desactivar ni eliminar (400), además de no poder renombrarse.
+- Borrados `permission/dto/module.dto.ts`, `relations.dto.ts` y `role.dto.ts`: 0 referencias fuera del barrel (búsqueda por cada clase exportada).
 
 ## Verificación
 
 | Prueba | Resultado |
 |---|---|
 | `npm run build` | 0 errores, 0 advertencias |
-| `npx jest --ci` | 36 suites, **203 tests** verdes (baseline anterior 151) |
+| `npx jest --ci` | 36 suites, 203 tests en la primera entrega; tras el cierre **38 suites, 212 tests** verdes (nuevo baseline) |
 | `migration:run` → `revert` → `run` de las dos migraciones nuevas | OK; `SeedCommonPersonMenu` re-ejecutada a mano dentro de `BEGIN … ROLLBACK`: `INSERT 0` y `INSERT 0` (idempotente) |
 | `migration:generate` tras aplicar todo | "No changes in database schema were found" (sin drift) |
-| `migration:show` | 13 migraciones aplicadas; arranque del contenedor: "No migrations are pending" |
+| `migration:show` | 14 migraciones aplicadas (incluye `UsersMedicalCenters`, probada run → revert → run); arranque del contenedor: "No migrations are pending" |
 | Contenedor | `docker compose … up -d --build backend` y smoke con usuarios QA (`qa.superclean`, `qa.enfermero`) |
 
 Tests nuevos (todos invocan el servicio, el guard o el `ValidationPipe` real): `auth/guards/jwt-auth.guard.spec.ts`, casos nuevos en `permission.guard.spec.ts` y `panel-access.service.spec.ts`, `permission/dto/permission-dtos.validation.spec.ts`, `permission/services/permission-grants.spec.ts`, `role/role-permission-update.spec.ts`, `doctors/doctor-contracts.spec.ts`, casos en `finish-consultation.spec.ts`, `user/user-create-role.spec.ts`, casos en `patient-reregister.spec.ts` y `profile.service.spec.ts`.
 
-### Smoke HTTP + BD (contenedor reconstruido, 41/41 PASS)
+### Smoke de cierre (contenedor reconstruido de nuevo, 18/18 PASS)
+
+| Caso | Esperado | Obtenido |
+|---|---|---|
+| `PATCH /menu/:id` con otro slug / mismo slug | 400 y slug intacto en BD / 200 | igual |
+| Desactivar / eliminar `superusuario` | 400 / 400, `activo` sigue `true` | igual |
+| `PATCH /users/:id` `medicalCenterIds` [c1,c2] → [c1] | 200; en BD c1 vivo y c2 con `deleted_at` | igual |
+| Centro inexistente | 400 | 400 |
+| `GET /users/:id`, `GET /auth/profile`, `/auth/me` del enfermero | `[{el rosal}]` | igual |
+| Enfermero (sin `role.actualizar`) cambia sus centros | 403 | 403 |
+| `POST /users` con `medicalCenterIds` → vínculo en BD | 201 + fila | 201 + fila (`qa_staff_…`, `906f6809-…`) |
+| Médico `julio` en `/auth/me` | sigue con sus centros | sí |
+
+### Smoke HTTP + BD de la primera entrega (41/41 PASS)
 
 | Caso | Esperado | Obtenido |
 |---|---|---|
@@ -114,10 +132,7 @@ Datos que dejó el smoke (base de prueba): usuario médico `qa_medico_f2_4245167
 
 ## Fuera de alcance / pendiente
 
-- **Brecha de centros** para usuarios no médicos: decisión de producto (arriba).
-- DTOs sin uso con ids `@IsInt` (`permission/dto/relations.dto.ts`, `module.dto.ts`, `role.dto.ts`): código muerto, no los usa ningún controlador; se retiran con M-57.
-- `PATCH /menu/:id` permite cambiar `slug` y `userId`: renombrar el slug de un menú rompe sus permisos (los guards usan constantes). Solo lo puede hacer quien tenga `menu.actualizar` (hoy `superusuario`). No se bloqueó porque no se pidió; candidato para M-62/M-65.
-- Desactivar el rol `superusuario` sigue permitido y dejaría sin administración a sus usuarios.
+- Acotar por centro los datos del personal no médico (pacientes, citas): decisión futura; el vínculo ya existe.
 - `GET /permissions` sigue registrado dos veces en el controlador (M-62).
 - `appointment:detail:${id}` sigue sin invalidarse (M-56).
 - El frontend debe aplicar su parte (checklist en `docs/info/2026-09-26-fase-2-integracion-frontend.md`).
