@@ -32,8 +32,6 @@ import { CreateMammographyAnalysisDto } from './dto/create-mammography-analysis.
 import { QueryMammographyAnalysisDto } from './dto/query-mammography-analysis.dto';
 import { ReviewMammographyAnalysisDto } from './dto/review-mammography-analysis.dto';
 
-const HIGH_RISK_MALIGNANCY = 80;
-
 interface SourceImage {
   buffer: Buffer;
   mimeType: string;
@@ -552,10 +550,8 @@ export class MammographyAnalysisService {
     const total = all.length;
     const danger = all.filter((a) => a.status === 'danger').length;
     const pending = all.filter((a) => !a.isReviewed).length;
-    // Alto riesgo = probabilidad de malignidad >= 80 (M-40); `probability` es la confianza en la clase.
-    const highRisk = all.filter(
-      (a) => a.malignancyProbability !== null && Number(a.malignancyProbability) >= HIGH_RISK_MALIGNANCY,
-    ).length;
+    // Alto riesgo = decisión maligna del modelo (M-40): coherente con el umbral guardado, no con un corte fijo.
+    const highRisk = danger;
 
     return {
       dateFrom: query.dateFrom ?? query.date ?? this.todayIsoDate(),

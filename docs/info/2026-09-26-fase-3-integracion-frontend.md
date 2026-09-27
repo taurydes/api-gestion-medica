@@ -13,7 +13,7 @@
 | `prediction`, `probability`, `status`, `label`, `rawResponseJson`, `rawResponse`, `rawScore`, `malignancyProbability`, `threshold`, `modelVersion` en el cuerpo → **400** | No enviarlos nunca |
 | Nuevo `POST /mammography-analyses/preview` (multipart `file`, máx. 20 MB, no guarda) | Usarlo en el detector independiente y en la vista previa de la consulta en lugar de `/predict` |
 | Respuesta: campos nuevos `malignancyProbability`, `rawScore`, `threshold`, `modelVersion`, `notes` | Mostrar `malignancyProbability` como "Probabilidad de malignidad"; `probability` es "Confianza del modelo en la clase predicha" |
-| `stats.highRisk` = análisis con `malignancyProbability ≥ 80` (antes contaba benignos con confianza ≥ 80) | Ninguna; el número baja a los malignos reales |
+| `stats.highRisk` = análisis que el modelo clasificó como malignos (`status = 'danger'`, mismo umbral que `threshold`); antes contaba benignos con confianza ≥ 80 | Rotular la tarjeta "Clasificados como malignos por el modelo" (no "≥ 80 %"): un benigno con malignidad 80–85 no cuenta |
 | `minProbability` filtra por `malignancyProbability` (bandeja y ranking) | Rotular el filtro como probabilidad de malignidad |
 | Grupos de la bandeja: nuevo `maxMalignancyProbability` | Opcional |
 | Un médico solo puede analizar archivos de **sus** citas (403) | Mostrar el mensaje |

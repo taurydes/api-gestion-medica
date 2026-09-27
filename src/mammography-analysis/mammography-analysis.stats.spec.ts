@@ -27,15 +27,17 @@ function build(rows: any[]) {
 }
 
 describe('Semántica de malignidad en estadísticas y filtros (M-40)', () => {
-  it('highRisk cuenta la probabilidad de malignidad, no la confianza en la clase', async () => {
+  it('highRisk cuenta la decisión maligna del modelo, no la confianza ni un corte fijo', async () => {
     const rows = [
       { status: 'danger', probability: 96.19, malignancyProbability: 96.19, isReviewed: false },
       // Benigno con 99,5 % de confianza: antes contaba como alto riesgo.
       { status: 'success', probability: 99.5, malignancyProbability: 0.5, isReviewed: true },
       { status: 'success', probability: 35.6, malignancyProbability: 64.4, isReviewed: false },
+      // Benigno limítrofe: malignidad 82 bajo el umbral de 85, el modelo no lo clasifica maligno.
+      { status: 'success', probability: 18, malignancyProbability: 82, isReviewed: true },
     ];
     const stats = await build(rows).service.getDailyStats({}, { id: 'admin' });
-    expect(stats).toMatchObject({ total: 3, danger: 1, pending: 2, highRisk: 1 });
+    expect(stats).toMatchObject({ total: 4, danger: 1, pending: 2, highRisk: 1 });
   });
 
   it('minProbability filtra por malignancyProbability en bandeja y ranking', async () => {

@@ -81,7 +81,7 @@ export class MammographyAnalysis {
   })
   probability: number;
 
-  /** Probabilidad de malignidad (0-100); es la que usan `highRisk` y `minProbability`. */
+  /** Probabilidad de malignidad (0-100); es la que usa el filtro `minProbability`. */
   @Column({
     name: 'malignancy_probability',
     type: 'decimal',
