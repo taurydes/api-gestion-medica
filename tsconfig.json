@@ -7,6 +7,7 @@
     "experimentalDecorators": true,
     "allowSyntheticDefaultImports": true,
     "target": "esnext",
+    "useDefineForClassFields": false, // DTO fields absent from the body must not exist as own `undefined` props (Object.assign onto entities)
     "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": "./",

@@ -47,7 +47,7 @@ export function uniqueViolationToConflict(error: unknown): ConflictException | n
   );
 }
 
-/** Drops `undefined` keys: a partial DTO declares absent fields as own `undefined` props (ES2022 class fields). */
+/** Drops `undefined` keys so a partial patch never writes `undefined` over a loaded entity field. */
 export function definedFields<T extends object>(patch: T): Partial<T> {
   return Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined)) as Partial<T>;
 }

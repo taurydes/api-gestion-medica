@@ -1,4 +1,6 @@
+import { ValidationPipe } from '@nestjs/common';
 import { FakeRepo } from '../../../test/in-memory-db';
+import { UpdatePermissionDto } from '../dto/update-permission.dto';
 import { PermissionService } from './permission.service';
 
 const ROLE_A = 'aaaaaaaa-0000-4000-8000-000000000001';
@@ -112,5 +114,27 @@ describe('PermissionService: asignaciones por rol con UUID (M-27)', () => {
 
     await expect(service.getRolePermissions(ROLE_A)).resolves.toHaveLength(1);
     await expect(service.getRolePermissions(ROLE_B)).resolves.toHaveLength(0);
+  });
+});
+
+describe('PATCH /permissions/:id devuelve el permiso completo (H-04)', () => {
+  it('con solo displayName responde isActive, isRequired, order y controlType reales', async () => {
+    const stored = {
+      id: 'perm-x', name: 'exportar', displayName: 'Exportar', userId: 'seed', isActive: true,
+      isRequired: true, order: 7, controlType: 'checkbox', deletedAt: null, updatedAt: null,
+    };
+    const permissionRepo = new FakeRepo([stored]);
+    const cache = { get: jest.fn(), set: jest.fn(), del: jest.fn() };
+    const service = new PermissionService(
+      new FakeRepo([]) as any, new FakeRepo([]) as any, permissionRepo as any,
+      new FakeRepo([]) as any, new FakeRepo([]) as any, new FakeRepo([]) as any, cache as any,
+    );
+    const pipe = new ValidationPipe({ transform: true, whitelist: true });
+    const dto = await pipe.transform({ displayName: 'Exportar QA' }, { type: 'body', metatype: UpdatePermissionDto });
+
+    const out = await service.update('perm-x', dto);
+
+    expect(out).toMatchObject({ displayName: 'Exportar QA', isActive: true, isRequired: true, order: 7, controlType: 'checkbox' });
+    expect(cache.set).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ isActive: true, isRequired: true }), expect.anything());
   });
 });
