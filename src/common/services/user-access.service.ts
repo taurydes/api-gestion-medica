@@ -1,4 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
+import {
+  PERMISSION_CACHE_TTL,
+  permissionKey,
+  roleAccessScope,
+} from 'src/common/cache/permission-cache';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
@@ -38,28 +45,55 @@ export class UserAccessService {
 
     @InjectRepository(User, DatabaseConnectionName.DB_MAIN)
     private readonly userRepository: Repository<User>,
+
+    // Optional so unit tests can build the service with repositories only
+    @Optional() @Inject(CACHE_MANAGER)
+    private readonly cache?: Cache,
   ) {}
 
   async resolve(userId: string): Promise<UserAccess | null> {
     if (!userId) return null;
 
+    // User and role state are always read fresh; only the role's grant list is cached (M-63)
     const secUser = await this.userSecurityRepository.findOne({
       where: { id: userId },
-      relations: ROLE_PERMISSION_RELATIONS,
+      relations: ['role'],
     });
 
     const isSystemUser = !!secUser?.role;
-    const user: User | UserSecurity | null = isSystemUser
+    const repo: Repository<User | UserSecurity> = isSystemUser
+      ? this.userSecurityRepository
+      : this.userRepository;
+    const user = isSystemUser
       ? secUser
-      : await this.userRepository.findOne({
-          where: { id: userId },
-          relations: ROLE_PERMISSION_RELATIONS,
-        });
+      : await this.userRepository.findOne({ where: { id: userId }, relations: ['role'] });
 
     if (!user?.role) return null;
 
     const role = user.role;
-    const permissions = (role.permissionMenus ?? [])
+    const permissions = await this.rolePermissions(role.id, () =>
+      repo.findOne({ where: { id: userId }, relations: ROLE_PERMISSION_RELATIONS }),
+    );
+
+    const isActive =
+      user.status !== false &&
+      !user.deletedAt &&
+      role.isActive !== false &&
+      !role.deletedAt;
+
+    return { userId, isSystemUser, role, isActive, permissions };
+  }
+
+  private async rolePermissions(
+    roleId: string,
+    loadWithGrants: () => Promise<User | UserSecurity | null>,
+  ): Promise<string[]> {
+    const key = this.cache ? await permissionKey(this.cache, roleAccessScope(roleId)) : null;
+    const cached = key ? await this.cache!.get<string[]>(key) : undefined;
+    if (cached) return cached;
+
+    const withGrants = await loadWithGrants();
+    const permissions = (withGrants?.role?.permissionMenus ?? [])
       .filter(
         (pr) =>
           pr.isActive &&
@@ -69,13 +103,8 @@ export class UserAccessService {
       )
       .map((pr) => `${pr.menu.slug}.${pr.permission.name}`.toLowerCase());
 
-    const isActive =
-      user.status !== false &&
-      !user.deletedAt &&
-      role.isActive !== false &&
-      !role.deletedAt;
-
-    return { userId, isSystemUser, role, isActive, permissions };
+    if (key) await this.cache!.set(key, permissions, PERMISSION_CACHE_TTL);
+    return permissions;
   }
 
   /** `true` si el usuario está activo y tiene el permiso indicado (`slug.accion`). */

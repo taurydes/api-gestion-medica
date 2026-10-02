@@ -13,6 +13,7 @@ import {
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { Cache } from 'cache-manager';
+import { invalidatePermissionScopes, userAbilityScope } from 'src/common/cache/permission-cache';
 import { CACHE_TTL } from 'src/common/cache/cache-registry';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { DataSource, EntityManager, In, IsNull, Repository } from 'typeorm';
@@ -475,6 +476,8 @@ export class UserService {
       const { password, ...rest } = updated;
 
       await this.cacheManager.del(`user:${id}`);
+      // A role or status change must reach the cached ability on the next request
+      await invalidatePermissionScopes(this.cacheManager, userAbilityScope(id));
       await this.cacheManager.del('user:all');
       await this.clearQueryCache();
 
@@ -528,6 +531,8 @@ export class UserService {
       await queryRunner.commitTransaction();
 
       await this.cacheManager.del(`user:${id}`);
+      // A role or status change must reach the cached ability on the next request
+      await invalidatePermissionScopes(this.cacheManager, userAbilityScope(id));
       await this.cacheManager.del('user:all');
       await this.clearQueryCache();
     } catch (error) {

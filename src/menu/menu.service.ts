@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
+import { invalidateAllPermissions } from 'src/common/cache/permission-cache';
 import { CACHE_TTL, clearRegistry } from 'src/common/cache/cache-registry';
 import { In, IsNull, Repository } from 'typeorm';
 
@@ -199,6 +200,8 @@ export class MenuService {
 
       // 🧹 Limpiar caché relacionada
       await this.cacheManager.del(`menu:${id}`);
+      // Grants join the menu: a disabled or deleted menu changes every role's permissions
+      await invalidateAllPermissions(this.cacheManager);
       await this.cacheManager.del('menus:all');
       await clearRegistry(this.cacheManager, 'menus:query:keys');
 
@@ -224,6 +227,8 @@ export class MenuService {
 
       // 🧹 Limpiar caché relacionada
       await this.cacheManager.del(`menu:${id}`);
+      // Grants join the menu: a disabled or deleted menu changes every role's permissions
+      await invalidateAllPermissions(this.cacheManager);
       await this.cacheManager.del('menus:all');
       await clearRegistry(this.cacheManager, 'menus:query:keys');
     } catch (error) {

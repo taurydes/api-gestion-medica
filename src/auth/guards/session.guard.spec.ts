@@ -89,7 +89,9 @@ describe('SessionGuard — rechaza usuarios borrados o inactivos (C-03)', () => 
     const { ctx } = contextFor(SpecialtyController, 'create');
 
     await session.canActivate(ctx);
+    const afterSession = userRepo.findOne.mock.calls.length;
     await expect(permissions.canActivate(ctx)).resolves.toBe(true);
-    expect(userRepo.findOne).toHaveBeenCalledTimes(1);
+    // The guard adds no query of its own (resolve itself is one or two, depending on the grant cache)
+    expect(userRepo.findOne).toHaveBeenCalledTimes(afterSession);
   });
 });

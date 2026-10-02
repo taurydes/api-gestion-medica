@@ -51,6 +51,15 @@ import { CreatepermissionsRolesDto } from '../dto/create-permission-role.dto';
 import { ModuleItemsMenu } from 'src/menu/menu.const';
 import { PermissionActionsMenu } from '../permission.const';
 import { safeErrorMessage } from 'src/common/exceptions/to-http-exception';
+import {
+  PERMISSION_CACHE_TTL,
+  invalidateAllPermissions,
+  invalidatePermissionScopes,
+  permissionKey,
+  roleAccessScope,
+  rolePermissionsScope,
+  userAbilityScope,
+} from 'src/common/cache/permission-cache';
 
 /** Actions every @Permission decorator relies on: deleting or deactivating one locks every module. */
 const SYSTEM_ACTIONS = new Set<string>(Object.values(PermissionActionsMenu));
@@ -60,12 +69,13 @@ export class PermissionService {
   private readonly logger = new Logger(PermissionService.name);
 
   // Cache keys
+  // Generation-scoped (permission-cache.ts) so a global grant change drops them all at once
   private readonly USER_ABILITY_KEY = (id: number | string) =>
-    `permission:user:${id}:ability`;
+    permissionKey(this.cache, userAbilityScope(String(id)));
   private readonly ROLE_PERMISSIONS_KEY = (id: number | string) =>
-    `permission:role:${id}:permissions`;
+    permissionKey(this.cache, rolePermissionsScope(String(id)));
   private readonly ALL_PERMISSIONS_KEY = 'permission:permissions:all';
-  private readonly TTL_SECONDS = 3600; // 1 hora
+  private readonly TTL_MS = PERMISSION_CACHE_TTL;
 
   // ──────────────────────────────────────────────────────────────────────────
   // PRIVATE CACHE HELPERS
@@ -79,12 +89,14 @@ export class PermissionService {
     return (await this.cache.get<T>(key)) ?? null;
   }
 
-  private async cacheSet<T>(key: string, value: T, ttl = this.TTL_SECONDS): Promise<void> {
+  private async cacheSet<T>(key: string, value: T, ttl = this.TTL_MS): Promise<void> {
     await this.cache.set(key, value, ttl);
   }
 
   private async invalidateListAndItems(ids: (string | number)[] = []): Promise<void> {
     await this.cache.del(this.ALL_PERMISSIONS_KEY);
+    // An edited or deleted action changes what every role grants
+    await invalidateAllPermissions(this.cache);
     for (const id of ids) {
       await this.cache.del(this.itemKey(id));
     }
@@ -157,7 +169,7 @@ export class PermissionService {
   async getAbilityForUser(
     userId: string | number,
   ): Promise<AbilityFactoryResult> {
-    const cacheKey = this.USER_ABILITY_KEY(String(userId));
+    const cacheKey = await this.USER_ABILITY_KEY(String(userId));
 
     // Intentar obtener de cache
     let permissions = await this.cache.get<string[]>(cacheKey);
@@ -176,7 +188,7 @@ export class PermissionService {
       permissions = rolePermissions.map(toPermissionCode);
 
       // Guardar en cache
-      await this.cache.set(cacheKey, permissions, this.TTL_SECONDS);
+      await this.cache.set(cacheKey, permissions, this.TTL_MS);
     }
 
     const caslUser: CaslUser = {
@@ -540,7 +552,7 @@ export class PermissionService {
    */
   async getRolePermissions(roleId: number | string): Promise<DbPermission[]> {
     // Keyed by the real id: role ids are UUIDs, the old `0` fallback shared one entry across all roles.
-    const cacheKey = this.ROLE_PERMISSIONS_KEY(String(roleId));
+    const cacheKey = await this.ROLE_PERMISSIONS_KEY(String(roleId));
 
     const cached = await this.cache.get<DbPermission[]>(cacheKey);
     if (cached) {
@@ -562,7 +574,7 @@ export class PermissionService {
         isActive: true,
       }));
 
-    await this.cache.set(cacheKey, permissions, this.TTL_SECONDS);
+    await this.cache.set(cacheKey, permissions, this.TTL_MS);
 
     return permissions;
   }
@@ -677,7 +689,10 @@ export class PermissionService {
    * Invalida el cache de un rol específico.
    */
   async invalidateRoleCache(roleId: number | string): Promise<void> {
-    await this.cache.del(this.ROLE_PERMISSIONS_KEY(roleId));
+    await this.cache.del(await this.ROLE_PERMISSIONS_KEY(roleId));
+    // The guard's grant list and role.service's detail (which embeds permissionMenus)
+    await invalidatePermissionScopes(this.cache, roleAccessScope(String(roleId)));
+    await this.cache.del(`role:${roleId}`);
 
     // También invalidar cache de usuarios con ese rol
     const users = await this.userRepo.find({
@@ -686,7 +701,7 @@ export class PermissionService {
     });
 
     for (const user of users) {
-      await this.cache.del(this.USER_ABILITY_KEY(user.id));
+      await this.cache.del(await this.USER_ABILITY_KEY(user.id));
     }
 
     this.logger.debug(
@@ -698,7 +713,7 @@ export class PermissionService {
    * Invalida el cache de un usuario específico.
    */
   async invalidateUserCache(userId: number | string): Promise<void> {
-    await this.cache.del(this.USER_ABILITY_KEY(userId));
+    await this.cache.del(await this.USER_ABILITY_KEY(userId));
   }
 
   /**
@@ -706,8 +721,8 @@ export class PermissionService {
    */
   async invalidateAllCache(): Promise<void> {
     await this.cache.del(this.ALL_PERMISSIONS_KEY);
-    // Nota: Para invalidar todos los usuarios/roles necesitarías un patrón
-    // de cache más sofisticado o usar Redis SCAN
+    // New generation: every role, guard and ability key is dropped at once
+    await invalidateAllPermissions(this.cache);
     this.logger.warn('Cache general de permisos invalidado');
   }
 
@@ -995,8 +1010,10 @@ export class PermissionService {
    */
   async findAll(pagination: QueryPermissionDto): Promise<Permission[]> {
     try {
+      // Only the unfiltered list is cached: one fixed key served any filter to every query
+      const cacheable = !pagination.search && pagination.isActive === undefined;
       const cacheKey = this.ALL_PERMISSIONS_KEY;
-      const cached = await this.cacheGet<Permission[]>(cacheKey);
+      const cached = cacheable ? await this.cacheGet<Permission[]>(cacheKey) : null;
       if (cached) return cached;
 
 
@@ -1018,7 +1035,7 @@ export class PermissionService {
        
 
 
-      await this.cacheSet(cacheKey, permissions);
+      if (cacheable) await this.cacheSet(cacheKey, permissions);
       return permissions;
     } catch (error) {
       if (error instanceof InternalServerErrorException) throw error;
