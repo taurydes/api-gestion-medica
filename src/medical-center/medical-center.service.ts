@@ -92,6 +92,9 @@ export class MedicalCenterService {
    */
   private async clearQueryCache(): Promise<void> {
     await invalidateScope(this.cacheManager, 'medicalCenter');
+    // Doctor and history details embed the center
+    await invalidateScope(this.cacheManager, 'doctor');
+    await invalidateScope(this.cacheManager, 'medical-history');
     // Appointment (and patient) views embed this catalog
     await invalidateScope(this.cacheManager, APPOINTMENT_CACHE_SCOPE);
   }
@@ -433,8 +436,6 @@ export class MedicalCenterService {
 
     // Limpiar caches
     await this.cacheManager.del(`medicalCenter:${medicalCenterId}`);
-    // doctor:<id> embeds its centers
-    await this.cacheManager.del(`doctor:${doctorId}`);
     await this.cacheManager.del('medicalCenter:all');
     if (departmentId) {
       await this.cacheManager.del(`department:${departmentId}`);
@@ -475,8 +476,6 @@ export class MedicalCenterService {
 
     // Limpiar caches
     await this.cacheManager.del(`medicalCenter:${medicalCenterId}`);
-    // doctor:<id> embeds its centers
-    await this.cacheManager.del(`doctor:${doctorId}`);
     await this.cacheManager.del('medicalCenter:all');
     await this.clearQueryCache();
 

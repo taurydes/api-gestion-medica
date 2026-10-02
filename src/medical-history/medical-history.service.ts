@@ -91,9 +91,8 @@ export class MedicalHistoryService {
   }
 
   /** Clears the global list caches; callers that pass their own transaction call it after commit. */
-  async invalidateListCache(patientId?: string): Promise<void> {
+  async invalidateListCache(): Promise<void> {
     await this.cacheManager.del('medical-history:all');
-    if (patientId) await this.cacheManager.del(`medical-history:patient:${patientId}`);
     await this.clearQueryCache();
   }
 
@@ -186,7 +185,7 @@ export class MedicalHistoryService {
       const savedHistory = await historyRepo.save(newHistory);
       if (manager) return savedHistory;
 
-      await this.invalidateListCache(savedHistory.patientId);
+      await this.invalidateListCache();
 
       // Retornar con relaciones cargadas
       return this.findOne(savedHistory.id);
@@ -306,7 +305,7 @@ export class MedicalHistoryService {
 
     try {
       // Consultar cache
-      const cached = await this.cacheManager.get<MedicalHistory>(cacheKey);
+      const cached = await getScoped<MedicalHistory>(this.cacheManager, 'medical-history', cacheKey);
       if (cached) {
         // IDOR: verificar acceso del doctor al registro cacheado
         if (user) {
@@ -347,7 +346,7 @@ export class MedicalHistoryService {
       const enrichedHistory = await this.enrichWithImages(history);
 
       // Guardar en cache por 10 min
-      await this.cacheManager.set(cacheKey, enrichedHistory, CACHE_TTL.DETAIL);
+      await setScoped(this.cacheManager, 'medical-history', cacheKey, enrichedHistory, CACHE_TTL.DETAIL);
 
       return enrichedHistory;
     } catch (error) {
@@ -365,7 +364,7 @@ export class MedicalHistoryService {
     const cacheKey = `medical-history:patient:${patientId}`;
 
     try {
-      const cached = await this.cacheManager.get<MedicalHistory[]>(cacheKey);
+      const cached = await getScoped<MedicalHistory[]>(this.cacheManager, 'medical-history', cacheKey);
       if (cached) {
         // IDOR: si es doctor, filtrar solo sus registros
         if (user) {
@@ -394,7 +393,7 @@ export class MedicalHistoryService {
         order: { consultationDate: 'DESC' },
       });
 
-      await this.cacheManager.set(cacheKey, histories, CACHE_TTL.LIST);
+      await setScoped(this.cacheManager, 'medical-history', cacheKey, histories, CACHE_TTL.LIST);
 
       return histories;
     } catch (error) {
@@ -464,8 +463,6 @@ export class MedicalHistoryService {
       });
 
       // 🧹 Limpiar caches
-      await this.cacheManager.del(`medical-history:${id}`);
-      await this.cacheManager.del(`medical-history:patient:${history.patientId}`);
       await this.cacheManager.del('medical-history:all');
       await this.clearQueryCache();
 
@@ -529,8 +526,6 @@ export class MedicalHistoryService {
       });
 
       // 🧹 Limpiar caches
-      await this.cacheManager.del(`medical-history:${dto.medicalHistoryId}`);
-      await this.cacheManager.del(`medical-history:patient:${history.patientId}`);
       await this.cacheManager.del('medical-history:all');
       await this.clearQueryCache();
 
@@ -582,8 +577,6 @@ export class MedicalHistoryService {
       });
 
       // 🧹 Limpiar caches
-      await this.cacheManager.del(`medical-history:${id}`);
-      await this.cacheManager.del(`medical-history:patient:${history.patientId}`);
       await this.cacheManager.del('medical-history:all');
       await this.clearQueryCache();
 
@@ -617,8 +610,6 @@ export class MedicalHistoryService {
       });
 
       // 🧹 Limpiar caches
-      await this.cacheManager.del(`medical-history:${id}`);
-      await this.cacheManager.del(`medical-history:patient:${history.patientId}`);
       await this.cacheManager.del('medical-history:all');
       await this.clearQueryCache();
     } catch (error) {

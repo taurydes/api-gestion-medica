@@ -91,6 +91,9 @@ export class DoctorsService {
    */
   private async clearQueryCache(): Promise<void> {
     await invalidateScope(this.cacheManager, 'doctor');
+    // Recipe and history details embed the doctor
+    await invalidateScope(this.cacheManager, 'recipe');
+    await invalidateScope(this.cacheManager, 'medical-history');
     // Appointment views embed this entity: drop them too
     await invalidateScope(this.cacheManager, APPOINTMENT_CACHE_SCOPE);
   }
@@ -280,7 +283,7 @@ export class DoctorsService {
     try {
       await this.assertDoctorAccess(id, authUser);
 
-      const cached = await this.cacheManager.get<Doctor & { imageUrl: string | null }>(cacheKey);
+      const cached = await getScoped<Doctor & { imageUrl: string | null }>(this.cacheManager, 'doctor', cacheKey);
       if (cached) return cached;
 
       const doctor = await this.doctorRepository.findOne({
@@ -295,7 +298,8 @@ export class DoctorsService {
       const imageUrl = await this.getDoctorImageUrl(id);
       const result = { ...doctor, imageUrl };
 
-      await this.cacheManager.set(cacheKey, result, CACHE_TTL.DETAIL);
+      // Scoped: specialty and center edits change what it embeds
+      await setScoped(this.cacheManager, 'doctor', cacheKey, result, CACHE_TTL.DETAIL);
 
       return result;
     } catch (error) {
@@ -350,7 +354,6 @@ export class DoctorsService {
       const updated = await this.doctorRepository.save(doctor);
 
       // Limpiar caches
-      await this.cacheManager.del(`doctor:${id}`);
       await this.cacheManager.del('doctor:all');
       await this.clearQueryCache();
 
@@ -377,7 +380,6 @@ export class DoctorsService {
       doctor.deletedAt = new Date();
       await this.doctorRepository.save(doctor);
 
-      await this.cacheManager.del(`doctor:${id}`);
       await this.cacheManager.del('doctor:all');
       await this.clearQueryCache();
     } catch (error) {

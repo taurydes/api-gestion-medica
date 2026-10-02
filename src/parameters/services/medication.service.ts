@@ -34,6 +34,8 @@ export class MedicationService {
 
   private async clearQueryCache(): Promise<void> {
     await invalidateScope(this.cacheManager, 'medication');
+    // Recipe details and per-history recipe lists embed the medication
+    await invalidateScope(this.cacheManager, 'recipe');
     // Appointment (and patient) views embed this catalog
     await invalidateScope(this.cacheManager, APPOINTMENT_CACHE_SCOPE);
     await invalidateScope(this.cacheManager, 'patient');

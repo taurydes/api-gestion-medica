@@ -230,7 +230,6 @@ export class RecipeService {
 
   /** Clears the caches a new or changed recipe affects; public so finishConsultation can call it after commit. */
   async invalidateCaches(recipe: Pick<Recipe, 'patientId' | 'medicalHistoryId'>): Promise<void> {
-    await this.cacheManager.del(`recipe:medical-history:${recipe.medicalHistoryId}`);
     await this.cacheManager.del('recipe:all');
     await this.clearQueryCache();
   }
@@ -312,7 +311,7 @@ export class RecipeService {
     const cacheKey = `recipe:${id}`;
 
     try {
-      const cached = await this.cacheManager.get<Recipe>(cacheKey);
+      const cached = await getScoped<Recipe>(this.cacheManager, 'recipe', cacheKey);
       const recipe = cached ?? await this.recipeRepository.findOne({
         where: { id, deletedAt: IsNull() },
         relations: [
@@ -341,7 +340,7 @@ export class RecipeService {
 
       if (!cached) {
         const enrichedRecipe = await this.enrichWithImages(recipe);
-        await this.cacheManager.set(cacheKey, enrichedRecipe, CACHE_TTL.DETAIL);
+        await setScoped(this.cacheManager, 'recipe', cacheKey, enrichedRecipe, CACHE_TTL.DETAIL);
         return enrichedRecipe;
       }
 
@@ -398,7 +397,7 @@ export class RecipeService {
       const scope = (list: Recipe[]) =>
         myDoctorId ? list.filter((r) => r.doctorId === myDoctorId) : list;
 
-      const cached = await this.cacheManager.get<Recipe[]>(cacheKey);
+      const cached = await getScoped<Recipe[]>(this.cacheManager, 'recipe', cacheKey);
       if (cached) return scope(cached);
 
       const recipes = await this.recipeRepository.find({
@@ -407,7 +406,7 @@ export class RecipeService {
         order: { issueDate: 'DESC' },
       });
 
-      await this.cacheManager.set(cacheKey, recipes, CACHE_TTL.LIST);
+      await setScoped(this.cacheManager, 'recipe', cacheKey, recipes, CACHE_TTL.LIST);
 
       return scope(recipes);
     } catch (error) {
@@ -475,7 +474,6 @@ export class RecipeService {
       });
 
       // 🧹 Limpiar caches
-      await this.cacheManager.del(`recipe:${id}`);
       await this.invalidateCaches(recipe);
 
       return this.findOne(id);
@@ -515,8 +513,6 @@ export class RecipeService {
       });
 
       // 🧹 Limpiar caches
-      await this.cacheManager.del(`recipe:${id}`);
-      await this.cacheManager.del(`recipe:medical-history:${recipe.medicalHistoryId}`);
       await this.cacheManager.del('recipe:all');
       await this.clearQueryCache();
 
@@ -560,8 +556,6 @@ export class RecipeService {
       });
 
       // 🧹 Limpiar caches
-      await this.cacheManager.del(`recipe:${id}`);
-      await this.cacheManager.del(`recipe:medical-history:${recipe.medicalHistoryId}`);
       await this.cacheManager.del('recipe:all');
       await this.clearQueryCache();
 
@@ -595,8 +589,6 @@ export class RecipeService {
       });
 
       // 🧹 Limpiar caches
-      await this.cacheManager.del(`recipe:${id}`);
-      await this.cacheManager.del(`recipe:medical-history:${recipe.medicalHistoryId}`);
       await this.cacheManager.del('recipe:all');
       await this.clearQueryCache();
     } catch (error) {

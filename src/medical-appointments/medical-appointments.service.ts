@@ -942,7 +942,7 @@ export class MedicalAppointmentsService {
     });
 
     // Limpiar caches (solo después del commit)
-    await this.historyService.invalidateListCache(scope.patientId);
+    await this.historyService.invalidateListCache();
     if (scope.hasRecipe) await this.recipeService.invalidateCaches(scope);
     await this.clearQueryCache();
 

@@ -86,6 +86,9 @@ export class PatientService {
    */
   private async clearQueryCache(): Promise<void> {
     await invalidateScope(this.cacheManager, 'patient');
+    // Recipe and history details embed the patient
+    await invalidateScope(this.cacheManager, 'recipe');
+    await invalidateScope(this.cacheManager, 'medical-history');
     // Appointment views embed this entity: drop them too
     await invalidateScope(this.cacheManager, APPOINTMENT_CACHE_SCOPE);
   }
