@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
+import { CACHE_TTL } from 'src/common/cache/cache-registry';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { IsNull, Raw, Repository } from 'typeorm';
 import { Specialty } from '../entities/specialty.entity';
@@ -142,14 +143,14 @@ export class SpecialtyService {
     const result = { data: items, total, page, limit };
 
     // 3️⃣ Guardar en cache por 5 min
-    await this.cacheManager.set(cacheKey, result, 300);
+    await this.cacheManager.set(cacheKey, result, CACHE_TTL.LIST);
 
     // 4️⃣ Registrar la key para poder limpiarla después
     const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
 
     if (!keys.includes(cacheKey)) {
       keys.push(cacheKey);
-      await this.cacheManager.set(listKey, keys);
+      await this.cacheManager.set(listKey, keys, CACHE_TTL.REGISTRY);
     }
 
     return result;
@@ -179,7 +180,7 @@ export class SpecialtyService {
       }
 
       // Guardar en cache por 10 min
-      await this.cacheManager.set(cacheKey, specialty, 600);
+      await this.cacheManager.set(cacheKey, specialty, CACHE_TTL.DETAIL);
 
       return specialty;
     } catch (error) {

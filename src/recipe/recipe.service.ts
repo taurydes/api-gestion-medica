@@ -9,6 +9,12 @@ import {
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
+import {
+  APPOINTMENT_CACHE_REGISTRY,
+  CACHE_TTL,
+  cacheAndRemember,
+  clearRegistry,
+} from 'src/common/cache/cache-registry';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { DataSource, EntityManager, In, IsNull, Repository } from 'typeorm';
 import { Medication } from 'src/parameters/entities/medication.entity';
@@ -90,6 +96,8 @@ export class RecipeService {
     }
 
     await this.cacheManager.del(listKey);
+    // Appointment views embed this entity: drop them too
+    await clearRegistry(this.cacheManager, APPOINTMENT_CACHE_REGISTRY);
   }
 
   /**
@@ -244,7 +252,6 @@ export class RecipeService {
 
   /** Clears the caches a new or changed recipe affects; public so finishConsultation can call it after commit. */
   async invalidateCaches(recipe: Pick<Recipe, 'patientId' | 'medicalHistoryId'>): Promise<void> {
-    await this.cacheManager.del(`recipe:patient:${recipe.patientId}`);
     await this.cacheManager.del(`recipe:medical-history:${recipe.medicalHistoryId}`);
     await this.cacheManager.del('recipe:all');
     await this.clearQueryCache();
@@ -315,11 +322,11 @@ export class RecipeService {
     const enriched = await Promise.all(items.map((r) => this.enrichWithImages(r)));
     const result = { data: enriched, total, page, limit };
 
-    await this.cacheManager.set(cacheKey, result, 300);
+    await this.cacheManager.set(cacheKey, result, CACHE_TTL.LIST);
     const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
     if (!keys.includes(cacheKey)) {
       keys.push(cacheKey);
-      await this.cacheManager.set(listKey, keys);
+      await this.cacheManager.set(listKey, keys, CACHE_TTL.REGISTRY);
     }
 
     return result;
@@ -362,7 +369,7 @@ export class RecipeService {
 
       if (!cached) {
         const enrichedRecipe = await this.enrichWithImages(recipe);
-        await this.cacheManager.set(cacheKey, enrichedRecipe, 600);
+        await this.cacheManager.set(cacheKey, enrichedRecipe, CACHE_TTL.DETAIL);
         return enrichedRecipe;
       }
 
@@ -378,8 +385,6 @@ export class RecipeService {
    * IDOR: si el usuario es doctor, solo ve recetas donde él es el doctor.
    */
   async findByPatient(patientId: string, authUser?: any): Promise<Recipe[]> {
-    const cacheKey = `recipe:patient:${patientId}`;
-
     try {
       const where: any = { patientId };
 
@@ -430,7 +435,7 @@ export class RecipeService {
         order: { issueDate: 'DESC' },
       });
 
-      await this.cacheManager.set(cacheKey, recipes, 300);
+      await this.cacheManager.set(cacheKey, recipes, CACHE_TTL.LIST);
 
       return scope(recipes);
     } catch (error) {
@@ -539,7 +544,6 @@ export class RecipeService {
 
       // 🧹 Limpiar caches
       await this.cacheManager.del(`recipe:${id}`);
-      await this.cacheManager.del(`recipe:patient:${recipe.patientId}`);
       await this.cacheManager.del(`recipe:medical-history:${recipe.medicalHistoryId}`);
       await this.cacheManager.del('recipe:all');
       await this.clearQueryCache();
@@ -585,7 +589,6 @@ export class RecipeService {
 
       // 🧹 Limpiar caches
       await this.cacheManager.del(`recipe:${id}`);
-      await this.cacheManager.del(`recipe:patient:${recipe.patientId}`);
       await this.cacheManager.del(`recipe:medical-history:${recipe.medicalHistoryId}`);
       await this.cacheManager.del('recipe:all');
       await this.clearQueryCache();
@@ -621,7 +624,6 @@ export class RecipeService {
 
       // 🧹 Limpiar caches
       await this.cacheManager.del(`recipe:${id}`);
-      await this.cacheManager.del(`recipe:patient:${recipe.patientId}`);
       await this.cacheManager.del(`recipe:medical-history:${recipe.medicalHistoryId}`);
       await this.cacheManager.del('recipe:all');
       await this.clearQueryCache();

@@ -14,6 +14,12 @@ import {
 } from 'src/common-person/person-document.util';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
+import {
+  APPOINTMENT_CACHE_REGISTRY,
+  CACHE_TTL,
+  cacheAndRemember,
+  clearRegistry,
+} from 'src/common/cache/cache-registry';
 import { DataSource, In, IsNull, Repository } from 'typeorm';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
@@ -89,6 +95,8 @@ export class PatientService {
 
     // Finalmente limpiamos la lista de claves
     await this.cacheManager.del(listKey);
+    // Appointment views embed this entity: drop them too
+    await clearRegistry(this.cacheManager, APPOINTMENT_CACHE_REGISTRY);
   }
 
   private async getPatientImageUrl(commonPersonId: string): Promise<string | null> {
@@ -349,14 +357,14 @@ export class PatientService {
     const result = { data: enrichedItems, total, page, limit };
 
     // 3️⃣ Guardar en cache por 5 min
-    await this.cacheManager.set(cacheKey, result, 300);
+    await this.cacheManager.set(cacheKey, result, CACHE_TTL.LIST);
 
     // 4️⃣ Registrar la key para poder limpiarla después
     const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
 
     if (!keys.includes(cacheKey)) {
       keys.push(cacheKey);
-      await this.cacheManager.set(listKey, keys);
+      await this.cacheManager.set(listKey, keys, CACHE_TTL.REGISTRY);
     }
 
     return result;
@@ -407,7 +415,7 @@ export class PatientService {
       const result = { ...patient, imageUrl } as any;
 
       // Guardar en cache por 10 min
-      await this.cacheManager.set(cacheKey, result, 600);
+      await this.cacheManager.set(cacheKey, result, CACHE_TTL.DETAIL);
 
       return result;
     } catch (error) {
@@ -453,7 +461,8 @@ export class PatientService {
         );
       }
 
-      await this.cacheManager.set(cacheKey, patient, 600);
+      // Tracked with the lists so update/remove drop it (the key has no patient id)
+      await cacheAndRemember(this.cacheManager, 'patient:query:keys', cacheKey, patient, CACHE_TTL.DETAIL);
 
       return patient;
     } catch (error) {

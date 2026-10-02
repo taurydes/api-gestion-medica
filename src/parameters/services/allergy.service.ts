@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
+import { CACHE_TTL } from 'src/common/cache/cache-registry';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { Repository } from 'typeorm';
 import { CreateAllergyDto } from '../dto/allergy/create-allergy.dto';
@@ -84,12 +85,12 @@ export class AllergyService {
 
     const result = { data: items, total, page, limit };
 
-    await this.cacheManager.set(cacheKey, result, 300);
+    await this.cacheManager.set(cacheKey, result, CACHE_TTL.LIST);
 
     const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
     if (!keys.includes(cacheKey)) {
       keys.push(cacheKey);
-      await this.cacheManager.set(listKey, keys);
+      await this.cacheManager.set(listKey, keys, CACHE_TTL.REGISTRY);
     }
 
     return result;
@@ -107,7 +108,7 @@ export class AllergyService {
       throw new NotFoundException(`Alergia con ID ${id} no encontrada.`);
     }
 
-    await this.cacheManager.set(cacheKey, allergy, 600);
+    await this.cacheManager.set(cacheKey, allergy, CACHE_TTL.DETAIL);
     return allergy;
   }
 

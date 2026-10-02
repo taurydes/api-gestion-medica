@@ -8,6 +8,12 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
+import {
+  APPOINTMENT_CACHE_REGISTRY,
+  CACHE_TTL,
+  cacheAndRemember,
+  clearRegistry,
+} from 'src/common/cache/cache-registry';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { EntityManager, IsNull, Repository } from 'typeorm';
 import { MedicalHistory } from './entities/medical-history.entity';
@@ -86,11 +92,14 @@ export class MedicalHistoryService {
     }
 
     await this.cacheManager.del(listKey);
+    // Appointment views embed this entity: drop them too
+    await clearRegistry(this.cacheManager, APPOINTMENT_CACHE_REGISTRY);
   }
 
   /** Clears the global list caches; callers that pass their own transaction call it after commit. */
-  async invalidateListCache(): Promise<void> {
+  async invalidateListCache(patientId?: string): Promise<void> {
     await this.cacheManager.del('medical-history:all');
+    if (patientId) await this.cacheManager.del(`medical-history:patient:${patientId}`);
     await this.clearQueryCache();
   }
 
@@ -199,7 +208,7 @@ export class MedicalHistoryService {
       const savedHistory = await historyRepo.save(newHistory);
       if (manager) return savedHistory;
 
-      await this.invalidateListCache();
+      await this.invalidateListCache(savedHistory.patientId);
 
       // Retornar con relaciones cargadas
       return this.findOne(savedHistory.id);
@@ -305,14 +314,14 @@ export class MedicalHistoryService {
     const result = { data: enriched, total, page, limit };
 
     // 3️⃣ Guardar en cache por 5 min
-    await this.cacheManager.set(cacheKey, result, 300);
+    await this.cacheManager.set(cacheKey, result, CACHE_TTL.LIST);
 
     // 4️⃣ Registrar la key para poder limpiarla después
     const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
 
     if (!keys.includes(cacheKey)) {
       keys.push(cacheKey);
-      await this.cacheManager.set(listKey, keys);
+      await this.cacheManager.set(listKey, keys, CACHE_TTL.REGISTRY);
     }
 
     return result;
@@ -369,7 +378,7 @@ export class MedicalHistoryService {
       const enrichedHistory = await this.enrichWithImages(history);
 
       // Guardar en cache por 10 min
-      await this.cacheManager.set(cacheKey, enrichedHistory, 600);
+      await this.cacheManager.set(cacheKey, enrichedHistory, CACHE_TTL.DETAIL);
 
       return enrichedHistory;
     } catch (error) {
@@ -416,7 +425,7 @@ export class MedicalHistoryService {
         order: { consultationDate: 'DESC' },
       });
 
-      await this.cacheManager.set(cacheKey, histories, 300);
+      await this.cacheManager.set(cacheKey, histories, CACHE_TTL.LIST);
 
       return histories;
     } catch (error) {

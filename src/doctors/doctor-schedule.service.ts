@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
+import { CACHE_TTL } from 'src/common/cache/cache-registry';
 import { IsNull, Repository } from 'typeorm';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { DoctorSchedule } from './entities/doctor-schedule.entity';
@@ -120,7 +121,7 @@ export class DoctorScheduleService {
       order: { dayOfWeek: 'ASC', startTime: 'ASC' },
     });
 
-    await this.cacheManager.set(cacheKey, schedules, 300);
+    await this.cacheManager.set(cacheKey, schedules, CACHE_TTL.LIST);
     return schedules;
   }
 
@@ -199,9 +200,11 @@ export class DoctorScheduleService {
     doctorId: string,
     medicalCenterId: string,
   ): Promise<void> {
-    await this.cacheManager.del(`doctor-schedules:${doctorId}:all`);
-    await this.cacheManager.del(
-      `doctor-schedules:${doctorId}:${medicalCenterId}`,
-    );
+    // Same three segments getSchedulesByDoctor writes: <center|all>:<active|all-states>
+    for (const center of ['all', medicalCenterId]) {
+      for (const state of ['active', 'all-states']) {
+        await this.cacheManager.del(`doctor-schedules:${doctorId}:${center}:${state}`);
+      }
+    }
   }
 }

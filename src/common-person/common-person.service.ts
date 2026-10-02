@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
+import { CACHE_TTL } from 'src/common/cache/cache-registry';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { IsNull, Repository } from 'typeorm';
 import { CreateCommonPersonDto } from './dto/create-common-person.dto';
@@ -136,14 +137,14 @@ export class CommonPersonService {
     const result = { data: items, total, page, limit };
 
     // 3️⃣ Guardar en cache por 5 min
-    await this.cacheManager.set(cacheKey, result, 300);
+    await this.cacheManager.set(cacheKey, result, CACHE_TTL.LIST);
 
     // 4️⃣ Registrar la key para poder limpiarla después
     const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
 
     if (!keys.includes(cacheKey)) {
       keys.push(cacheKey);
-      await this.cacheManager.set(listKey, keys);
+      await this.cacheManager.set(listKey, keys, CACHE_TTL.REGISTRY);
     }
 
     return result;
@@ -167,7 +168,7 @@ export class CommonPersonService {
       throw new NotFoundException(`Persona con ID ${id} no encontrada.`);
     }
 
-    await this.cacheManager.set(cacheKey, person, 600);
+    await this.cacheManager.set(cacheKey, person, CACHE_TTL.DETAIL);
     return person;
   }
 

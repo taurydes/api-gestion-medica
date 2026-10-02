@@ -15,6 +15,12 @@ import {
 import { AuthContextService } from 'src/common/services/auth-context.service';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
+import {
+  APPOINTMENT_CACHE_REGISTRY,
+  CACHE_TTL,
+  cacheAndRemember,
+  clearRegistry,
+} from 'src/common/cache/cache-registry';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { DataSource, FindOptions, In, IsNull, Repository } from 'typeorm';
 import { CreateDoctorDto } from './dto/create-doctor.dto';
@@ -91,6 +97,8 @@ export class DoctorsService {
     }
 
     await this.cacheManager.del(listKey);
+    // Appointment views embed this entity: drop them too
+    await clearRegistry(this.cacheManager, APPOINTMENT_CACHE_REGISTRY);
   }
 
   /**
@@ -265,13 +273,13 @@ export class DoctorsService {
     const result = { data: enrichedItems, total, page, limit };
 
     // Guardar en cache por 5 min
-    await this.cacheManager.set(cacheKey, result, 300);
+    await this.cacheManager.set(cacheKey, result, CACHE_TTL.LIST);
 
     // Registrar la key para poder limpiarla después
     const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
     if (!keys.includes(cacheKey)) {
       keys.push(cacheKey);
-      await this.cacheManager.set(listKey, keys);
+      await this.cacheManager.set(listKey, keys, CACHE_TTL.REGISTRY);
     }
 
     return result;
@@ -301,7 +309,7 @@ export class DoctorsService {
       const imageUrl = await this.getDoctorImageUrl(id);
       const result = { ...doctor, imageUrl };
 
-      await this.cacheManager.set(cacheKey, result, 600);
+      await this.cacheManager.set(cacheKey, result, CACHE_TTL.DETAIL);
 
       return result;
     } catch (error) {

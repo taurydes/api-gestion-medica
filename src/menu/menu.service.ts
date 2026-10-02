@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
+import { CACHE_TTL, clearRegistry } from 'src/common/cache/cache-registry';
 import { In, IsNull, Repository } from 'typeorm';
 
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
@@ -56,6 +57,7 @@ export class MenuService {
 
       // 🧹 Limpiar caché de la lista general
       await this.cacheManager.del('menus:all');
+      await clearRegistry(this.cacheManager, 'menus:query:keys');
 
       return menu;
     } catch (error) {
@@ -103,12 +105,12 @@ export class MenuService {
 
     const result = { data, total, page, limit };
 
-    await this.cacheManager.set(cacheKey, result, 300);
+    await this.cacheManager.set(cacheKey, result, CACHE_TTL.LIST);
 
     const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
     if (!keys.includes(cacheKey)) {
       keys.push(cacheKey);
-      await this.cacheManager.set(listKey, keys);
+      await this.cacheManager.set(listKey, keys, CACHE_TTL.REGISTRY);
     }
 
     return result;
@@ -137,7 +139,7 @@ export class MenuService {
       }
 
       // 3️⃣ Guardar en caché 10 min
-      await this.cacheManager.set(cacheKey, menu, 600);
+      await this.cacheManager.set(cacheKey, menu, CACHE_TTL.DETAIL);
 
       return menu;
     } catch (error) {
@@ -199,6 +201,7 @@ export class MenuService {
       // 🧹 Limpiar caché relacionada
       await this.cacheManager.del(`menu:${id}`);
       await this.cacheManager.del('menus:all');
+      await clearRegistry(this.cacheManager, 'menus:query:keys');
 
       return updatedMenu;
     } catch (error) {
@@ -223,6 +226,7 @@ export class MenuService {
       // 🧹 Limpiar caché relacionada
       await this.cacheManager.del(`menu:${id}`);
       await this.cacheManager.del('menus:all');
+      await clearRegistry(this.cacheManager, 'menus:query:keys');
     } catch (error) {
       throw toHttpException(error, 'Error al eliminar el menú.');
     }

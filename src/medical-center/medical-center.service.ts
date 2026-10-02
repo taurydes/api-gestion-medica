@@ -11,6 +11,7 @@ import { AuthContextService } from 'src/common/services/auth-context.service';
 import { uniqueViolationToConflict } from 'src/common-person/person-document.util';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
+import { CACHE_TTL } from 'src/common/cache/cache-registry';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { Department } from 'src/departments/entities/department.entity';
 import { Doctor } from 'src/doctors/entities/doctor.entity';
@@ -197,13 +198,13 @@ export class MedicalCenterService {
     };
 
     // Guardar en cache por 5 min
-    await this.cacheManager.set(cacheKey, result, 300);
+    await this.cacheManager.set(cacheKey, result, CACHE_TTL.LIST);
 
     // Registrar la key para poder limpiarla después
     const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
     if (!keys.includes(cacheKey)) {
       keys.push(cacheKey);
-      await this.cacheManager.set(listKey, keys);
+      await this.cacheManager.set(listKey, keys, CACHE_TTL.REGISTRY);
     }
 
     return result;
@@ -258,7 +259,7 @@ export class MedicalCenterService {
         (id) => this.filesService.getMedicalCenterImageUrl(id),
       );
 
-      await this.cacheManager.set(cacheKey, dto, 600);
+      await this.cacheManager.set(cacheKey, dto, CACHE_TTL.DETAIL);
 
       return dto;
     } catch (error) {
@@ -432,6 +433,8 @@ export class MedicalCenterService {
 
     // Limpiar caches
     await this.cacheManager.del(`medicalCenter:${medicalCenterId}`);
+    // doctor:<id> embeds its centers
+    await this.cacheManager.del(`doctor:${doctorId}`);
     await this.cacheManager.del('medicalCenter:all');
     if (departmentId) {
       await this.cacheManager.del(`department:${departmentId}`);
@@ -472,6 +475,8 @@ export class MedicalCenterService {
 
     // Limpiar caches
     await this.cacheManager.del(`medicalCenter:${medicalCenterId}`);
+    // doctor:<id> embeds its centers
+    await this.cacheManager.del(`doctor:${doctorId}`);
     await this.cacheManager.del('medicalCenter:all');
     await this.clearQueryCache();
 
