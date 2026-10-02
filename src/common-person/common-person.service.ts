@@ -21,6 +21,7 @@ import { UpdateCommonPersonDto } from './dto/update-common-person.dto';
 import { CommonPerson } from './entities/common-person.entity';
 import {
   assertDocumentAvailable,
+  definedFields,
   PERSON_DOCUMENT_CONFLICT,
   personDocumentWhere,
   uniqueViolationToConflict,
@@ -168,7 +169,7 @@ export class CommonPersonService {
     await assertDocumentAvailable(this.commonPersonRepository, person, updateCommonPersonDto);
 
     try {
-      await this.commonPersonRepository.update(id, updateCommonPersonDto);
+      await this.commonPersonRepository.update(id, definedFields(updateCommonPersonDto));
     } catch (error) {
       throw uniqueViolationToConflict(error) ?? error;
     }

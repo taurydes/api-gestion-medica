@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import {
   assertDocumentAvailable,
+  definedFields,
   personDocumentWhere,
   uniqueViolationToConflict,
 } from 'src/common-person/person-document.util';
@@ -342,7 +343,7 @@ export class DoctorsService {
       // 2. Actualizar CommonPerson si se proporciona
       if (dto.commonPerson && doctor.commonPerson) {
         await assertDocumentAvailable(this.commonPersonRepository, doctor.commonPerson, dto.commonPerson);
-        Object.assign(doctor.commonPerson, dto.commonPerson);
+        Object.assign(doctor.commonPerson, definedFields(dto.commonPerson));
         await this.commonPersonRepository.save(doctor.commonPerson);
       }
 

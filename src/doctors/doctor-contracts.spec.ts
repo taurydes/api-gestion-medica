@@ -4,6 +4,7 @@ import { CreateUserDto } from 'src/user/dto/create-user.dto';
 import { DoctorScheduleService } from './doctor-schedule.service';
 import { CreateDoctorScheduleDto, UpdateDoctorScheduleBlockDto } from './dto/doctor-schedule.dto';
 import { UpdateDoctorDto } from './dto/update-doctor.dto';
+import { DoctorsService } from './doctors.service';
 
 const pipe = new ValidationPipe({ transform: true, whitelist: true });
 const validate = (metatype: any, body: unknown) => pipe.transform(body, { type: 'body', metatype });
@@ -41,6 +42,41 @@ describe('commonPerson.phoneNumber (M-32)', () => {
     await expect(
       validate(CreateUserDto, { ...body, commonPerson: { ...person, firstName: 'x'.repeat(31) } }),
     ).rejects.toThrow(BadRequestException);
+  });
+});
+
+describe('PATCH /doctors/:id con commonPerson parcial (H-03)', () => {
+  function service(current: Record<string, unknown>) {
+    const doctor = { id: 'd1', commonPerson: { id: 'p1', ...current } };
+    const personRepo = { save: jest.fn(async (x) => x), findOne: jest.fn().mockResolvedValue(null) };
+    const doctorRepo = { findOne: jest.fn().mockResolvedValue(doctor), save: jest.fn(async (x) => x) };
+    const cache = { get: jest.fn().mockResolvedValue(undefined), set: jest.fn(), del: jest.fn() };
+    const svc = new DoctorsService(
+      doctorRepo as any, personRepo as any, {} as any, {} as any, {} as any, {} as any,
+      cache as any, {} as any, {} as any, {} as any,
+    );
+    return { svc, personRepo };
+  }
+
+  it('solo phoneNumber pasa la validación y cambia solo el teléfono', async () => {
+    const dto = await validate(UpdateDoctorDto, { commonPerson: { phoneNumber: '04245556677' } });
+    const { svc, personRepo } = service(person);
+
+    const updated = await svc.update('d1', dto);
+
+    expect(personRepo.save).toHaveBeenCalledWith({ id: 'p1', ...person, phoneNumber: '04245556677' });
+    expect(updated.commonPerson).toMatchObject({ firstName: 'Ana', lastName: 'Pérez' });
+  });
+
+  it('sigue validando los campos enviados: nombre null, largo o teléfono inválido → 400', async () => {
+    for (const commonPerson of [
+      { firstName: null },
+      { lastName: null },
+      { firstName: 'x'.repeat(31) },
+      { phoneNumber: 'abc' },
+    ]) {
+      await expect(validate(UpdateDoctorDto, { commonPerson })).rejects.toThrow(BadRequestException);
+    }
   });
 });
 
