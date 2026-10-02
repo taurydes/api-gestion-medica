@@ -196,16 +196,8 @@ export class CommonPersonService {
   async remove(id: string): Promise<void> {
     const person = await this.findOne(id); // Checks existence
 
-    await this.commonPersonRepository.save({
-      ...person,
-      deletedAt: new Date(),
-      isActive: false,
-    });
-    // Or softDelete if configured in entity, but we are doing manual soft delete updates or using TypeORM softDelete
-    // The entity has @Column deleted_at, so we can use softDelete if we want, or manual update like above.
-    // Let's use softRemove or just update the field to be safe with existing logic patterns.
-    // Given 'deletedAt' is a column, I'll assume standard TypeORM soft delete can be used or manual.
-    // The query builder check 'deletedAt IS NULL' implies soft delete logic.
+    // Only the two flags: `person` may come from the cache and saving it would write stale fields back
+    await this.commonPersonRepository.update(person.id, { deletedAt: new Date(), isActive: false });
 
     await this.cacheManager.del(`commonPerson:${id}`);
     await this.cacheManager.del('commonPerson:all');

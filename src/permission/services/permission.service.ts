@@ -1074,6 +1074,13 @@ export class PermissionService {
     }
   }
 
+  /** Reads from the DB, never the cache: saving a cached copy would write its stale or missing fields back. */
+  private async findOneForWrite(id: string): Promise<Permission> {
+    const permission = await this.permissionRepo.findOne({ where: { id } });
+    if (!permission) throw new NotFoundException(`Permiso con ID ${id} no encontrado`);
+    return permission;
+  }
+
   /**
    * Actualiza la información de un permiso existente.
    *
@@ -1090,7 +1097,7 @@ export class PermissionService {
     updatePermissionDto: UpdatePermissionDto,
   ): Promise<Permission> {
     try {
-      const permission = await this.findOne(id);
+      const permission = await this.findOneForWrite(id);
       const { name, ...changes } = updatePermissionDto;
       if (name !== undefined && this.normalizeAction(name) !== permission.name) {
         throw new BadRequestException(
@@ -1128,7 +1135,7 @@ export class PermissionService {
    */
   async remove(id: string): Promise<void> {
     try {
-      const permission = await this.findOne(id);
+      const permission = await this.findOneForWrite(id);
       this.assertNotSystemAction(permission, 'eliminar');
       // Soft delete: marcar como inactivo en vez de borrar físicamente
       permission.isActive = false;

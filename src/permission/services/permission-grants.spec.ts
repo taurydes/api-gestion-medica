@@ -137,4 +137,24 @@ describe('PATCH /permissions/:id devuelve el permiso completo (H-04)', () => {
     expect(out).toMatchObject({ displayName: 'Exportar QA', isActive: true, isRequired: true, order: 7, controlType: 'checkbox' });
     expect(cache.set).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ isActive: true, isRequired: true }), expect.anything());
   });
+
+  it('ignora una copia cacheada vieja: no escribe sus campos faltantes o nulos en la BD', async () => {
+    const stored = {
+      id: 'perm-y', name: 'crear', displayName: 'crear', userId: 'seed', isActive: true,
+      isRequired: false, order: 1, controlType: null, deletedAt: null, updatedAt: null,
+    };
+    const table = [stored];
+    const permissionRepo = new FakeRepo(table);
+    const staleCopy = { id: 'perm-y', name: 'crear', displayName: 'crear', order: null, controlType: null };
+    const cache = { get: jest.fn().mockResolvedValue(staleCopy), set: jest.fn(), del: jest.fn() };
+    const service = new PermissionService(
+      new FakeRepo([]) as any, new FakeRepo([]) as any, permissionRepo as any,
+      new FakeRepo([]) as any, new FakeRepo([]) as any, new FakeRepo([]) as any, cache as any,
+    );
+
+    const out = await service.update('perm-y', { displayName: 'Crear QA' } as any);
+
+    expect(out).toMatchObject({ displayName: 'Crear QA', order: 1, isActive: true, isRequired: false });
+    expect(table[0]).toMatchObject({ order: 1, isActive: true });
+  });
 });

@@ -118,6 +118,20 @@ describe('Person document lookups and conflicts (M-18)', () => {
     expect(Object.keys(update.mock.calls[0][1] as object)).toEqual(['phoneNumber']);
   });
 
+  it('remove writes only deletedAt and isActive, never the cached copy', async () => {
+    const repo = new FakeRepo(people());
+    const update = jest.spyOn(repo, 'update');
+    const save = jest.spyOn(repo, 'save');
+    const cache = { get: jest.fn().mockResolvedValue(undefined), set: jest.fn(), del: jest.fn() };
+    const service = new CommonPersonService(repo as any, cache as any);
+    jest.spyOn(service, 'findOne').mockResolvedValue({ ...people()[0], firstName: 'stale' } as any);
+
+    await service.remove('cp-v');
+
+    expect(save).not.toHaveBeenCalled();
+    expect(update).toHaveBeenCalledWith('cp-v', { deletedAt: expect.any(Date), isActive: false });
+  });
+
   it('a 23505 from the database becomes a domain 409, not a 500', () => {
     const driverError = Object.assign(new Error('duplicate key'), {
       code: '23505',
