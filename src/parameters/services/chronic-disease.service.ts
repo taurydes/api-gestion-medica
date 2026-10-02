@@ -119,7 +119,7 @@ export class ChronicDiseaseService {
     id: string,
     updateDto: UpdateChronicDiseaseDto,
   ): Promise<ChronicDisease> {
-    const disease = await this.findOne(id);
+    await this.findOne(id); // 404 if missing
 
     await this.chronicDiseaseRepository.update(id, updateDto);
     const updated = await this.chronicDiseaseRepository.findOne({
@@ -138,13 +138,9 @@ export class ChronicDiseaseService {
   }
 
   async remove(id: string): Promise<void> {
-    const disease = await this.findOne(id);
-
-    await this.chronicDiseaseRepository.save({
-      ...disease,
-      deletedAt: new Date(),
-      isActive: false,
-    });
+    await this.findOne(id); // 404 if missing
+    // Only the two flags: findOne may return the cached copy, and saving it would write stale fields back
+    await this.chronicDiseaseRepository.update(id, { deletedAt: new Date(), isActive: false });
 
     await this.cacheManager.del(`chronic-disease:${id}`);
     await this.cacheManager.del('chronic-disease:all');

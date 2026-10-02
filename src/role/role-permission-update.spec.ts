@@ -140,3 +140,15 @@ describe('Guardas de administración (fase 2)', () => {
     expect(table[0]).toMatchObject({ slug: 'patient', name: 'Pacientes 2', order: 41 });
   });
 });
+
+describe('RoleService writes ignore the cached copy (H-06)', () => {
+  it('a stale cached name does not unlock renaming a system role', async () => {
+    const table = [{ id: 'r-med', name: 'medico', isActive: true, updatedAt: null }];
+    const cache = fakeCache();
+    await cache.set('role:r-med', { id: 'r-med', name: 'otro', isActive: true });
+    const service = new RoleService(new FakeRepo(table) as any, cache);
+
+    await expect(service.update('r-med', { name: 'doctor' })).rejects.toThrow(BadRequestException);
+    expect(table[0].name).toBe('medico');
+  });
+});

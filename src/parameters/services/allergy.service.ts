@@ -113,7 +113,7 @@ export class AllergyService {
     id: string,
     updateAllergyDto: UpdateAllergyDto,
   ): Promise<Allergy> {
-    const allergy = await this.findOne(id);
+    await this.findOne(id); // 404 if missing
 
     await this.allergyRepository.update(id, updateAllergyDto);
     const updated = await this.allergyRepository.findOne({ where: { id } });
@@ -130,13 +130,9 @@ export class AllergyService {
   }
 
   async remove(id: string): Promise<void> {
-    const allergy = await this.findOne(id);
-
-    await this.allergyRepository.save({
-      ...allergy,
-      deletedAt: new Date(),
-      isActive: false,
-    });
+    await this.findOne(id); // 404 if missing
+    // Only the two flags: findOne may return the cached copy, and saving it would write stale fields back
+    await this.allergyRepository.update(id, { deletedAt: new Date(), isActive: false });
 
     await this.cacheManager.del(`allergy:${id}`);
     await this.cacheManager.del('allergy:all');

@@ -119,7 +119,7 @@ export class MedicationService {
     id: string,
     updateDto: UpdateMedicationDto,
   ): Promise<Medication> {
-    const medication = await this.findOne(id);
+    await this.findOne(id); // 404 if missing
 
     await this.medicationRepository.update(id, updateDto);
     const updated = await this.medicationRepository.findOne({ where: { id } });
@@ -136,13 +136,9 @@ export class MedicationService {
   }
 
   async remove(id: string): Promise<void> {
-    const medication = await this.findOne(id);
-
-    await this.medicationRepository.save({
-      ...medication,
-      deletedAt: new Date(),
-      isActive: false,
-    });
+    await this.findOne(id); // 404 if missing
+    // Only the two flags: findOne may return the cached copy, and saving it would write stale fields back
+    await this.medicationRepository.update(id, { deletedAt: new Date(), isActive: false });
 
     await this.cacheManager.del(`medication:${id}`);
     await this.cacheManager.del('medication:all');

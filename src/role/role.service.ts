@@ -115,6 +115,13 @@ export class RoleService {
   /**
    * Obtener rol por ID
    */
+  /** Reads from the DB, never the cache: the system-role checks and the delete must see the current row. */
+  private async findOneForWrite(id: string): Promise<Role> {
+    const role = await this.roleRepository.findOne({ where: { id } });
+    if (!role) throw new NotFoundException(`Rol con ID ${id} no encontrado`);
+    return role;
+  }
+
   async findOne(id: string): Promise<Role> {
     const cacheKey = `role:${id}`;
 
@@ -146,7 +153,7 @@ export class RoleService {
    */
   async update(id: string, updateRoleDto: UpdateRoleDto): Promise<Role> {
     try {
-      const role = await this.findOne(id);
+      const role = await this.findOneForWrite(id);
 
       const renames =
         updateRoleDto.name !== undefined && updateRoleDto.name !== role.name;
@@ -161,7 +168,6 @@ export class RoleService {
         );
       }
 
-      // update() and not save(): findOne loads permissionMenus and save() would walk the relation.
       await this.roleRepository.update(id, { ...updateRoleDto, updatedAt: new Date() });
 
       await this.cacheManager.del(`role:${id}`);
@@ -179,7 +185,7 @@ export class RoleService {
    */
   async remove(id: string): Promise<void> {
     try {
-      const role = await this.findOne(id);
+      const role = await this.findOneForWrite(id);
       if (role.name === RoleEnum.ADMIN) {
         throw new BadRequestException(
           `El rol '${RoleEnum.ADMIN}' no se puede eliminar: dejaría el sistema sin administradores.`,
