@@ -1,9 +1,11 @@
 import {
   ArgumentsHost,
+  BadRequestException,
   Catch,
   ExceptionFilter,
   HttpException,
   Injectable,
+  PayloadTooLargeException,
 } from '@nestjs/common';
 import { LogCreationOptions } from 'src/logs/logs.const';
 import { LogsService } from 'src/logs/logs.service';
@@ -13,6 +15,27 @@ import { LogsService } from 'src/logs/logs.service';
  */
 /** Client-facing text for non-HTTP errors: the raw detail (e.g. a driver message) only goes to the log. */
 export const INTERNAL_ERROR_MESSAGE = 'Error interno del servidor.';
+
+/** Body-parser limit for JSON and urlencoded bodies; `main.ts` and the 413 message share it. */
+export const BODY_LIMIT_MB = 30;
+
+/** body-parser errors are plain `Error`s with `status`/`type`: give them their 4xx and a Spanish message. */
+export function fromBodyParserError(exception: any): HttpException | null {
+  if (!exception || exception instanceof HttpException) return null;
+  const status = exception.status ?? exception.statusCode;
+  if (exception.type === 'entity.too.large' || status === 413) {
+    return new PayloadTooLargeException(
+      `El cuerpo de la solicitud supera el tamaño máximo permitido (${BODY_LIMIT_MB} MB).`,
+    );
+  }
+  if (exception.type === 'entity.parse.failed') {
+    return new BadRequestException('El cuerpo de la solicitud no es un JSON válido.');
+  }
+  if (exception.expose === true && Number.isInteger(status) && status >= 400 && status < 500) {
+    return new HttpException('La solicitud no se pudo procesar.', status);
+  }
+  return null;
+}
 
 interface HttpErrorBody {
   message?: string;
@@ -35,6 +58,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
    * Captura cualquier excepción lanzada y procesa su respuesta.
    */
   async catch(exception: any, host: ArgumentsHost) {
+    exception = fromBodyParserError(exception) ?? exception;
     const ctx = host.switchToHttp();
     const res = ctx.getResponse();
     const req: any = ctx.getRequest();

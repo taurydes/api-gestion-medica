@@ -31,6 +31,40 @@ describe('HttpExceptionFilter — no raw DB messages to the client (M-08)', () =
   });
 });
 
+/** Shape of body-parser's errors (http-errors): plain Error with status/type/expose. */
+function bodyParserError(message: string, status: number, type: string) {
+  return Object.assign(new Error(message), { status, statusCode: status, type, expose: true });
+}
+
+describe('HttpExceptionFilter — body-parser errors (H-01)', () => {
+  it('PayloadTooLargeError (entity.too.large) → 413 with the Spanish limit message', async () => {
+    const { res, logs, done } = run(bodyParserError('request entity too large', 413, 'entity.too.large'));
+    await done;
+    expect(res.status).toHaveBeenCalledWith(413);
+    expect(res.json).toHaveBeenCalledWith({
+      data: null,
+      error: 'El cuerpo de la solicitud supera el tamaño máximo permitido (30 MB).',
+      statusCode: 413,
+    });
+    expect(logs.create).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 413 }));
+  });
+
+  it('malformed JSON (entity.parse.failed) → 400, not 500', async () => {
+    const { res, done } = run(bodyParserError('Unexpected token', 400, 'entity.parse.failed'));
+    await done;
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ error: 'El cuerpo de la solicitud no es un JSON válido.' }),
+    );
+  });
+
+  it('a plain Error without an exposed status stays a generic 500', async () => {
+    const { res, done } = run(Object.assign(new Error('boom'), { status: 503 }));
+    await done;
+    expect(res.status).toHaveBeenCalledWith(500);
+  });
+});
+
 describe('ParseUuid pipe (M-08)', () => {
   const meta = { type: 'query', data: 'appointmentId' } as any;
 
