@@ -27,16 +27,19 @@ export function tooLargeMessage(maxBytes: number): string {
   return `El archivo supera el tamaño máximo permitido (${Math.round(maxBytes / MB)} MB).`;
 }
 
-/** Replaces multer's English "File too large" with the Spanish message and the limit. */
+/** Multer's own text for LIMIT_FILE_SIZE; only that error carries this interceptor's limit. */
+const MULTER_FILE_TOO_LARGE = 'File too large';
+
+/** Replaces multer's English "File too large" with the Spanish message and the limit; other 413s keep theirs. */
 @Injectable()
-class UploadLimitMessageInterceptor implements NestInterceptor {
+export class UploadLimitMessageInterceptor implements NestInterceptor {
   constructor(private readonly maxBytes: number) {}
 
   intercept(_ctx: ExecutionContext, next: CallHandler): Observable<unknown> {
     return next.handle().pipe(
       catchError((err) =>
         throwError(() =>
-          err instanceof PayloadTooLargeException
+          err instanceof PayloadTooLargeException && err.message === MULTER_FILE_TOO_LARGE
             ? new PayloadTooLargeException(tooLargeMessage(this.maxBytes))
             : err,
         ),
