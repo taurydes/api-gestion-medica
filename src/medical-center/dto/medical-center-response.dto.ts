@@ -114,7 +114,7 @@ export function mapMedicalCenterDoctor(doctor: any): MedicalCenterDoctorDto {
 /**
  * Convierte un centro médico crudo (con relaciones cargadas) a MedicalCenterListItemDto.
  * Solo expone el payload mínimo necesario para el listado.
- * Los conteos de doctores y departamentos se calculan desde las relaciones cargadas.
+ * Los conteos llegan calculados en SQL (loadRelationCountAndMap) y excluyen los borrados.
  */
 export function mapToMedicalCenterListItem(
   mc: any,
@@ -129,8 +129,8 @@ export function mapToMedicalCenterListItem(
     email: mc.email ?? null,
     isActive: mc.isActive,
     imageUrl: firstImage ? buildImageUrl(firstImage.id) : null,
-    doctorCount: mc.doctors?.length ?? 0,
-    departmentCount: mc.departments?.length ?? 0,
+    doctorCount: mc.doctorCount ?? 0,
+    departmentCount: mc.departmentCount ?? 0,
   };
 }
 

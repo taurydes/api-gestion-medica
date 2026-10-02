@@ -157,8 +157,13 @@ export class MedicalCenterService {
     // Construir QueryBuilder
     const qb = this.medicalCenterRepository
       .createQueryBuilder('mc')
-      .leftJoinAndSelect('mc.doctors', 'doctors')
-      .leftJoinAndSelect('mc.departments', 'departments')
+      // Counts in SQL instead of loading both collections; soft-deleted rows do not count (M-63)
+      .loadRelationCountAndMap('mc.doctorCount', 'mc.doctors', 'd', (q) =>
+        q.andWhere('d.deletedAt IS NULL'),
+      )
+      .loadRelationCountAndMap('mc.departmentCount', 'mc.departments', 'dep', (q) =>
+        q.andWhere('dep.deletedAt IS NULL'),
+      )
       .leftJoinAndSelect('mc.images', 'images', 'images.deletedAt IS NULL AND images.isActive = true')
       .where('mc.deletedAt IS NULL');
 
@@ -232,10 +237,11 @@ export class MedicalCenterService {
 
       const center = await this.medicalCenterRepository
         .createQueryBuilder('mc')
-        .leftJoinAndSelect('mc.doctors', 'doctors')
+        // deleted_at is a plain column, so joins do not skip soft-deleted rows by themselves
+        .leftJoinAndSelect('mc.doctors', 'doctors', 'doctors.deletedAt IS NULL')
         .leftJoinAndSelect('doctors.commonPerson', 'commonPerson')
         .leftJoinAndSelect('doctors.specialties', 'specialties')
-        .leftJoinAndSelect('mc.departments', 'departments')
+        .leftJoinAndSelect('mc.departments', 'departments', 'departments.deletedAt IS NULL')
         .leftJoinAndSelect(
           'mc.images',
           'images',
