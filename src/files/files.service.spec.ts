@@ -1,4 +1,8 @@
-import { BadRequestException, PayloadTooLargeException } from '@nestjs/common';
+import {
+  BadRequestException,
+  PayloadTooLargeException,
+  UnsupportedMediaTypeException,
+} from '@nestjs/common';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -30,8 +34,12 @@ function setup() {
   return { service, uploadsDir, appointmentFileRepo, res };
 }
 
+const PNG = Buffer.concat([Buffer.from('89504e470d0a1a0a', 'hex'), Buffer.from('imagen')]);
+const JPEG = Buffer.concat([Buffer.from('ffd8ffe0', 'hex'), Buffer.from('jfif')]);
+const DICOM = Buffer.concat([Buffer.alloc(128), Buffer.from('DICM'), Buffer.from('data')]);
+
 const image = (originalname = 'foto.png') =>
-  ({ originalname, mimetype: 'image/png', size: 10, buffer: Buffer.from('x') }) as any;
+  ({ originalname, mimetype: 'image/png', size: 10, buffer: PNG }) as any;
 
 describe('FilesService — path traversal (M-08)', () => {
   it('uploadFile: name con directorios → 400 y no escribe fuera de uploads', async () => {
@@ -108,12 +116,12 @@ describe('FilesService — path traversal (M-08)', () => {
   it('uploadAppointmentFile: archivo de multer en disco se mueve sin buffer (M-50)', async () => {
     const { service, uploadsDir } = setup();
     const tmp = path.join(uploadsDir, 'staged.upload');
-    fs.writeFileSync(tmp, 'imagen');
+    fs.writeFileSync(tmp, PNG);
     const saved = await service.uploadAppointmentFile(
-      { originalname: 'm.png', mimetype: 'image/png', size: 6, path: tmp } as any,
+      { originalname: 'm.png', mimetype: 'image/png', size: PNG.length, path: tmp } as any,
       { appointmentId: UUID, patientId: UUID, medicalCenterId: UUID, uploadedBy: UUID },
     );
-    expect(fs.readFileSync(path.resolve(uploadsDir, saved.filePath), 'utf8')).toBe('imagen');
+    expect(fs.readFileSync(path.resolve(uploadsDir, saved.filePath))).toEqual(PNG);
     expect(fs.existsSync(tmp)).toBe(false);
   });
 
@@ -129,6 +137,41 @@ describe('FilesService — path traversal (M-08)', () => {
     ).rejects.toThrow(PayloadTooLargeException);
     expect(fs.existsSync(tmp)).toBe(false);
     expect(appointmentFileRepo.save).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['image/png', JPEG],
+    ['image/jpeg', PNG],
+    ['application/dicom', PNG],
+    ['image/png', Buffer.from('bytes aleatorios sin firma')],
+  ])('uploadAppointmentFile: %s con bytes de otro tipo → 415, borra el temporal (H-05)', async (mimetype, bytes) => {
+    const { service, uploadsDir, appointmentFileRepo } = setup();
+    const tmp = path.join(uploadsDir, 'fake.upload');
+    fs.writeFileSync(tmp, bytes);
+    await expect(
+      service.uploadAppointmentFile(
+        { originalname: 'm.png', mimetype, size: bytes.length, path: tmp } as any,
+        { appointmentId: UUID, patientId: UUID, medicalCenterId: UUID, uploadedBy: UUID },
+      ),
+    ).rejects.toThrow(UnsupportedMediaTypeException);
+    expect(fs.existsSync(tmp)).toBe(false);
+    expect(appointmentFileRepo.save).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['image/jpg', JPEG],
+    ['image/jpeg', JPEG],
+    ['application/dicom', DICOM],
+    ['image/dicom', DICOM],
+  ])('uploadAppointmentFile: %s con su firma real → se guarda (H-05)', async (mimetype, bytes) => {
+    const { service, uploadsDir } = setup();
+    const tmp = path.join(uploadsDir, 'ok.upload');
+    fs.writeFileSync(tmp, bytes);
+    const saved = await service.uploadAppointmentFile(
+      { originalname: 'm.bin', mimetype, size: bytes.length, path: tmp } as any,
+      { appointmentId: UUID, patientId: UUID, medicalCenterId: UUID, uploadedBy: UUID },
+    );
+    expect(saved.mimeType).toBe(mimetype);
   });
 
   it('serveAppointmentFile: un filePath de BD que sale de uploads → 400', async () => {

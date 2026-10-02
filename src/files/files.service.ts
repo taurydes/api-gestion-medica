@@ -4,6 +4,7 @@ import {
   NotFoundException,
   BadRequestException,
   PayloadTooLargeException,
+  UnsupportedMediaTypeException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
@@ -30,6 +31,7 @@ import {
   resolveUploadPath,
 } from './upload-path.util';
 import { ANALYSIS_IMAGE_MAX_BYTES, tooLargeMessage } from './upload-limits';
+import { canonicalMimeType, detectFileType, readSignature } from './file-signature';
 
 
 @Injectable()
@@ -298,6 +300,12 @@ export class FilesService {
       const isDicom = file.mimetype.includes('dicom');
       if (!isDicom && file.size > ANALYSIS_IMAGE_MAX_BYTES) {
         throw new PayloadTooLargeException(tooLargeMessage(ANALYSIS_IMAGE_MAX_BYTES));
+      }
+      // The declared Content-Type comes from the client: the magic bytes must agree with it
+      if (detectFileType(readSignature(file)) !== canonicalMimeType(file.mimetype)) {
+        throw new UnsupportedMediaTypeException(
+          `El contenido del archivo no corresponde al tipo declarado (${file.mimetype}).`,
+        );
       }
 
       // Estructura: UPLOADS_PATH/userId/medicalCenterId/appointmentId/

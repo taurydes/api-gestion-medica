@@ -10,6 +10,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+import { detectFileType } from 'src/files/file-signature';
+
 import {
   MammographyAnalysisPrediction,
   MammographyAnalysisStatus,
@@ -174,10 +176,7 @@ function inRange(value: unknown, min: number, max: number): value is number {
 
 /** The detector whitelists by content type: trust the bytes over a browser-sent `octet-stream` or `image/jpg`. */
 export function sniffMimeType(buffer: Buffer, declared: string): string {
-  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return 'image/jpeg';
-  if (buffer.length >= 8 && buffer.toString('hex', 0, 8) === '89504e470d0a1a0a') return 'image/png';
-  if (buffer.length >= 12 && buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP') {
-    return 'image/webp';
-  }
+  const detected = detectFileType(buffer);
+  if (detected === 'image/jpeg' || detected === 'image/png' || detected === 'image/webp') return detected;
   return declared === 'image/jpg' ? 'image/jpeg' : declared;
 }
