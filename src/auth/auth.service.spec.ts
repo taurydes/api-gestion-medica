@@ -99,6 +99,18 @@ describe('AuthService — usuarios borrados o desactivados (M-05)', () => {
     await expect(inactiveRole.service.login(creds)).rejects.toThrow(expected);
   });
 
+  it('usuario inexistente y contraseña errónea → el mismo mensaje (M-61)', async () => {
+    const { service } = await setup();
+    const unknown = await service
+      .login({ credential: 'nadie', password: 'clave123', isSystemUser: false })
+      .catch((e) => e);
+    const wrongPassword = await service
+      .login({ credential: 'marta', password: 'otra-clave', isSystemUser: false })
+      .catch((e) => e);
+    expect(unknown).toBeInstanceOf(UnauthorizedException);
+    expect(unknown.message).toBe(wrongPassword.message);
+  });
+
   it('refresh tras desactivar el rol → 401 y se borra la sesión', async () => {
     const { service, redis, user } = await setup();
     const { refresh_token } = await service.login({

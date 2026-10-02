@@ -29,6 +29,11 @@ import { encryptModules } from './utils/permissions-cipher.util';
 const isRoleActive = (role?: { isActive?: boolean; deletedAt?: Date | null } | null) =>
   !!role && role.isActive !== false && !role.deletedAt;
 
+/** One message for unknown user, inactive account and wrong password: the login does not reveal which accounts exist. */
+export const INVALID_CREDENTIALS = 'Credenciales inválidas';
+// Compared when the user does not exist, so both paths pay the same bcrypt cost
+const DUMMY_HASH = bcrypt.hashSync('dummy-password-for-timing', 10);
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -66,14 +71,10 @@ export class AuthService {
       relations: ['role'],
     });
 
-    // Rol inactivo: mismo mensaje que un usuario inactivo (SessionGuard rechazaría el token igual)
-    if (!user || !isRoleActive(user.role))
-      throw new UnauthorizedException('Usuario no encontrado');
+    const isPasswordValid = await bcrypt.compare(password, user?.password ?? DUMMY_HASH);
+    if (!user || !isRoleActive(user.role) || !isPasswordValid)
+      throw new UnauthorizedException(INVALID_CREDENTIALS);
     const { password: _, role: _role, ...safeUser } = user;
-
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid)
-      throw new UnauthorizedException('Credenciales inválidas');
 
     return {
       id: user.id,
@@ -98,13 +99,10 @@ export class AuthService {
       relations: ['role'],
     });
 
-    if (!user || !isRoleActive(user.role))
-      throw new UnauthorizedException('Usuario de seguridad no encontrado');
+    const isPasswordValid = await bcrypt.compare(password, user?.password ?? DUMMY_HASH);
+    if (!user || !isRoleActive(user.role) || !isPasswordValid)
+      throw new UnauthorizedException(INVALID_CREDENTIALS);
     const { password: _, role: _role, ...safeUser } = user;
-
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid)
-      throw new UnauthorizedException('Credenciales inválidas');
 
     return {
       id: user.id,

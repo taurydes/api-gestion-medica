@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ValidationPipe } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException, ValidationPipe } from '@nestjs/common';
 import { FakeRepo } from '../../test/in-memory-db';
 import { UpdatePermissionDto } from 'src/permission/dto/update-permission.dto';
 import { PermissionService } from 'src/permission/services/permission.service';
@@ -121,6 +121,12 @@ describe('Guardas de administración (fase 2)', () => {
     await expect(service.remove('r-su')).rejects.toThrow(BadRequestException);
     expect(table[0].isActive).toBe(true);
     expect(repo.remove).not.toHaveBeenCalled();
+  });
+
+  it('DELETE /roles/:id de un id inexistente → 404, no 500 (M-61)', async () => {
+    const service = new RoleService(new FakeRepo([]) as any, fakeCache());
+
+    await expect(service.remove('00000000-0000-0000-0000-000000000000')).rejects.toThrow(NotFoundException);
   });
 
   it('PATCH /menu/:id rechaza cambiar el slug y acepta el resto', async () => {
