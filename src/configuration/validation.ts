@@ -70,11 +70,6 @@ export const validationSchema = Joi.object({
   }),
 
   // ---------------------------
-  // 🔹 Bull Board
-  // ---------------------------
-  BULL_BOARD_PORT: Joi.number().default(9999),
-
-  // ---------------------------
   // 🔹 Cache
   // ---------------------------
   // Default TTL in milliseconds (cache-manager v7); services pass their own per key
