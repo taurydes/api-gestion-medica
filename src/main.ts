@@ -1,4 +1,4 @@
-import { Logger, ValidationPipe } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { NestFactory, Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { NestExpressApplication } from '@nestjs/platform-express';
@@ -89,7 +89,7 @@ async function bootstrap() {
   // -------------------------------------------------
   // 🧱 Interceptores y Filtros globales
   // -------------------------------------------------
-  app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
+  // ValidationPipe se registra una sola vez, como APP_PIPE en app.module.ts
   app.useGlobalInterceptors(new HttpResponseInterceptor());
 
   const logsService = app.get(LogsService);
@@ -132,7 +132,9 @@ async function bootstrap() {
   const URL_HOST = configService.get<string>('URL_HOST') ?? 'localhost';
   await app.listen(PORT);
 
-  Logger.log(`🚀 App corriendo en: http://${URL_HOST}:${PORT}/api`);
+  // Sin prefijo global: /api es Swagger y solo existe en development
+  Logger.log(`🚀 App corriendo en: http://${URL_HOST}:${PORT}`);
+  if (NODE_ENV === 'development') Logger.log(`📘 Swagger: http://${URL_HOST}:${PORT}/api`);
   Logger.log(`🧠 Logs UI disponible en: http://${URL_HOST}:${PORT}/logs/ui/view`);
   Logger.log(`📦 Bull Board login: http://${URL_HOST}:${PORT}/admin/login`);
 }

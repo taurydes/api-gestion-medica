@@ -51,7 +51,8 @@ export class BullBoardController {
       httpOnly: true,
       sameSite: 'lax',
       maxAge: 3600000, // 1 hora
-      secure: process.env.NODE_ENV === 'production',
+      // Secure solo bajo HTTPS: con NODE_ENV=production sobre http://localhost el navegador la descartaría
+      secure: req.secure,
       path: '/',
     });
 

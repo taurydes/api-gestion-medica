@@ -127,11 +127,10 @@ export class CaslPermissionController {
     return this.permissionService.getMenusForUserAndRole(String(roleId));
   }
 
-  /**
-   * Obtiene los permisos de un rol.
-   */
+  /** Lista los permisos (acciones); única ruta GET /permissions. */
   @Get()
   @ApiOperation({ summary: 'Obtener todos los permisos' })
+  @ApiResponse({ status: 200, description: 'Lista de permisos.', type: [Permission] })
   @Permission(
     `${ModuleItemsMenu.PermissionModule}.${PermissionActionsMenu.VIEW}`,
   )
@@ -291,20 +290,6 @@ export class CaslPermissionController {
   // ===========================================================================
   // LEGACY - POR REFACTORING DE SERVICIOS
   //
-
-  @Get()
-  @ApiOperation({ summary: 'Obtener todos los permisos' })
-  @ApiResponse({
-    status: 200,
-    description: 'Lista de permisos.',
-    type: [Permission],
-  })
-  @Permission(
-    `${ModuleItemsMenu.PermissionModule}.${PermissionActionsMenu.VIEW}`,
-  )
-  findAll(@Query() pagination: QueryPermissionDto) {
-    return this.permissionService.findAll(pagination);
-  }
 
   @Get(':id')
   @ApiOperation({ summary: 'Obtener un permiso por ID' })

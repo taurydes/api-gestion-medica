@@ -15,6 +15,7 @@ import { Throttle } from '@nestjs/throttler';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { DataSource } from 'typeorm';
+import { Public } from 'src/auth/decorators/public.decorator';
 
 @ApiTags('health')
 @Controller('health')
@@ -27,6 +28,8 @@ export class HealthController {
     private readonly mainDs: DataSource,
   ) {}
 
+  // Monitors and the compose healthcheck call it without a token
+  @Public()
   @Get()
   @HealthCheck()
   @ApiOperation({ summary: 'Health check de la API' })
