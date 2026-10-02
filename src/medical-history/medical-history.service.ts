@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
+import { nextCode } from 'src/common/sequence/next-code';
 import {
   APPOINTMENT_CACHE_REGISTRY,
   CACHE_TTL,
@@ -110,23 +111,7 @@ export class MedicalHistoryService {
   private async generateConsultationNumber(
     historyRepo: Repository<MedicalHistory> = this.medicalHistoryRepository,
   ): Promise<string> {
-    const year = new Date().getFullYear();
-    const prefix = `CONS-${year}-`;
-
-    // Obtener el último número de consulta del año actual
-    const lastHistory = await historyRepo
-      .createQueryBuilder('history')
-      .where('history.consultationNumber LIKE :prefix', { prefix: `${prefix}%` })
-      .orderBy('history.consultationNumber', 'DESC')
-      .getOne();
-
-    let nextNumber = 1;
-    if (lastHistory) {
-      const lastNumber = parseInt(lastHistory.consultationNumber.split('-')[2], 10);
-      nextNumber = lastNumber + 1;
-    }
-
-    return `${prefix}${nextNumber.toString().padStart(5, '0')}`;
+    return nextCode(historyRepo, 'CONS');
   }
 
   /**

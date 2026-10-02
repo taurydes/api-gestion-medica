@@ -8,6 +8,9 @@ export interface FakeTableOptions {
   unique?: string[];
 }
 
+// Shared by every FakeRepo, like a PostgreSQL sequence is shared by every connection.
+const sequences = new Map<string, number>();
+
 /** Minimal repository over an array; supports the operators the services use (IsNull, In). */
 export class FakeRepo {
   constructor(
@@ -79,6 +82,15 @@ export class FakeRepo {
     for (let i = this.rows.length - 1; i >= 0; i--) {
       if (this.matches(this.rows[i], criteria)) this.rows.splice(i, 1);
     }
+  }
+
+  /** Only `SELECT nextval('<seq>') AS value`, the one raw query the services issue. */
+  async query(sql: string) {
+    const name = /nextval\('([^']+)'\)/.exec(sql)?.[1];
+    if (!name) throw new Error(`Query not supported by FakeRepo: ${sql}`);
+    const value = (sequences.get(name) ?? 0) + 1;
+    sequences.set(name, value);
+    return [{ value: String(value) }];
   }
 
   createQueryBuilder() {

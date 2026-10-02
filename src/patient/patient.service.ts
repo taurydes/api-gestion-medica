@@ -14,6 +14,7 @@ import {
 } from 'src/common-person/person-document.util';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
+import { nextCode } from 'src/common/sequence/next-code';
 import {
   APPOINTMENT_CACHE_REGISTRY,
   CACHE_TTL,
@@ -122,23 +123,7 @@ export class PatientService {
   private async generatePatientCode(
     patientRepo: Repository<Patient> = this.patientRepository,
   ): Promise<string> {
-    const year = new Date().getFullYear();
-    const prefix = `PAC-${year}-`;
-
-    // Obtener el último código de paciente del año actual
-    const lastPatient = await patientRepo
-      .createQueryBuilder('patient')
-      .where('patient.patientCode LIKE :prefix', { prefix: `${prefix}%` })
-      .orderBy('patient.patientCode', 'DESC')
-      .getOne();
-
-    let nextNumber = 1;
-    if (lastPatient) {
-      const lastNumber = parseInt(lastPatient.patientCode.split('-')[2], 10);
-      nextNumber = lastNumber + 1;
-    }
-
-    return `${prefix}${nextNumber.toString().padStart(5, '0')}`;
+    return nextCode(patientRepo, 'PAC');
   }
 
   /**

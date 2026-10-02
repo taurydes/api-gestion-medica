@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
+import { nextCode } from 'src/common/sequence/next-code';
 import {
   APPOINTMENT_CACHE_REGISTRY,
   CACHE_TTL,
@@ -107,23 +108,7 @@ export class RecipeService {
   private async generateRecipeNumber(
     recipeRepo: Repository<Recipe> = this.recipeRepository,
   ): Promise<string> {
-    const year = new Date().getFullYear();
-    const prefix = `REC-${year}-`;
-
-    // Obtener el último número de receta del año actual
-    const lastRecipe = await recipeRepo
-      .createQueryBuilder('recipe')
-      .where('recipe.recipeNumber LIKE :prefix', { prefix: `${prefix}%` })
-      .orderBy('recipe.recipeNumber', 'DESC')
-      .getOne();
-
-    let nextNumber = 1;
-    if (lastRecipe) {
-      const lastNumber = parseInt(lastRecipe.recipeNumber.split('-')[2], 10);
-      nextNumber = lastNumber + 1;
-    }
-
-    return `${prefix}${nextNumber.toString().padStart(5, '0')}`;
+    return nextCode(recipeRepo, 'REC');
   }
 
   /**

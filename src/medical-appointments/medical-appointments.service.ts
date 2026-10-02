@@ -9,6 +9,7 @@ import {
 import { AuthContextService } from 'src/common/services/auth-context.service';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
+import { nextCode } from 'src/common/sequence/next-code';
 import {
   APPOINTMENT_CACHE_REGISTRY,
   CACHE_TTL,
@@ -178,22 +179,7 @@ export class MedicalAppointmentsService {
    * Genera un número único de cita: APT-YYYY-XXXXX
    */
   private async generateAppointmentNumber(): Promise<string> {
-    const year = new Date().getFullYear();
-    const prefix = `APT-${year}-`;
-
-    const last = await this.appointmentRepository
-      .createQueryBuilder('apt')
-      .where('apt.appointmentNumber LIKE :prefix', { prefix: `${prefix}%` })
-      .orderBy('apt.appointmentNumber', 'DESC')
-      .getOne();
-
-    let nextNum = 1;
-    if (last) {
-      const parts = last.appointmentNumber.split('-');
-      nextNum = parseInt(parts[2], 10) + 1;
-    }
-
-    return `${prefix}${nextNum.toString().padStart(5, '0')}`;
+    return nextCode(this.appointmentRepository, 'APT');
   }
 
   /**
@@ -251,19 +237,7 @@ export class MedicalAppointmentsService {
 
     if (!patient) {
       // Generar código de paciente
-      const year = new Date().getFullYear();
-      const prefix = `PAC-${year}-`;
-      const lastPatient = await this.patientRepository
-        .createQueryBuilder('p')
-        .where('p.patientCode LIKE :prefix', { prefix: `${prefix}%` })
-        .orderBy('p.patientCode', 'DESC')
-        .getOne();
-
-      let nextNum = 1;
-      if (lastPatient) {
-        nextNum = parseInt(lastPatient.patientCode.split('-')[2], 10) + 1;
-      }
-      const patientCode = `${prefix}${nextNum.toString().padStart(5, '0')}`;
+      const patientCode = await nextCode(this.patientRepository, 'PAC');
 
       const newPatient = this.patientRepository.create({
         commonPersonId: commonPerson.id,
