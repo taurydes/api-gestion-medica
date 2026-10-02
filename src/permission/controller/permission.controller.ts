@@ -44,7 +44,7 @@ import { GetUser } from 'src/auth/decorators/get-user.decorator';
 import { Permission } from 'src/auth/decorators/permission.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { SessionGuard } from 'src/auth/guards/session.guard';
-import { AuthUser } from 'src/auth/interfaces/User';
+import { JwtUserPayload } from 'src/auth/auth.const';
 import { ModuleItemsMenu } from 'src/menu/menu.const';
 import {
   PermissionActionsMenu,
@@ -93,7 +93,7 @@ export class CaslPermissionController {
     description: 'Permisos del usuario agrupados por módulo',
   })
   async getMyPermissions(
-    @GetUser() user: AuthUser,
+    @GetUser() user: JwtUserPayload,
   ): Promise<PermissionToFront> {
     const userId = this.extractUserId(user);
     return this.permissionService.getUserPermissionsSummary(String(userId));
@@ -153,7 +153,7 @@ export class CaslPermissionController {
   )
   async assignPermission(
     @Body() dto: AssignPermissionDto,
-    @GetUser() user: AuthUser,
+    @GetUser() user: JwtUserPayload,
   ) {
     return this.permissionService.assignPermissionToRole(dto, user);
   }
@@ -187,7 +187,7 @@ export class CaslPermissionController {
   @ApiResponse({ status: 200, type: SuccessResponseDto })
   async bulkUpdatePermissions(
     @Body() dto: BulkUpdatePermissionsDto,
-    @GetUser() user: AuthUser,
+    @GetUser() user: JwtUserPayload,
   ): Promise<SuccessResponseDto> {
     await this.permissionService.bulkUpdateRolePermissions(dto, user);
     return { success: true };
@@ -212,7 +212,7 @@ export class CaslPermissionController {
   @ApiResponse({ status: 200, type: BulkAssignPermissionsResponseDto })
   async bulkAssignMultipleModulesPermissionsToRoleById(
     @Body() dto: BulkAssignMultipleModulesPermissionsToRoleByIdDto,
-    @GetUser() user: AuthUser,
+    @GetUser() user: JwtUserPayload,
   ): Promise<BulkAssignPermissionsResponseDto> {
     const result =
       await this.permissionService.bulkAssignMultipleModulesPermissionsToRoleById(
@@ -242,7 +242,7 @@ export class CaslPermissionController {
   @ApiResponse({ status: 200, type: BulkAssignPermissionsResponseDto })
   async bulkAssignPermissionsToRoleById(
     @Body() dto: BulkAssignPermissionsToRoleByIdDto,
-    @GetUser() user: AuthUser,
+    @GetUser() user: JwtUserPayload,
   ): Promise<BulkAssignPermissionsResponseDto> {
     return await this.permissionService.bulkAssignPermissionsToRoleById(
       dto,
@@ -348,7 +348,7 @@ export class CaslPermissionController {
   )
   assignPermissionsToRole(
     @Body() dto: CreatepermissionsRolesDto,
-    @GetUser() user: AuthUser,
+    @GetUser() user: JwtUserPayload,
   ) {
     return this.permissionService.assignPermissionsToRole(dto, user);
   }
@@ -364,7 +364,7 @@ export class CaslPermissionController {
   )
   assignAllToRole(
     @Param('roleId', ParseUuid) roleId: string,
-    @GetUser() user: AuthUser,
+    @GetUser() user: JwtUserPayload,
   ) {
     return this.permissionService.assignAllPermissionsToRole(roleId, user);
   }
@@ -372,7 +372,7 @@ export class CaslPermissionController {
   // HELPERS
   // ===========================================================================
 
-  private extractUserId(user: AuthUser): string | number {
+  private extractUserId(user: JwtUserPayload): string | number {
     if (typeof user === 'object' && user !== null && 'id' in user) {
       return (user as { id: string | number }).id;
     }

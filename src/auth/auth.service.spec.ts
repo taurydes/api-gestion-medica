@@ -36,7 +36,7 @@ async function setup(userOverrides: Record<string, any> = {}) {
   };
   const sessions = new Map<string, any>();
   const redis = {
-    setSession: jest.fn(async (id: string, data: any) => sessions.set(String(id), data)),
+    setSession: jest.fn(async (id: string, data: any, _ttl?: number) => sessions.set(String(id), data)),
     getSession: jest.fn(async (id: string) => sessions.get(String(id)) ?? null),
     deleteSession: jest.fn(async (id: string) => sessions.delete(String(id))),
   };
@@ -124,5 +124,39 @@ describe('AuthService — usuarios borrados o desactivados (M-05)', () => {
       'Usuario inactivo o eliminado',
     );
     expect(redis.deleteSession).toHaveBeenCalledWith('u1');
+  });
+});
+
+describe('AuthService — JWT mínimo y sesión alineada con el refresh (M-63)', () => {
+  const creds = { credential: 'marta', password: 'clave123', isSystemUser: false };
+
+  it('el JWT solo lleva id, roleId y name: sin email ni el objeto de usuario', async () => {
+    const { service } = await setup();
+    const { access_token, refresh_token } = await service.login(creds);
+
+    for (const token of [access_token, refresh_token]) {
+      const { iat: _i, exp: _e, ...claims } = new JwtService({}).decode(token);
+      expect(claims).toEqual({ id: 'u1', roleId: 'r1', name: 'marta' });
+    }
+  });
+
+  it('la sesión de Redis vive lo que el refresh (7 d), no la hora del access token', async () => {
+    const { service, redis } = await setup();
+    await service.login(creds);
+
+    const ttl = redis.setSession.mock.calls[0][2];
+    expect(ttl).toBeGreaterThan(7 * 24 * 3600 - 60);
+    expect(ttl).toBeLessThanOrEqual(7 * 24 * 3600);
+  });
+
+  it('el refresh renueva la sesión con el mismo TTL y el payload mínimo', async () => {
+    const { service, redis } = await setup();
+    const { refresh_token } = await service.login(creds);
+
+    const renewed = await service.refreshTokens({ refreshToken: refresh_token });
+
+    expect(redis.setSession.mock.calls[1][2]).toBeGreaterThan(3600);
+    const { iat: _i, exp: _e, ...claims } = new JwtService({}).decode(renewed.access_token);
+    expect(claims).toEqual({ id: 'u1', roleId: 'r1', name: 'marta' });
   });
 });

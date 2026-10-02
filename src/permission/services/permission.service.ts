@@ -43,7 +43,7 @@ import {
   UserRoleInfoDto,
 } from '../dto';
 import { PermissionMenu } from '../entities/permission-menu.entity';
-import { AuthUser } from 'src/auth/interfaces/User';
+import { JwtUserPayload } from 'src/auth/auth.const';
 import { User } from 'src/user/entities/user.entity';
 import { QueryPermissionDto } from '../dto/query-permission.dto';
 import { UpdatePermissionDto } from '../dto/update-permission.dto';
@@ -387,7 +387,7 @@ export class PermissionService {
    */
   async assignPermissionToRole(
     dto: AssignPermissionDto,
-    user: AuthUser,
+    user: JwtUserPayload,
   ): Promise<PermissionMenu> {
     const { roleId, menuSlug, action, permissionId } = dto;
 
@@ -506,7 +506,7 @@ export class PermissionService {
    */
   async bulkUpdateRolePermissions(
     dto: BulkUpdatePermissionsDto,
-    user: AuthUser,
+    user: JwtUserPayload,
   ): Promise<void> {
     const { roleId, permissions } = dto;
     for (const { module, action, enabled } of permissions) {
@@ -748,7 +748,7 @@ export class PermissionService {
    */
   async bulkAssignPermissionsToRoleById(
     dto: BulkAssignPermissionsToRoleByIdDto,
-    currentUser: AuthUser,
+    currentUser: JwtUserPayload,
   ): Promise<{ success: boolean; assignedCount: number; errors: string[] }> {
     const errors: string[] = [];
     let assignedCount = 0;
@@ -820,7 +820,7 @@ export class PermissionService {
    */
   async bulkAssignMultipleModulesPermissionsToRoleById(
     dto: BulkAssignMultipleModulesPermissionsToRoleByIdDto,
-    currentUser: AuthUser,
+    currentUser: JwtUserPayload,
   ): Promise<{
     success: boolean;
     assignedCount: number;
@@ -1133,7 +1133,7 @@ export class PermissionService {
    */
   async assignPermissionsToRole(
     dto: CreatepermissionsRolesDto,
-    currentUser: AuthUser,
+    currentUser: JwtUserPayload,
   ): Promise<{ created: number; skipped: number; deactivated: number }> {
     const { roleId, assignments } = dto;
 
@@ -1212,7 +1212,7 @@ export class PermissionService {
    */
   async assignAllPermissionsToRole(
     roleId: string,
-    currentUser: AuthUser,
+    currentUser: JwtUserPayload,
   ): Promise<{ roleId: string; created: number; skipped: number }> {
     const role = await this.roleRepo.findOne({ where: { id: roleId } });
     if (!role) throw new NotFoundException(`Rol con ID ${roleId} no existe`);

@@ -9,7 +9,7 @@ import { RedisSessionService } from 'src/redis-session/redis-session.service';
 import { UserSecurity } from 'src/user/entities/user.system.entity';
 import { IsNull, Repository } from 'typeorm';
 import { User } from '../user/entities/user.entity';
-import { JwtPayload } from './auth.const';
+import { JwtPayload, JwtUserPayload, toJwtUserPayload } from './auth.const';
 import { LoginUserDto } from './dto/login-auth.dto';
 import { MedicalCenterSummaryDto } from './dto/medical-center-summary.dto';
 import { UserMedicalCenter } from 'src/user/entities/user-medical-center.entity';
@@ -130,33 +130,18 @@ export class AuthService {
     } else {
       user = await this.validateUser(loginDto.credential, loginDto.password);
     }
-    const payload = {
-      id: user.id,
-      user,
-    };
-
-    const access_token = this.jwtService.sign(payload, {
-      secret: process.env.JWT_SECRET,
-      expiresIn: process.env.JWT_EXPIRES_IN || '1h',
-    });
-
-    const refresh_token = this.jwtService.sign(payload, {
-      secret: process.env.JWT_REFRESH_SECRET,
-      expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
-    });
-    // ✅ Guardar sesión activa en Redis
+    const tokens = this.signTokens(toJwtUserPayload(user.id, user.user));
     await this.redisSession.setSession(
-      user.id.toString(),
+      user.id,
       {
-        access_token,
-        refresh_token,
+        ...tokens,
         userId: user.id,
         roleId: user.user.roleId,
         loginAt: new Date().toISOString(),
       },
-      3600, // TTL del access token
+      this.sessionTtlSeconds(tokens.refresh_token),
     );
-    return { access_token, refresh_token };
+    return tokens;
   }
 
   // ======================================================
@@ -210,37 +195,39 @@ export class AuthService {
     }
 
     // 4. Regenerar tokens con datos frescos
-    const tokenPayload = {
-      id: user.id,
-      user: { id: user.id, user: { ...user, password: undefined } },
-    };
-
-    const newAccessToken = this.jwtService.sign(tokenPayload, {
-      secret: process.env.JWT_SECRET,
-      expiresIn: process.env.JWT_EXPIRES_IN || '1h',
-    });
-
-    const newRefreshToken = this.jwtService.sign(tokenPayload, {
-      secret: process.env.JWT_REFRESH_SECRET,
-      expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
-    });
+    const tokens = this.signTokens(toJwtUserPayload(user.id, user));
 
     // 5. Actualizar sesión en Redis
     await this.redisSession.setSession(
       userId,
       {
-        access_token: newAccessToken,
-        refresh_token: newRefreshToken,
+        ...tokens,
         userId: user.id,
         roleId: user.roleId,
         refreshedAt: new Date().toISOString(),
       },
-      3600,
+      this.sessionTtlSeconds(tokens.refresh_token),
     );
+    return tokens;
+  }
+
+  private signTokens(payload: JwtUserPayload): JwtPayload {
     return {
-      access_token: newAccessToken,
-      refresh_token: newRefreshToken,
+      access_token: this.jwtService.sign(payload, {
+        secret: process.env.JWT_SECRET,
+        expiresIn: process.env.JWT_EXPIRES_IN || '1h',
+      }),
+      refresh_token: this.jwtService.sign(payload, {
+        secret: process.env.JWT_REFRESH_SECRET,
+        expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+      }),
     };
+  }
+
+  /** The session lives as long as the refresh token, so a refresh after an idle hour still finds it. */
+  private sessionTtlSeconds(refreshToken: string): number {
+    const { exp } = this.jwtService.decode(refreshToken) as { exp: number };
+    return Math.max(exp - Math.floor(Date.now() / 1000), 1);
   }
 
   // ======================================================

@@ -13,7 +13,7 @@ import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { Role } from './entities/role.entity';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
-import { AuthUser } from 'src/auth/interfaces/User';
+import { JwtUserPayload } from 'src/auth/auth.const';
 import { RoleQueryDto } from './dto/role-query.dto';
 import { toHttpException } from 'src/common/exceptions/to-http-exception';
 import { RoleEnum, SYSTEM_ROLE_NAMES } from './role.const';
@@ -48,7 +48,7 @@ export class RoleService {
    */
   async create(
     createRoleDto: CreateRoleDto,
-    currentUser: AuthUser,
+    currentUser: JwtUserPayload,
   ): Promise<Role> {
     try {
       const role = this.roleRepository.create({

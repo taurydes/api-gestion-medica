@@ -12,3 +12,15 @@ export interface JwtPayload {
   data?: Partial<AuthUser>;
   modules?: any;
 }
+
+/** What the JWT carries: identifiers only, no email or person data (M-63). */
+export interface JwtUserPayload {
+  id: string;
+  roleId: string | null;
+  name: string | null;
+}
+
+export const toJwtUserPayload = (
+  id: string,
+  user: { roleId?: string | null; name?: string | null },
+): JwtUserPayload => ({ id, roleId: user.roleId ?? null, name: user.name ?? null });

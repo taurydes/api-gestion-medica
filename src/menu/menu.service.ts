@@ -17,7 +17,6 @@ import { UpdateMenuDto } from './dto/update-menu.dto';
 import { UserSecurityService } from 'src/user/user-security.service';
 import { MenuQueryDto } from './dto/menu-query.dto';
 import { UserSecurity } from '../user/entities/user.system.entity';
-import { AuthUser } from 'src/auth/interfaces/User';
 import { UserService } from 'src/user/user.service';
 import { User } from 'src/user/entities/user.entity';
 import { toHttpException } from 'src/common/exceptions/to-http-exception';

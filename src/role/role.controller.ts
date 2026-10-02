@@ -11,7 +11,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Permission } from 'src/auth/decorators/permission.decorator';
-import { AuthUser } from 'src/auth/interfaces/User';
+import { JwtUserPayload } from 'src/auth/auth.const';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { RoleQueryDto } from './dto/role-query.dto';
@@ -31,7 +31,7 @@ export class RoleController {
   @Post()
   @ApiOperation({ summary: 'Crear rol' })
   @Permission(`${ModuleItemsMenu.RoleModule}.${PermissionActionsMenu.CREATE}`)
-  create(@Body() dto: CreateRoleDto, @GetUser() currentUser: AuthUser) {
+  create(@Body() dto: CreateRoleDto, @GetUser() currentUser: JwtUserPayload) {
     return this.roleService.create(dto, currentUser);
   }
 
