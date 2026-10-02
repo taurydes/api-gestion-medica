@@ -12,7 +12,11 @@ import { AppModule } from './app.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from './auth/guards/permission.guard';
 import { SessionGuard } from './auth/guards/session.guard';
-import { BODY_LIMIT_MB, HttpExceptionFilter } from './common/exceptions/HttpExceptionFilter';
+import {
+  BODY_LIMIT_MB,
+  HttpExceptionFilter,
+  bodyParserErrorMiddleware,
+} from './common/exceptions/HttpExceptionFilter';
 import { HttpResponseInterceptor } from './common/interceptors/HttpResponse.interceptor';
 import { LogsService } from './logs/logs.service';
 import { registerHandlebarsHelpers } from './logs/views/helpers';
@@ -39,6 +43,7 @@ async function bootstrap() {
   // 30 MB: cubre el video base64 (MAX_VIDEO_MB = 20 → ~27 MB); los archivos van por multipart (M-50)
   app.use(express.json({ limit: `${BODY_LIMIT_MB}mb` }));
   app.use(express.urlencoded({ limit: `${BODY_LIMIT_MB}mb`, extended: true }));
+  app.use(bodyParserErrorMiddleware);
 
   // 🔹 Vistas para logs
   app.useStaticAssets(join(__dirname, '..', 'src', 'logs', 'views'), {

@@ -29,12 +29,17 @@ export function fromBodyParserError(exception: any): HttpException | null {
     );
   }
   if (exception.type === 'entity.parse.failed') {
-    return new BadRequestException('El cuerpo de la solicitud no es un JSON válido.');
+    return new BadRequestException('El cuerpo de la petición no es un JSON válido.');
   }
   if (exception.expose === true && Number.isInteger(status) && status >= 400 && status < 500) {
     return new HttpException('La solicitud no se pudo procesar.', status);
   }
   return null;
+}
+
+/** Express error middleware for right after the body parsers: Nest would otherwise wrap the parser's English text. */
+export function bodyParserErrorMiddleware(err: unknown, _req: unknown, _res: unknown, next: (e?: unknown) => void): void {
+  next(fromBodyParserError(err) ?? err);
 }
 
 interface HttpErrorBody {

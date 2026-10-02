@@ -1,6 +1,12 @@
 import { BadRequestException } from '@nestjs/common';
 import { QueryFailedError } from 'typeorm';
-import { HttpExceptionFilter, INTERNAL_ERROR_MESSAGE } from './HttpExceptionFilter';
+import * as express from 'express';
+import * as request from 'supertest';
+import {
+  HttpExceptionFilter,
+  INTERNAL_ERROR_MESSAGE,
+  bodyParserErrorMiddleware,
+} from './HttpExceptionFilter';
 import { ParseUuid } from '../pipes/parse-uuid.pipe';
 
 function run(exception: unknown) {
@@ -54,7 +60,7 @@ describe('HttpExceptionFilter — body-parser errors (H-01)', () => {
     await done;
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ error: 'El cuerpo de la solicitud no es un JSON válido.' }),
+      expect.objectContaining({ error: 'El cuerpo de la petición no es un JSON válido.' }),
     );
   });
 
@@ -62,6 +68,36 @@ describe('HttpExceptionFilter — body-parser errors (H-01)', () => {
     const { res, done } = run(Object.assign(new Error('boom'), { status: 503 }));
     await done;
     expect(res.status).toHaveBeenCalledWith(500);
+  });
+});
+
+describe('bodyParserErrorMiddleware with the real express.json (Obs. 4)', () => {
+  // Same order as main.ts; the last handler stands in for Nest's exception layer.
+  const app = express();
+  app.use(express.json({ limit: '1kb' }));
+  app.use(bodyParserErrorMiddleware);
+  app.post('/x', (_req: any, res: any) => {
+    res.json({ ok: true });
+  });
+  app.use((err: any, _req: any, res: any, _next: any) => {
+    res.status(err.getStatus?.() ?? 500).json({ type: err.constructor.name, error: err.message });
+  });
+
+  it('malformed JSON → BadRequestException with the Spanish message', async () => {
+    const res = await request(app).post('/x').set('Content-Type', 'application/json').send('{"notes":');
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ type: 'BadRequestException', error: 'El cuerpo de la petición no es un JSON válido.' });
+  });
+
+  it('body over the limit → PayloadTooLargeException', async () => {
+    const res = await request(app).post('/x').set('Content-Type', 'application/json').send(JSON.stringify({ a: 'x'.repeat(2048) }));
+    expect(res.status).toBe(413);
+    expect(res.body.type).toBe('PayloadTooLargeException');
+  });
+
+  it('valid JSON passes through', async () => {
+    const res = await request(app).post('/x').send({ a: 1 });
+    expect(res.body).toEqual({ ok: true });
   });
 });
 
