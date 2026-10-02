@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
-import { CACHE_TTL } from 'src/common/cache/cache-registry';
+import { CACHE_TTL, clearRegistry } from 'src/common/cache/cache-registry';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { In, IsNull, Repository } from 'typeorm';
 import { Department } from './entities/department.entity';
@@ -43,6 +43,8 @@ export class DepartmentsService {
       await this.cacheManager.del(key);
     }
     await this.cacheManager.del(listKey);
+    // Center lists count departments and center details embed them
+    await clearRegistry(this.cacheManager, 'medicalCenter:query:keys');
   }
 
   // ─── CRUD ──────────────────────────────────────────────────────────────────

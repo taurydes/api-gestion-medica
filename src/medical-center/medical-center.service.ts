@@ -11,7 +11,7 @@ import { AuthContextService } from 'src/common/services/auth-context.service';
 import { uniqueViolationToConflict } from 'src/common-person/person-document.util';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
-import { CACHE_TTL } from 'src/common/cache/cache-registry';
+import { CACHE_TTL, cacheAndRemember } from 'src/common/cache/cache-registry';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { Department } from 'src/departments/entities/department.entity';
 import { Doctor } from 'src/doctors/entities/doctor.entity';
@@ -265,7 +265,8 @@ export class MedicalCenterService {
         (id) => this.filesService.getMedicalCenterImageUrl(id),
       );
 
-      await this.cacheManager.set(cacheKey, dto, CACHE_TTL.DETAIL);
+      // In the list registry so department writes, which change the embedded departments, drop it too
+      await cacheAndRemember(this.cacheManager, 'medicalCenter:query:keys', cacheKey, dto, CACHE_TTL.DETAIL);
 
       return dto;
     } catch (error) {

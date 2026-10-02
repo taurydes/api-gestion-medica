@@ -8,6 +8,7 @@ import {
 import { DoctorScheduleService } from 'src/doctors/doctor-schedule.service';
 import { PatientService } from 'src/patient/patient.service';
 import { MedicalHistoryService } from 'src/medical-history/medical-history.service';
+import { DepartmentsService } from 'src/departments/departments.service';
 import {
   APPOINTMENT_CACHE_REGISTRY,
   CACHE_TTL,
@@ -80,5 +81,17 @@ describe('Cache invalidation keys (M-56)', () => {
     await service.invalidateListCache('pat-1');
 
     expect(await cache.get('medical-history:patient:pat-1')).toBeUndefined();
+  });
+
+  it('a department write drops the center list (counts) and center details (embedded departments)', async () => {
+    const cache = newCache();
+    const service = Object.assign(Object.create(DepartmentsService.prototype), { cacheManager: cache });
+    await cacheAndRemember(cache, 'medicalCenter:query:keys', 'medicalCenter:query:{}', {}, CACHE_TTL.LIST);
+    await cacheAndRemember(cache, 'medicalCenter:query:keys', 'medicalCenter:mc-1', {}, CACHE_TTL.DETAIL);
+
+    await (service as any).clearQueryCache();
+
+    expect(await cache.get('medicalCenter:query:{}')).toBeUndefined();
+    expect(await cache.get('medicalCenter:mc-1')).toBeUndefined();
   });
 });
