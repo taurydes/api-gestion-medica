@@ -48,6 +48,7 @@ export class SpecialtyService {
     await invalidateScope(this.cacheManager, 'specialty');
     // Doctor and history details embed the specialty
     await invalidateScope(this.cacheManager, 'doctor');
+    await invalidateScope(this.cacheManager, 'medicalCenter');
     await invalidateScope(this.cacheManager, 'medical-history');
     // Appointment (and patient) views embed this catalog
     await invalidateScope(this.cacheManager, APPOINTMENT_CACHE_SCOPE);

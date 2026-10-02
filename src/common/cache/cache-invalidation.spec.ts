@@ -13,6 +13,8 @@ import { AllergyService } from 'src/parameters/services/allergy.service';
 import { SpecialtyService } from 'src/parameters/services/specialty.service';
 import { MedicationService } from 'src/parameters/services/medication.service';
 import { MedicalCenterService } from 'src/medical-center/medical-center.service';
+import { DoctorsService } from 'src/doctors/doctors.service';
+import { CommonPersonService } from 'src/common-person/common-person.service';
 import {
   APPOINTMENT_CACHE_SCOPE,
   CACHE_TTL,
@@ -65,6 +67,22 @@ describe('Cache invalidation keys (M-56)', () => {
     await service.getSchedulesByDoctor('doc-1', 'mc-1', true);
     // Both reads after the delete hit the repository again
     expect(scheduleRepo.find).toHaveBeenCalledTimes(4);
+  });
+
+  it.each([
+    ['doctor', DoctorsService],
+    ['specialty', SpecialtyService],
+    ['person', CommonPersonService],
+  ])('a %s write drops the cached center list and detail (M-63)', async (_name, Service: any) => {
+    const cache = newCache();
+    const service = Object.assign(Object.create(Service.prototype), { cacheManager: cache });
+    await setScoped(cache, 'medicalCenter', 'medicalCenter:mc-1', { doctors: [{}] }, CACHE_TTL.DETAIL);
+    await setScoped(cache, 'medicalCenter', 'medicalCenter:query:{}', { data: [] }, CACHE_TTL.LIST);
+
+    await service.clearQueryCache();
+
+    expect(await getScoped(cache, 'medicalCenter', 'medicalCenter:mc-1')).toBeUndefined();
+    expect(await getScoped(cache, 'medicalCenter', 'medicalCenter:query:{}')).toBeUndefined();
   });
 
   it('a patient write also drops the cached appointment views that embed the patient', async () => {

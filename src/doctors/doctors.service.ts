@@ -95,6 +95,8 @@ export class DoctorsService {
     // Recipe and history details embed the doctor
     await invalidateScope(this.cacheManager, 'recipe');
     await invalidateScope(this.cacheManager, 'medical-history');
+    // Center list counts and center detail embed the doctors (M-63)
+    await invalidateScope(this.cacheManager, 'medicalCenter');
     // Appointment views embed this entity: drop them too
     await invalidateScope(this.cacheManager, APPOINTMENT_CACHE_SCOPE);
   }

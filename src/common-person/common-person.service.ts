@@ -8,6 +8,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
 import {
+  APPOINTMENT_CACHE_SCOPE,
   CACHE_TTL,
   getScoped,
   invalidateScope,
@@ -43,6 +44,10 @@ export class CommonPersonService {
    */
   private async clearQueryCache(): Promise<void> {
     await invalidateScope(this.cacheManager, 'common-person');
+    // Every view that embeds a person's name or document
+    for (const scope of ['doctor', 'medicalCenter', 'patient', 'recipe', 'medical-history', APPOINTMENT_CACHE_SCOPE]) {
+      await invalidateScope(this.cacheManager, scope);
+    }
   }
 
   /**

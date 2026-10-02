@@ -278,6 +278,8 @@ export class UserService {
       if (doctorDto) {
         await this.cacheManager.del('doctor:all');
         await invalidateScope(this.cacheManager, 'doctor');
+        // A new doctor changes the counts and detail of its centers
+        await invalidateScope(this.cacheManager, 'medicalCenter');
       }
 
       return result;
