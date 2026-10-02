@@ -32,6 +32,7 @@ import { QueuesService } from './queues.service';
         connection: {
           host: config.get('REDIS_HOST'),
           port: parseInt(config.get('REDIS_PORT') || '6379', 10),
+          password: config.get('REDIS_PASSWORD') || undefined,
         },
       }),
     }),

@@ -15,7 +15,7 @@ import { createClient } from 'redis';
             host: config.get('REDIS_SESSION_HOST') || config.get('REDIS_HOST'),
             port: parseInt(config.get('REDIS_SESSION_PORT') || '6379', 10),
           },
-          password: config.get('REDIS_SESSION_PASS') || undefined,
+          password: config.get('REDIS_SESSION_PASS') || config.get('REDIS_PASSWORD') || undefined,
         });
         client.on('error', (err) => console.error('❌ Redis Session Error:', err));
         await client.connect();

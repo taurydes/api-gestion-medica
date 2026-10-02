@@ -3,7 +3,7 @@ import { Module, ValidationPipe } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD, APP_PIPE } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
-import { CACHE_TTL } from './common/cache/cache-registry';
+import { cacheOptionsFactory } from './common/cache/cache.config';
 import { AuthModule } from './auth/auth.module';
 import { CommonModule } from './common/common.module';
 import { PermissionsGuard } from './auth/guards/permission.guard';
@@ -43,8 +43,11 @@ import { MammographyAnalysisModule } from './mammography-analysis/mammography-an
       load: [configuration],
       validationSchema,
     }),
-    // In-memory until the Redis store lands; cache-manager v7 ignored the legacy `store` option anyway
-    CacheModule.register({ isGlobal: true, ttl: CACHE_TTL.LIST }),
+    CacheModule.registerAsync({
+      isGlobal: true,
+      inject: [ConfigService],
+      useFactory: cacheOptionsFactory,
+    }),
     ThrottlerModule.forRoot([
       {
         //los segundos son en milisegundos

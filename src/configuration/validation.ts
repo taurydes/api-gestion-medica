@@ -39,6 +39,8 @@ export const validationSchema = Joi.object({
     'any.required': '❌ REDIS_HOST es obligatorio',
   }),
   REDIS_PORT: Joi.number().default(6379),
+  // Shared by cache, BullMQ and (unless REDIS_SESSION_PASS is set) the session client
+  REDIS_PASSWORD: Joi.string().allow('').default(''),
 
   // ---------------------------
   // 🔹 Redis para sesiones
@@ -75,8 +77,8 @@ export const validationSchema = Joi.object({
   // ---------------------------
   // 🔹 Cache
   // ---------------------------
-  CACHE_TTL: Joi.number().default(3600),
-  CACHE_MAX: Joi.number().default(1000),
+  // Default TTL in milliseconds (cache-manager v7); services pass their own per key
+  CACHE_TTL_MS: Joi.number().integer().min(1000).default(300000),
 
   // ---------------------------
   // 🔹 Detector de cáncer de mama (servicio ML)
