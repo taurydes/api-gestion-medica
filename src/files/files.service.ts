@@ -75,6 +75,10 @@ export class FilesService {
     return `${this.publicUrl}/files/${route}`;
   }
 
+  private withVideoUrl(video: VideoPublicity): VideoPublicity & { url: string } {
+    return { ...video, url: this.buildFilesEndpointUrl(`video/${video.id}`) };
+  }
+
   /* ============================================================
    * 🎯 MÉTODOS EXISTENTES (BASE64) — NO SE TOCAN
    * ============================================================ */
@@ -113,7 +117,7 @@ export class FilesService {
    * @summary Crear registro de video publicitario (base64)
    * @description Guarda video en carpeta cliente & DB.
    */
-  async create(dto: CreateVideoBase64Dto): Promise<VideoPublicity> {
+  async create(dto: CreateVideoBase64Dto): Promise<VideoPublicity & { url: string }> {
     const archivoRuta = await this.saveVideoBase64(
       dto.fileName,
       dto.fileBase64,
@@ -125,7 +129,7 @@ export class FilesService {
       archivoRuta,
     });
 
-    return this.videoRepository.save(video);
+    return this.withVideoUrl(await this.videoRepository.save(video));
   }
 
   /**
@@ -148,7 +152,8 @@ export class FilesService {
 
       fs.writeFileSync(filePath, Buffer.from(pure, 'base64'));
 
-      return `${this.publicUrl}/${this.uploadsDir}/client-${clienteId}/${safeName}`;
+      // Path inside uploads, not a URL: nothing serves /uploads; clients use GET /files/video/:id
+      return `client-${clienteId}/${safeName}`;
     } catch {
       throw new InternalServerErrorException('Error al guardar video');
     }
@@ -171,7 +176,7 @@ export class FilesService {
   async uploadVideoMultipart(
     dto: CreateVideoMultipartDto,
     file: Express.Multer.File,
-  ): Promise<VideoPublicity> {
+  ): Promise<VideoPublicity & { url: string }> {
     if (!file) throw new BadRequestException('Debe enviar un archivo de video.');
 
     /* 🔹 Validar MIME type */
@@ -207,18 +212,18 @@ export class FilesService {
       throw new BadRequestException('El video no puede exceder 15 segundos.');
     }
 
-    /* 🔹 Construir URL pública */
-    const url = `${this.publicUrl}/${this.uploadsDir}/client-${dto.clienteId}/${safeName}`;
+    // Path inside uploads; the served URL is GET /files/video/:id
+    const archivoRuta = `client-${dto.clienteId}/${safeName}`;
 
     /* 🔹 Registrar en DB */
     const video = this.videoRepository.create({
       ...dto,
-      archivoRuta: url,
+      archivoRuta,
       duracion: Math.round(duration),
       tamano: size,
     });
 
-    return this.videoRepository.save(video);
+    return this.withVideoUrl(await this.videoRepository.save(video));
   }
 
   /**
@@ -242,8 +247,8 @@ export class FilesService {
     const video = await this.videoRepository.findOne({ where: { id } });
     if (!video) throw new NotFoundException('Video no encontrado');
 
-    const relative = video.archivoRuta.replace(`${this.publicUrl}/${this.uploadsDir}/`, '');
-    const localPath = resolveUploadPath(this.uploadsDir, relative);
+    // archivo_ruta is relative to uploads (migration VideoRelativePath); resolveUploadPath rejects escapes
+    const localPath = resolveUploadPath(this.uploadsDir, video.archivoRuta);
 
     if (!fs.existsSync(localPath)) {
       throw new NotFoundException('Archivo de video no existe en el servidor');

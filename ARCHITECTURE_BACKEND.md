@@ -1293,7 +1293,7 @@ ${UPLOADS_PATH:-uploads}/
 
 No hay `ServeStaticModule` ni `express.static` sobre esta carpeta: cada archivo se sirve por un endpoint de `files` (o `mammography-analyses/:id/image`) que pasa por los guards. Los únicos estáticos públicos son los assets de las vistas (`/logs/views`, `/admin/views`). En Docker, la carpeta se persiste en el volumen `uploads-data`.
 
-> Las rutas de video (`video-base64`, `video`) todavía devuelven una URL bajo `/<UPLOADS_PATH>/client-{id}/...`, que no se sirve; el video se obtiene con `GET /files/video/:id`.
+> `video_publicidad.archivo_ruta` guarda la ruta dentro de uploads (`client-{id}/archivo.mp4`, migración `1790500100000-VideoRelativePath`). Las rutas de creación (`video-base64`, `video`) devuelven además `url` = `<host>/files/video/:id`, el endpoint que sirve el archivo.
 
 ### Procesamiento de Imágenes
 

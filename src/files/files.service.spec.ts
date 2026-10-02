@@ -147,3 +147,35 @@ describe('FilesService — URLs protegidas en lugar de /uploads (M-06)', () => {
     expect(file.url).toBe('http://localhost:8008/files/appointment-files/f1');
   });
 });
+
+describe('FilesService — videos sin URL muerta', () => {
+  it('guarda la ruta dentro de uploads, devuelve la URL servida y GET /files/video/:id la encuentra', async () => {
+    const { uploadsDir } = setup();
+    const rows: any[] = [];
+    const videoRepo = {
+      create: jest.fn((x) => x),
+      save: jest.fn(async (x) => (rows.push({ id: UUID, ...x }), { id: UUID, ...x })),
+      findOne: jest.fn(async () => rows[0]),
+    };
+    const config = {
+      get: (key: string) => ({ UPLOADS_PATH: uploadsDir, URL_HOST: 'localhost', PORT: '8008' })[key],
+    };
+    const service = new FilesService(videoRepo as any, {} as any, {} as any, {} as any, {} as any, config as any);
+
+    const created = await service.create({
+      nombre: 'spot', duracion: 1, tamano: 3, clienteId: UUID, empresaId: UUID,
+      fileName: 'spot.mp4', fileBase64: Buffer.from('mp4').toString('base64'),
+    } as any);
+
+    expect(rows[0].archivoRuta).toBe(`client-${UUID}/spot.mp4`);
+    expect(created.url).toBe(`http://localhost:8008/files/video/${UUID}`);
+
+    const chunks: Buffer[] = [];
+    const { PassThrough } = require('stream');
+    const res = Object.assign(new PassThrough(), { setHeader: jest.fn() });
+    res.on('data', (c: Buffer) => chunks.push(c));
+    await service.downloadVideo(UUID, res);
+    await new Promise((r) => res.on('end', r));
+    expect(Buffer.concat(chunks).toString()).toBe('mp4');
+  });
+});
