@@ -102,21 +102,4 @@ async isValidSessionToken(
     return false;
   }
 }
-
-  
-  /**
-   * @summary Refresca la sesión del usuario.
-   * @description
-   * Renueva el tiempo de vida (TTL) de una sesión existente, útil para “mantener viva” la sesión activa.
-   * @param userId ID del usuario
-   * @param ttl Nuevo tiempo de vida (en segundos)
-   */
-  async refreshSession(userId: string | number, ttl = 3600) {
-    const key = `session:${userId}`;
-    const exists = await this.redisClient.exists(key);
-    if (exists) {
-      await this.redisClient.expire(key, ttl);
-      this.logger.debug(`TTL de sesión renovado para el usuario ${userId}`);
-    }
-  }
 }

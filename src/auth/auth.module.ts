@@ -2,7 +2,6 @@ import { UserMedicalCenter } from 'src/user/entities/user-medical-center.entity'
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
-import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import * as dotenv from 'dotenv';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
@@ -13,7 +12,6 @@ import { UserSecurity } from 'src/user/entities/user.system.entity';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { PanelAccessService } from './services/panel-access.service';
-import { JwtStrategy } from './strategies/jwt.strategy';
 
 dotenv.config();
 @Module({
@@ -22,7 +20,6 @@ dotenv.config();
       [User, UserSecurity, UserMedicalCenter],
       DatabaseConnectionName.DB_MAIN,
     ),
-    PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -37,7 +34,7 @@ dotenv.config();
     CommonModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, PanelAccessService],
+  providers: [AuthService, PanelAccessService],
   exports: [JwtModule, AuthService, PanelAccessService],
 })
 export class AuthModule {}

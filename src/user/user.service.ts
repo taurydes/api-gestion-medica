@@ -19,7 +19,7 @@ import { DataSource, EntityManager, In, IsNull, Repository } from 'typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
-import { UserQueryDto } from './dto/user-query.dto copy';
+import { UserQueryDto } from './dto/user-query.dto';
 import { User } from './entities/user.entity';
 import { Role } from 'src/role/entities/role.entity';
 import { RoleEnum } from 'src/role/role.const';

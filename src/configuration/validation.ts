@@ -61,24 +61,10 @@ export const validationSchema = Joi.object({
   }),
 
   // ---------------------------
-  // 🔹 Correo (SMTP o Mailpit)
-  // ---------------------------
-  EMAIL_HOST: Joi.string().required().messages({
-    'any.required': '❌ EMAIL_HOST es obligatorio',
-  }),
-  EMAIL_PORT: Joi.number().default(1025),
-  EMAIL_SECURE: Joi.boolean().truthy('true').falsy('false').default(false),
-  EMAIL_USER: Joi.string().allow('').default('usuario'),
-  EMAIL_PASS: Joi.string().allow('').default(''),
-
-  // ---------------------------
-  // 🔹 Token de validación
+  // 🔹 Cifrado
   // ---------------------------
   ENCRYPT_KEY: Joi.string().min(16).required().messages({
     'any.required': '❌ ENCRYPT_KEY es obligatorio',
-  }),
-  TOKEN_VALIDATOR: Joi.string().required().messages({
-    'any.required': '❌ TOKEN_VALIDATOR es obligatorio',
   }),
 
   // ---------------------------
