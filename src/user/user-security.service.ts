@@ -11,7 +11,12 @@ import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { Cache } from 'cache-manager';
 import { invalidatePermissionScopes, userAbilityScope } from 'src/common/cache/permission-cache';
-import { CACHE_TTL } from 'src/common/cache/cache-registry';
+import {
+  CACHE_TTL,
+  getScoped,
+  invalidateScope,
+  setScoped,
+} from 'src/common/cache/cache-registry';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { Repository } from 'typeorm';
 import { RedisSessionService } from 'src/redis-session/redis-session.service';
@@ -41,18 +46,7 @@ export class UserSecurityService {
    * 🔥 Método para limpiar cache de paginaciones dinámicas
    */
   private async clearQueryCache(): Promise<void> {
-    const listKey = 'users-security:query:keys';
-
-    // Recuperamos las keys almacenadas manualmente
-    const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
-
-    // Eliminamos cada key asociada a consultas paginadas
-    for (const key of keys) {
-      await this.cacheManager.del(key);
-    }
-
-    // Finalmente limpiamos la lista de claves
-    await this.cacheManager.del(listKey);
+    await invalidateScope(this.cacheManager, 'users-security');
   }
 
   /**
@@ -103,10 +97,9 @@ export class UserSecurityService {
     const cacheKey = `userSecurity:query:${JSON.stringify(query)}`;
 
     // 📌 Key donde guardamos TODAS las keys usadas por findAll
-    const listKey = 'users-security:query:keys';
 
     // 1️⃣ Consultar cache
-    const cached = await this.cacheManager.get(cacheKey);
+    const cached = await getScoped(this.cacheManager, 'users-security', cacheKey);
     if (cached) return cached;
 
     // 2️⃣ Construir QueryBuilder
@@ -139,15 +132,7 @@ export class UserSecurityService {
     const result = { data: sanitized, total, page, limit };
 
     // 3️⃣ Guardar en cache por 5 min
-    await this.cacheManager.set(cacheKey, result, CACHE_TTL.LIST);
-
-    // 4️⃣ Registrar la key para poder limpiarla después
-    const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
-
-    if (!keys.includes(cacheKey)) {
-      keys.push(cacheKey);
-      await this.cacheManager.set(listKey, keys, CACHE_TTL.REGISTRY);
-    }
+    await setScoped(this.cacheManager, 'users-security', cacheKey, result, CACHE_TTL.LIST);
 
     return result;
   }

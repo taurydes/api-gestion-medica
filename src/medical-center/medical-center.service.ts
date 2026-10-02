@@ -11,7 +11,13 @@ import { AuthContextService } from 'src/common/services/auth-context.service';
 import { uniqueViolationToConflict } from 'src/common-person/person-document.util';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
-import { CACHE_TTL, cacheAndRemember } from 'src/common/cache/cache-registry';
+import {
+  APPOINTMENT_CACHE_SCOPE,
+  CACHE_TTL,
+  getScoped,
+  invalidateScope,
+  setScoped,
+} from 'src/common/cache/cache-registry';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { Department } from 'src/departments/entities/department.entity';
 import { Doctor } from 'src/doctors/entities/doctor.entity';
@@ -85,14 +91,9 @@ export class MedicalCenterService {
    * Método para limpiar cache de paginaciones dinámicas
    */
   private async clearQueryCache(): Promise<void> {
-    const listKey = 'medicalCenter:query:keys';
-    const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
-
-    for (const key of keys) {
-      await this.cacheManager.del(key);
-    }
-
-    await this.cacheManager.del(listKey);
+    await invalidateScope(this.cacheManager, 'medicalCenter');
+    // Appointment (and patient) views embed this catalog
+    await invalidateScope(this.cacheManager, APPOINTMENT_CACHE_SCOPE);
   }
 
   /**
@@ -148,10 +149,9 @@ export class MedicalCenterService {
     }
 
     const cacheKey = `medicalCenter:query:${JSON.stringify({ ...query, allowedCenterIds })}`;
-    const listKey = 'medicalCenter:query:keys';
 
     const cached =
-      await this.cacheManager.get<MedicalCenterPaginatedResponseDto>(cacheKey);
+      await getScoped<MedicalCenterPaginatedResponseDto>(this.cacheManager, 'medicalCenter', cacheKey);
     if (cached) return cached;
 
     // Construir QueryBuilder
@@ -203,14 +203,7 @@ export class MedicalCenterService {
     };
 
     // Guardar en cache por 5 min
-    await this.cacheManager.set(cacheKey, result, CACHE_TTL.LIST);
-
-    // Registrar la key para poder limpiarla después
-    const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
-    if (!keys.includes(cacheKey)) {
-      keys.push(cacheKey);
-      await this.cacheManager.set(listKey, keys, CACHE_TTL.REGISTRY);
-    }
+    await setScoped(this.cacheManager, 'medicalCenter', cacheKey, result, CACHE_TTL.LIST);
 
     return result;
   }
@@ -229,7 +222,7 @@ export class MedicalCenterService {
 
     try {
       const cached =
-        await this.cacheManager.get<MedicalCenterDetailDto>(cacheKey);
+        await getScoped<MedicalCenterDetailDto>(this.cacheManager, 'medicalCenter', cacheKey);
       if (cached) {
         await this.assertFindOneAccess(id, authUser);
         return cached;
@@ -266,7 +259,7 @@ export class MedicalCenterService {
       );
 
       // In the list registry so department writes, which change the embedded departments, drop it too
-      await cacheAndRemember(this.cacheManager, 'medicalCenter:query:keys', cacheKey, dto, CACHE_TTL.DETAIL);
+      await setScoped(this.cacheManager, 'medicalCenter', cacheKey, dto, CACHE_TTL.DETAIL);
 
       return dto;
     } catch (error) {

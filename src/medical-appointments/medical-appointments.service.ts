@@ -11,10 +11,11 @@ import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
 import { nextCode } from 'src/common/sequence/next-code';
 import {
-  APPOINTMENT_CACHE_REGISTRY,
+  APPOINTMENT_CACHE_SCOPE,
   CACHE_TTL,
-  cacheAndRemember,
-  clearRegistry,
+  getScoped,
+  invalidateScope,
+  setScoped,
 } from 'src/common/cache/cache-registry';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { DataSource, IsNull, Repository } from 'typeorm';
@@ -152,7 +153,7 @@ export class MedicalAppointmentsService {
   // ─── Cache helpers ─────────────────────────────────────────────────────────
 
   private async clearQueryCache(): Promise<void> {
-    await clearRegistry(this.cacheManager, APPOINTMENT_CACHE_REGISTRY);
+    await invalidateScope(this.cacheManager, APPOINTMENT_CACHE_SCOPE);
   }
 
   // ─── Image enrichment ──────────────────────────────────────────────────────
@@ -630,7 +631,7 @@ export class MedicalAppointmentsService {
 
     const cacheKey = `appointment:query:${JSON.stringify({ ...query, effectiveDoctorId, effectivePatientId })}`;
 
-    const cached = await this.cacheManager.get<AppointmentPaginatedResponseDto>(cacheKey);
+    const cached = await getScoped<AppointmentPaginatedResponseDto>(this.cacheManager, APPOINTMENT_CACHE_SCOPE, cacheKey);
     if (cached) return cached;
 
     const qb = this.appointmentRepository
@@ -675,7 +676,7 @@ export class MedicalAppointmentsService {
       limit,
     };
 
-    await cacheAndRemember(this.cacheManager, APPOINTMENT_CACHE_REGISTRY, cacheKey, result, CACHE_TTL.LIST);
+    await setScoped(this.cacheManager, APPOINTMENT_CACHE_SCOPE, cacheKey, result, CACHE_TTL.LIST);
 
     return result;
   }
@@ -692,7 +693,7 @@ export class MedicalAppointmentsService {
    */
   async findOne(id: string, authUser?: any): Promise<AppointmentDetailDto> {
     const cacheKey = `appointment:detail:${id}`;
-    const cached = await this.cacheManager.get<AppointmentDetailDto>(cacheKey);
+    const cached = await getScoped<AppointmentDetailDto>(this.cacheManager, APPOINTMENT_CACHE_SCOPE, cacheKey);
     if (cached) {
       // Aplicar validación IDOR sobre el caché antes de devolver
       await this.assertFindOneAccess(cached, authUser);
@@ -708,7 +709,7 @@ export class MedicalAppointmentsService {
     const dto = mapToDetail(enriched);
 
     // Registered with the lists so patient, doctor, history and recipe writes can drop it too
-    await cacheAndRemember(this.cacheManager, APPOINTMENT_CACHE_REGISTRY, cacheKey, dto, CACHE_TTL.DETAIL);
+    await setScoped(this.cacheManager, APPOINTMENT_CACHE_SCOPE, cacheKey, dto, CACHE_TTL.DETAIL);
     return dto;
   }
 
@@ -804,7 +805,6 @@ export class MedicalAppointmentsService {
 
     await this.appointmentRepository.save(apt);
 
-    await this.cacheManager.del(`appointment:detail:${id}`);
     await this.clearQueryCache();
 
     return this.loadFullAppointment(id);
@@ -840,7 +840,6 @@ export class MedicalAppointmentsService {
 
     await this.appointmentRepository.save(apt);
 
-    await this.cacheManager.del(`appointment:detail:${id}`);
     await this.clearQueryCache();
 
     return this.loadFullAppointment(id);
@@ -871,7 +870,6 @@ export class MedicalAppointmentsService {
 
     await this.appointmentRepository.save(apt);
 
-    await this.cacheManager.del(`appointment:detail:${id}`);
     await this.clearQueryCache();
 
     return this.loadFullAppointment(id);
@@ -946,7 +944,6 @@ export class MedicalAppointmentsService {
     // Limpiar caches (solo después del commit)
     await this.historyService.invalidateListCache(scope.patientId);
     if (scope.hasRecipe) await this.recipeService.invalidateCaches(scope);
-    await this.cacheManager.del(`appointment:detail:${id}`);
     await this.clearQueryCache();
 
     return this.loadFullAppointment(id);
@@ -967,7 +964,6 @@ export class MedicalAppointmentsService {
     apt.updatedBy = userId ?? null;
     await this.appointmentRepository.save(apt);
 
-    await this.cacheManager.del(`appointment:detail:${id}`);
     await this.clearQueryCache();
   }
 
@@ -994,7 +990,7 @@ export class MedicalAppointmentsService {
     }
 
     const cacheKey = `appointment:patient:${patientId}:${JSON.stringify(query)}`;
-    const cached = await this.cacheManager.get(cacheKey);
+    const cached = await getScoped(this.cacheManager, APPOINTMENT_CACHE_SCOPE, cacheKey);
     if (cached) return cached;
 
     const qb = this.appointmentRepository
@@ -1029,7 +1025,7 @@ export class MedicalAppointmentsService {
     const [items, total] = await qb.getManyAndCount();
     const result = { data: items, total, page, limit };
 
-    await cacheAndRemember(this.cacheManager, APPOINTMENT_CACHE_REGISTRY, cacheKey, result, CACHE_TTL.LIST);
+    await setScoped(this.cacheManager, APPOINTMENT_CACHE_SCOPE, cacheKey, result, CACHE_TTL.LIST);
 
     return result;
   }
@@ -1058,7 +1054,7 @@ export class MedicalAppointmentsService {
     }
 
     const cacheKey = `appointment:doctor:${doctorId}:${JSON.stringify(query)}`;
-    const cached = await this.cacheManager.get(cacheKey);
+    const cached = await getScoped(this.cacheManager, APPOINTMENT_CACHE_SCOPE, cacheKey);
     if (cached) return cached;
 
     const qb = this.appointmentRepository
@@ -1081,7 +1077,7 @@ export class MedicalAppointmentsService {
     const [items, total] = await qb.getManyAndCount();
     const result = { data: items, total, page, limit };
 
-    await cacheAndRemember(this.cacheManager, APPOINTMENT_CACHE_REGISTRY, cacheKey, result, CACHE_TTL.LIST);
+    await setScoped(this.cacheManager, APPOINTMENT_CACHE_SCOPE, cacheKey, result, CACHE_TTL.LIST);
 
     return result;
   }

@@ -16,10 +16,11 @@ import { AuthContextService } from 'src/common/services/auth-context.service';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
 import {
-  APPOINTMENT_CACHE_REGISTRY,
+  APPOINTMENT_CACHE_SCOPE,
   CACHE_TTL,
-  cacheAndRemember,
-  clearRegistry,
+  getScoped,
+  invalidateScope,
+  setScoped,
 } from 'src/common/cache/cache-registry';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { DataSource, FindOptions, In, IsNull, Repository } from 'typeorm';
@@ -89,16 +90,9 @@ export class DoctorsService {
    * Método para limpiar cache de paginaciones dinámicas
    */
   private async clearQueryCache(): Promise<void> {
-    const listKey = 'doctor:query:keys';
-    const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
-
-    for (const key of keys) {
-      await this.cacheManager.del(key);
-    }
-
-    await this.cacheManager.del(listKey);
+    await invalidateScope(this.cacheManager, 'doctor');
     // Appointment views embed this entity: drop them too
-    await clearRegistry(this.cacheManager, APPOINTMENT_CACHE_REGISTRY);
+    await invalidateScope(this.cacheManager, APPOINTMENT_CACHE_SCOPE);
   }
 
   /**
@@ -209,10 +203,9 @@ export class DoctorsService {
     const myDoctorId = await this.authContextService.getScopedDoctorId(authUser?.id);
 
     const cacheKey = `doctor:query:${JSON.stringify({ ...query, myDoctorId })}`;
-    const listKey = 'doctor:query:keys';
 
     // Consultar cache
-    const cached = await this.cacheManager.get(cacheKey);
+    const cached = await getScoped(this.cacheManager, 'doctor', cacheKey);
     if (cached) return cached;
 
     // Construir QueryBuilder
@@ -273,14 +266,7 @@ export class DoctorsService {
     const result = { data: enrichedItems, total, page, limit };
 
     // Guardar en cache por 5 min
-    await this.cacheManager.set(cacheKey, result, CACHE_TTL.LIST);
-
-    // Registrar la key para poder limpiarla después
-    const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
-    if (!keys.includes(cacheKey)) {
-      keys.push(cacheKey);
-      await this.cacheManager.set(listKey, keys, CACHE_TTL.REGISTRY);
-    }
+    await setScoped(this.cacheManager, 'doctor', cacheKey, result, CACHE_TTL.LIST);
 
     return result;
   }

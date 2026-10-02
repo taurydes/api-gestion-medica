@@ -6,7 +6,12 @@ import {
 } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
-import { CACHE_TTL } from 'src/common/cache/cache-registry';
+import {
+  CACHE_TTL,
+  getScoped,
+  invalidateScope,
+  setScoped,
+} from 'src/common/cache/cache-registry';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
@@ -32,15 +37,7 @@ export class RoleService {
    * 🔥 Limpia el cache de las paginaciones dinámicas
    */
   private async clearQueryCache(): Promise<void> {
-    const listKey = 'roles:query:keys';
-
-    const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
-
-    for (const key of keys) {
-      await this.cacheManager.del(key);
-    }
-
-    await this.cacheManager.del(listKey);
+    await invalidateScope(this.cacheManager, 'roles');
   }
 
   /**
@@ -74,9 +71,8 @@ export class RoleService {
     const { page, limit, order, search, userId, isActive } = query;
 
     const cacheKey = `roles:query:${JSON.stringify(query)}`;
-    const listKey = 'roles:query:keys';
 
-    const cached = await this.cacheManager.get(cacheKey);
+    const cached = await getScoped(this.cacheManager, 'roles', cacheKey);
     if (cached) return cached;
 
     const qb = this.roleRepository
@@ -111,14 +107,7 @@ export class RoleService {
     };
 
     // Guardar en cache por 5 min
-    await this.cacheManager.set(cacheKey, result, CACHE_TTL.LIST);
-
-    // Registrar keys para poder limpiarlas después
-    const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
-    if (!keys.includes(cacheKey)) {
-      keys.push(cacheKey);
-      await this.cacheManager.set(listKey, keys, CACHE_TTL.REGISTRY);
-    }
+    await setScoped(this.cacheManager, 'roles', cacheKey, result, CACHE_TTL.LIST);
 
     return result;
   }

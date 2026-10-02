@@ -11,10 +11,11 @@ import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
 import { nextCode } from 'src/common/sequence/next-code';
 import {
-  APPOINTMENT_CACHE_REGISTRY,
+  APPOINTMENT_CACHE_SCOPE,
   CACHE_TTL,
-  cacheAndRemember,
-  clearRegistry,
+  getScoped,
+  invalidateScope,
+  setScoped,
 } from 'src/common/cache/cache-registry';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { DataSource, EntityManager, In, IsNull, Repository } from 'typeorm';
@@ -88,17 +89,9 @@ export class RecipeService {
    * 🔥 Método para limpiar cache de paginaciones dinámicas
    */
   private async clearQueryCache(): Promise<void> {
-    const listKey = 'recipe:query:keys';
-
-    const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
-
-    for (const key of keys) {
-      await this.cacheManager.del(key);
-    }
-
-    await this.cacheManager.del(listKey);
+    await invalidateScope(this.cacheManager, 'recipe');
     // Appointment views embed this entity: drop them too
-    await clearRegistry(this.cacheManager, APPOINTMENT_CACHE_REGISTRY);
+    await invalidateScope(this.cacheManager, APPOINTMENT_CACHE_SCOPE);
   }
 
   /**
@@ -269,9 +262,8 @@ export class RecipeService {
     }
 
     const cacheKey = `recipe:query:${JSON.stringify({ ...query, effectiveDoctorId })}`;
-    const listKey = 'recipe:query:keys';
 
-    const cached = await this.cacheManager.get(cacheKey);
+    const cached = await getScoped(this.cacheManager, 'recipe', cacheKey);
     if (cached) return cached;
 
     const qb = this.recipeRepository
@@ -307,12 +299,7 @@ export class RecipeService {
     const enriched = await Promise.all(items.map((r) => this.enrichWithImages(r)));
     const result = { data: enriched, total, page, limit };
 
-    await this.cacheManager.set(cacheKey, result, CACHE_TTL.LIST);
-    const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
-    if (!keys.includes(cacheKey)) {
-      keys.push(cacheKey);
-      await this.cacheManager.set(listKey, keys, CACHE_TTL.REGISTRY);
-    }
+    await setScoped(this.cacheManager, 'recipe', cacheKey, result, CACHE_TTL.LIST);
 
     return result;
   }

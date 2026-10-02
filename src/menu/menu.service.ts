@@ -8,7 +8,12 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { invalidateAllPermissions } from 'src/common/cache/permission-cache';
-import { CACHE_TTL, clearRegistry } from 'src/common/cache/cache-registry';
+import {
+  CACHE_TTL,
+  getScoped,
+  invalidateScope,
+  setScoped,
+} from 'src/common/cache/cache-registry';
 import { In, IsNull, Repository } from 'typeorm';
 
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
@@ -57,7 +62,7 @@ export class MenuService {
 
       // 🧹 Limpiar caché de la lista general
       await this.cacheManager.del('menus:all');
-      await clearRegistry(this.cacheManager, 'menus:query:keys');
+      await invalidateScope(this.cacheManager, 'menus');
 
       return menu;
     } catch (error) {
@@ -73,9 +78,8 @@ export class MenuService {
     const { page, limit, order, search, parentId, isActive } = query;
 
     const cacheKey = `menus:query:${JSON.stringify(query)}`;
-    const listKey = 'menus:query:keys';
 
-    const cached = await this.cacheManager.get(cacheKey);
+    const cached = await getScoped(this.cacheManager, 'menus', cacheKey);
     if (cached) return cached;
 
     const qb = this.menuRepository
@@ -105,13 +109,7 @@ export class MenuService {
 
     const result = { data, total, page, limit };
 
-    await this.cacheManager.set(cacheKey, result, CACHE_TTL.LIST);
-
-    const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
-    if (!keys.includes(cacheKey)) {
-      keys.push(cacheKey);
-      await this.cacheManager.set(listKey, keys, CACHE_TTL.REGISTRY);
-    }
+    await setScoped(this.cacheManager, 'menus', cacheKey, result, CACHE_TTL.LIST);
 
     return result;
   }
@@ -203,7 +201,7 @@ export class MenuService {
       // Grants join the menu: a disabled or deleted menu changes every role's permissions
       await invalidateAllPermissions(this.cacheManager);
       await this.cacheManager.del('menus:all');
-      await clearRegistry(this.cacheManager, 'menus:query:keys');
+      await invalidateScope(this.cacheManager, 'menus');
 
       return updatedMenu;
     } catch (error) {
@@ -230,7 +228,7 @@ export class MenuService {
       // Grants join the menu: a disabled or deleted menu changes every role's permissions
       await invalidateAllPermissions(this.cacheManager);
       await this.cacheManager.del('menus:all');
-      await clearRegistry(this.cacheManager, 'menus:query:keys');
+      await invalidateScope(this.cacheManager, 'menus');
     } catch (error) {
       throw toHttpException(error, 'Error al eliminar el menú.');
     }

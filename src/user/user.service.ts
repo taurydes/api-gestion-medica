@@ -14,7 +14,12 @@ import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { Cache } from 'cache-manager';
 import { invalidatePermissionScopes, userAbilityScope } from 'src/common/cache/permission-cache';
-import { CACHE_TTL } from 'src/common/cache/cache-registry';
+import {
+  CACHE_TTL,
+  getScoped,
+  invalidateScope,
+  setScoped,
+} from 'src/common/cache/cache-registry';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { DataSource, EntityManager, In, IsNull, Repository } from 'typeorm';
 
@@ -101,15 +106,7 @@ export class UserService {
   // ============================================================
 
   private async clearQueryCache(): Promise<void> {
-    const listKey = 'user:query:keys';
-
-    const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
-
-    for (const key of keys) {
-      await this.cacheManager.del(key);
-    }
-
-    await this.cacheManager.del(listKey);
+    await invalidateScope(this.cacheManager, 'user');
   }
 
   private async validateUserData(data: CreateUserDto): Promise<void> {
@@ -280,12 +277,7 @@ export class UserService {
       // Si se creó un doctor, limpiar también el caché de doctores
       if (doctorDto) {
         await this.cacheManager.del('doctor:all');
-        const doctorListKey = 'doctor:query:keys';
-        const doctorKeys = (await this.cacheManager.get<string[]>(doctorListKey)) ?? [];
-        for (const key of doctorKeys) {
-          await this.cacheManager.del(key);
-        }
-        await this.cacheManager.del(doctorListKey);
+        await invalidateScope(this.cacheManager, 'doctor');
       }
 
       return result;
@@ -308,9 +300,8 @@ export class UserService {
     const { page, limit, order, search, roleId, status } = query;
 
     const cacheKey = `user:query:${JSON.stringify(query)}`;
-    const listKey = 'user:query:keys';
 
-    const cached = await this.cacheManager.get(cacheKey);
+    const cached = await getScoped(this.cacheManager, 'user', cacheKey);
     if (cached) return cached;
 
     const qb = this.repo
@@ -345,14 +336,7 @@ export class UserService {
 
     const result = { data: enriched, total, page, limit };
 
-    await this.cacheManager.set(cacheKey, result, CACHE_TTL.LIST);
-
-    const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
-
-    if (!keys.includes(cacheKey)) {
-      keys.push(cacheKey);
-      await this.cacheManager.set(listKey, keys, CACHE_TTL.REGISTRY);
-    }
+    await setScoped(this.cacheManager, 'user', cacheKey, result, CACHE_TTL.LIST);
 
     return result;
   }

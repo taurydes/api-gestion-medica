@@ -10,10 +10,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
 import { nextCode } from 'src/common/sequence/next-code';
 import {
-  APPOINTMENT_CACHE_REGISTRY,
+  APPOINTMENT_CACHE_SCOPE,
   CACHE_TTL,
-  cacheAndRemember,
-  clearRegistry,
+  getScoped,
+  invalidateScope,
+  setScoped,
 } from 'src/common/cache/cache-registry';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { EntityManager, IsNull, Repository } from 'typeorm';
@@ -84,17 +85,9 @@ export class MedicalHistoryService {
    * 🔥 Método para limpiar cache de paginaciones dinámicas
    */
   private async clearQueryCache(): Promise<void> {
-    const listKey = 'medical-history:query:keys';
-
-    const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
-
-    for (const key of keys) {
-      await this.cacheManager.del(key);
-    }
-
-    await this.cacheManager.del(listKey);
+    await invalidateScope(this.cacheManager, 'medical-history');
     // Appointment views embed this entity: drop them too
-    await clearRegistry(this.cacheManager, APPOINTMENT_CACHE_REGISTRY);
+    await invalidateScope(this.cacheManager, APPOINTMENT_CACHE_SCOPE);
   }
 
   /** Clears the global list caches; callers that pass their own transaction call it after commit. */
@@ -229,10 +222,9 @@ export class MedicalHistoryService {
 
     // 🔑 Key única para esta consulta
     const cacheKey = `medical-history:query:${JSON.stringify({ ...query, effectiveDoctorId })}`;
-    const listKey = 'medical-history:query:keys';
 
     // 1️⃣ Consultar cache
-    const cached = await this.cacheManager.get(cacheKey);
+    const cached = await getScoped(this.cacheManager, 'medical-history', cacheKey);
     if (cached) return cached;
 
     // 2️⃣ Construir QueryBuilder
@@ -299,15 +291,7 @@ export class MedicalHistoryService {
     const result = { data: enriched, total, page, limit };
 
     // 3️⃣ Guardar en cache por 5 min
-    await this.cacheManager.set(cacheKey, result, CACHE_TTL.LIST);
-
-    // 4️⃣ Registrar la key para poder limpiarla después
-    const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
-
-    if (!keys.includes(cacheKey)) {
-      keys.push(cacheKey);
-      await this.cacheManager.set(listKey, keys, CACHE_TTL.REGISTRY);
-    }
+    await setScoped(this.cacheManager, 'medical-history', cacheKey, result, CACHE_TTL.LIST);
 
     return result;
   }

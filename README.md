@@ -261,8 +261,8 @@ Para evitar la duplicidad de datos (nombre, cédula, teléfono), los `User`, `Do
 
 Caché sobre Redis con `@nestjs/cache-manager` 3 + `cache-manager` 7 (store Keyv `@keyv/redis`, sin prefijo de clave, con `REDIS_PASSWORD`). **Todos los TTL están en milisegundos.**
 
-- **Lectura:** primero consulta Redis; si no existe, va a la BD y guarda con `CACHE_TTL.LIST` (5 min) o `CACHE_TTL.DETAIL` (10 min), registrando la clave en `<entidad>:query:keys`.
-- **Escritura (CUD):** borra todas las claves del registro de la entidad. Las vistas de citas comparten el registro `appointment:query:keys`, que también limpian las escrituras de pacientes, médicos, historiales y recetas.
+- **Lectura:** primero consulta Redis; si no existe, va a la BD y guarda con `CACHE_TTL.LIST` (5 min) o `CACHE_TTL.DETAIL` (10 min) dentro del alcance de la entidad (clave `<clave>#<generación>`).
+- **Escritura (CUD):** invalida el alcance con una sola escritura (generación nueva). Las vistas de citas están en el alcance `appointment`, que también invalidan pacientes, médicos, historiales, recetas y los catálogos que embeben (alergias, medicamentos, especialidades, centros, departamentos...).
 - **Permisos:** la lista de permisos de cada rol se cachea 1 h con claves por generación (`permission:g<gen>:<scope>`); cambiar los grants de un rol invalida su scope y cambiar una acción o un menú invalida todo.
 
 ### Códigos legibles

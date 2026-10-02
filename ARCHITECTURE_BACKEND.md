@@ -918,7 +918,7 @@ RefreshTokenDto { refreshToken }
 - `create()` usa transacción (QueryRunner): crea/reutiliza CommonPerson → crea User → vincula centros (`medicalCenterIds` → `users_medical_centers`) → opcionalmente crea Doctor
 - `update()` escribe `users` y `persona_comun` en una sola transacción; si desactiva al usuario, revoca su sesión antes de escribir
 - `remove()` soft delete en transacción (QueryRunner): `deletedAt = now`, `status = false`
-- Cache Redis para queries (registro `user:query:keys`)
+- Cache Redis para queries (alcance `user`)
 
 ---
 
@@ -1399,25 +1399,24 @@ const patients = await this.patientRepository
 export const CACHE_TTL = {
   LIST: 5 * 60_000,       // 5 min
   DETAIL: 10 * 60_000,    // 10 min
-  REGISTRY: 15 * 60_000,  // 15 min: sobrevive a toda entrada que registra
 } as const;
 ```
 
-**Patrón de registro de claves.** Cada listado cachea bajo una clave derivada de los filtros y anota esa clave en un registro `<entidad>:query:keys` (`user:query:keys`, `patient:query:keys`, `doctor:query:keys`, `recipe:query:keys`, `medical-history:query:keys`, `medicalCenter:query:keys`, `department:query:keys`, `roles:query:keys`, `menus:query:keys`, ...). Toda escritura borra las claves registradas y el registro:
+**Patrón de alcances por generación.** Los listados (y los detalles que dependen de otras entidades) se guardan dentro de un *alcance* (`patient`, `doctor`, `recipe`, `medical-history`, `medicalCenter`, `department`, `user`, `users-security`, `roles`, `menus`, `allergy`, `medication`, ...). La clave real en Redis es `<clave>#<generación>`, donde la generación vive en `<alcance>:generation`. Invalidar un alcance es **una sola escritura** (un UUID nuevo): todas las entradas anteriores quedan huérfanas y vencen por TTL. No hay registro de claves que leer y reescribir, así que escrituras concurrentes no pueden perder una invalidación.
 
 ```typescript
 // Lectura
 const cacheKey = `patient:query:${JSON.stringify({ ...query, doctorId })}`;
-const cached = await this.cacheManager.get(cacheKey);
+const cached = await getScoped(this.cacheManager, 'patient', cacheKey);
 if (cached) return cached;
 // ... consulta a la BD ...
-await cacheAndRemember(this.cacheManager, 'patient:query:keys', cacheKey, result, CACHE_TTL.LIST);
+await setScoped(this.cacheManager, 'patient', cacheKey, result, CACHE_TTL.LIST);
 
 // Escritura (create/update/remove)
-await clearRegistry(this.cacheManager, 'patient:query:keys');
+await invalidateScope(this.cacheManager, 'patient');
 ```
 
-**Vistas de citas.** Los listados de citas y los detalles `appointment:detail:<id>` comparten el registro `APPOINTMENT_CACHE_REGISTRY = 'appointment:query:keys'`. Como esas vistas embeben datos de paciente, médico, historial y receta, las escrituras de `PatientService`, `DoctorsService`, `MedicalHistoryService` y `RecipeService` también limpian ese registro.
+**Vistas de citas.** Los listados de citas y los detalles `appointment:detail:<id>` viven en el alcance `APPOINTMENT_CACHE_SCOPE = 'appointment'`. Como embeben datos de paciente, médico, historial, receta y catálogos, también lo invalidan las escrituras de `PatientService`, `DoctorsService`, `MedicalHistoryService`, `RecipeService`, `AllergyService`, `ChronicDiseaseService`, `MedicationService`, `SpecialtyService`, `MedicalCenterService` y `DepartmentsService`. Los catálogos de alergias, enfermedades crónicas y medicamentos invalidan además el alcance `patient` (el detalle del paciente los embebe). Para inspeccionar: `redis-cli --scan --pattern 'appointment*'`.
 
 La caché de permisos usa su propio esquema por generaciones (ver [Caché de permisos](#caché-de-permisos)).
 
@@ -1959,7 +1958,7 @@ Ya no forman parte del proyecto: `@nestjs/passport`, `passport-jwt`, `nodemailer
 ### Mejores prácticas
 
 - **Soft delete siempre:** `deletedAt` + `isActive = false`
-- **Cache para consultas frecuentes:** `CACHE_TTL.LIST` (5 min) para listas, `CACHE_TTL.DETAIL` (10 min) para un registro; TTL siempre en milisegundos; registrar la clave con `cacheAndRemember()` y limpiar con `clearRegistry()` en cada escritura
+- **Cache para consultas frecuentes:** `CACHE_TTL.LIST` (5 min) para listas, `CACHE_TTL.DETAIL` (10 min) para un registro; TTL siempre en milisegundos; guardar con `setScoped()` y llamar a `invalidateScope()` en cada escritura
 - **Transacciones para operaciones múltiples:** `dataSource.transaction()` (o `QueryRunner`); aceptar un `EntityManager` opcional para participar en la transacción de otro servicio
 - **Cambios de esquema solo por migración:** generar, revisar, aplicar y comprobar que no hay deriva (ver [Flujo de Migraciones](#flujo-de-migraciones))
 - **Validación en DTOs:** Usar class-validator, nunca en controlador

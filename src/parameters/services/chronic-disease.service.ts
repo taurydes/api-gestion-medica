@@ -7,7 +7,13 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
-import { CACHE_TTL } from 'src/common/cache/cache-registry';
+import {
+  APPOINTMENT_CACHE_SCOPE,
+  CACHE_TTL,
+  getScoped,
+  invalidateScope,
+  setScoped,
+} from 'src/common/cache/cache-registry';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { Repository } from 'typeorm';
 import { CreateChronicDiseaseDto } from '../dto/chronic-disease/create-chronic-disease.dto';
@@ -27,12 +33,10 @@ export class ChronicDiseaseService {
   ) {}
 
   private async clearQueryCache(): Promise<void> {
-    const listKey = 'chronic-disease:query:keys';
-    const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
-    for (const key of keys) {
-      await this.cacheManager.del(key);
-    }
-    await this.cacheManager.del(listKey);
+    await invalidateScope(this.cacheManager, 'chronic-disease');
+    // Appointment (and patient) views embed this catalog
+    await invalidateScope(this.cacheManager, APPOINTMENT_CACHE_SCOPE);
+    await invalidateScope(this.cacheManager, 'patient');
   }
 
   async create(createDto: CreateChronicDiseaseDto): Promise<ChronicDisease> {
@@ -63,9 +67,8 @@ export class ChronicDiseaseService {
     const { page, limit, order, search, isActive } = query;
 
     const cacheKey = `chronic-disease:query:${JSON.stringify(query)}`;
-    const listKey = 'chronic-disease:query:keys';
 
-    const cached = await this.cacheManager.get(cacheKey);
+    const cached = await getScoped(this.cacheManager, 'chronic-disease', cacheKey);
     if (cached) return cached;
 
     const qb = this.chronicDiseaseRepository
@@ -87,13 +90,7 @@ export class ChronicDiseaseService {
 
     const result = { data: items, total, page, limit };
 
-    await this.cacheManager.set(cacheKey, result, CACHE_TTL.LIST);
-
-    const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
-    if (!keys.includes(cacheKey)) {
-      keys.push(cacheKey);
-      await this.cacheManager.set(listKey, keys, CACHE_TTL.REGISTRY);
-    }
+    await setScoped(this.cacheManager, 'chronic-disease', cacheKey, result, CACHE_TTL.LIST);
 
     return result;
   }

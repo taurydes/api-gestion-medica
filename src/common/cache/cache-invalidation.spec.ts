@@ -9,10 +9,13 @@ import { DoctorScheduleService } from 'src/doctors/doctor-schedule.service';
 import { PatientService } from 'src/patient/patient.service';
 import { MedicalHistoryService } from 'src/medical-history/medical-history.service';
 import { DepartmentsService } from 'src/departments/departments.service';
+import { AllergyService } from 'src/parameters/services/allergy.service';
 import {
-  APPOINTMENT_CACHE_REGISTRY,
+  APPOINTMENT_CACHE_SCOPE,
   CACHE_TTL,
-  cacheAndRemember,
+  getScoped,
+  invalidateScope,
+  setScoped,
 } from './cache-registry';
 
 // Real cache-manager v7 (in-memory Keyv): the same get/set/del semantics as the Redis store.
@@ -32,13 +35,13 @@ describe('Cache invalidation keys (M-56)', () => {
     );
     // The reload joins many relations; it is not what this test is about.
     jest.spyOn(service as any, 'loadFullAppointment').mockResolvedValue({});
-    await cacheAndRemember(cache, APPOINTMENT_CACHE_REGISTRY, 'appointment:detail:apt-1', { observations: 'old' }, CACHE_TTL.DETAIL);
-    await cacheAndRemember(cache, APPOINTMENT_CACHE_REGISTRY, 'appointment:query:{}', { data: [] }, CACHE_TTL.LIST);
+    await setScoped(cache, APPOINTMENT_CACHE_SCOPE, 'appointment:detail:apt-1', { observations: 'old' }, CACHE_TTL.DETAIL);
+    await setScoped(cache, APPOINTMENT_CACHE_SCOPE, 'appointment:query:{}', { data: [] }, CACHE_TTL.LIST);
 
     await service.update('apt-1', { observations: 'new' } as any);
 
-    expect(await cache.get('appointment:detail:apt-1')).toBeUndefined();
-    expect(await cache.get('appointment:query:{}')).toBeUndefined();
+    expect(await getScoped(cache, APPOINTMENT_CACHE_SCOPE, 'appointment:detail:apt-1')).toBeUndefined();
+    expect(await getScoped(cache, APPOINTMENT_CACHE_SCOPE, 'appointment:query:{}')).toBeUndefined();
   });
 
   it('editing a schedule block drops the keys getSchedulesByDoctor wrote', async () => {
@@ -64,13 +67,13 @@ describe('Cache invalidation keys (M-56)', () => {
   it('a patient write also drops the cached appointment views that embed the patient', async () => {
     const cache = newCache();
     const service = Object.assign(Object.create(PatientService.prototype), { cacheManager: cache });
-    await cacheAndRemember(cache, APPOINTMENT_CACHE_REGISTRY, 'appointment:detail:apt-1', {}, CACHE_TTL.DETAIL);
-    await cacheAndRemember(cache, 'patient:query:keys', 'patient:doc:V123', {}, CACHE_TTL.DETAIL);
+    await setScoped(cache, APPOINTMENT_CACHE_SCOPE, 'appointment:detail:apt-1', {}, CACHE_TTL.DETAIL);
+    await setScoped(cache, 'patient', 'patient:doc:V123', {}, CACHE_TTL.DETAIL);
 
     await (service as any).clearQueryCache();
 
-    expect(await cache.get('appointment:detail:apt-1')).toBeUndefined();
-    expect(await cache.get('patient:doc:V123')).toBeUndefined();
+    expect(await getScoped(cache, APPOINTMENT_CACHE_SCOPE, 'appointment:detail:apt-1')).toBeUndefined();
+    expect(await getScoped(cache, 'patient', 'patient:doc:V123')).toBeUndefined();
   });
 
   it('a new medical history drops medical-history:patient:<id>', async () => {
@@ -86,12 +89,41 @@ describe('Cache invalidation keys (M-56)', () => {
   it('a department write drops the center list (counts) and center details (embedded departments)', async () => {
     const cache = newCache();
     const service = Object.assign(Object.create(DepartmentsService.prototype), { cacheManager: cache });
-    await cacheAndRemember(cache, 'medicalCenter:query:keys', 'medicalCenter:query:{}', {}, CACHE_TTL.LIST);
-    await cacheAndRemember(cache, 'medicalCenter:query:keys', 'medicalCenter:mc-1', {}, CACHE_TTL.DETAIL);
+    await setScoped(cache, 'medicalCenter', 'medicalCenter:query:{}', {}, CACHE_TTL.LIST);
+    await setScoped(cache, 'medicalCenter', 'medicalCenter:mc-1', {}, CACHE_TTL.DETAIL);
 
     await (service as any).clearQueryCache();
 
-    expect(await cache.get('medicalCenter:query:{}')).toBeUndefined();
-    expect(await cache.get('medicalCenter:mc-1')).toBeUndefined();
+    expect(await getScoped(cache, 'medicalCenter', 'medicalCenter:query:{}')).toBeUndefined();
+    expect(await getScoped(cache, 'medicalCenter', 'medicalCenter:mc-1')).toBeUndefined();
+  });
+
+  it('editing a catalog (allergy) drops appointment and patient views that embed it', async () => {
+    const cache = newCache();
+    const service = Object.assign(Object.create(AllergyService.prototype), { cacheManager: cache });
+    await setScoped(cache, APPOINTMENT_CACHE_SCOPE, 'appointment:detail:apt-1', {}, CACHE_TTL.DETAIL);
+    await setScoped(cache, 'patient', 'patient:pat-1', {}, CACHE_TTL.DETAIL);
+
+    await (service as any).clearQueryCache();
+
+    expect(await getScoped(cache, APPOINTMENT_CACHE_SCOPE, 'appointment:detail:apt-1')).toBeUndefined();
+    expect(await getScoped(cache, 'patient', 'patient:pat-1')).toBeUndefined();
+  });
+
+  it('concurrent writers cannot lose an invalidation: one write per scope, no read-modify-write', async () => {
+    const cache = newCache();
+    // 50 list entries cached concurrently (a registry array would race and drop some)
+    await Promise.all(
+      Array.from({ length: 50 }, (_, i) =>
+        setScoped(cache, APPOINTMENT_CACHE_SCOPE, `appointment:query:${i}`, { i }, CACHE_TTL.LIST),
+      ),
+    );
+
+    await invalidateScope(cache, APPOINTMENT_CACHE_SCOPE);
+
+    const survivors = await Promise.all(
+      Array.from({ length: 50 }, (_, i) => getScoped(cache, APPOINTMENT_CACHE_SCOPE, `appointment:query:${i}`)),
+    );
+    expect(survivors.filter((v) => v !== undefined)).toHaveLength(0);
   });
 });

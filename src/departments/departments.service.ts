@@ -7,7 +7,13 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
-import { CACHE_TTL, clearRegistry } from 'src/common/cache/cache-registry';
+import {
+  APPOINTMENT_CACHE_SCOPE,
+  CACHE_TTL,
+  getScoped,
+  invalidateScope,
+  setScoped,
+} from 'src/common/cache/cache-registry';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { In, IsNull, Repository } from 'typeorm';
 import { Department } from './entities/department.entity';
@@ -37,14 +43,11 @@ export class DepartmentsService {
   // ─── Cache helpers ─────────────────────────────────────────────────────────
 
   private async clearQueryCache(): Promise<void> {
-    const listKey = 'department:query:keys';
-    const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
-    for (const key of keys) {
-      await this.cacheManager.del(key);
-    }
-    await this.cacheManager.del(listKey);
+    await invalidateScope(this.cacheManager, 'department');
+    // Appointment (and patient) views embed this catalog
+    await invalidateScope(this.cacheManager, APPOINTMENT_CACHE_SCOPE);
     // Center lists count departments and center details embed them
-    await clearRegistry(this.cacheManager, 'medicalCenter:query:keys');
+    await invalidateScope(this.cacheManager, 'medicalCenter');
   }
 
   // ─── CRUD ──────────────────────────────────────────────────────────────────
@@ -98,9 +101,8 @@ export class DepartmentsService {
     const { page, limit, order, search, medicalCenterId, isActive } = query;
 
     const cacheKey = `department:query:${JSON.stringify(query)}`;
-    const listKey = 'department:query:keys';
 
-    const cached = await this.cacheManager.get(cacheKey);
+    const cached = await getScoped(this.cacheManager, 'department', cacheKey);
     if (cached) return cached;
 
     const qb = this.departmentRepository
@@ -132,13 +134,7 @@ export class DepartmentsService {
     const [items, total] = await qb.getManyAndCount();
     const result = { data: items, total, page, limit };
 
-    await this.cacheManager.set(cacheKey, result, CACHE_TTL.LIST);
-
-    const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
-    if (!keys.includes(cacheKey)) {
-      keys.push(cacheKey);
-      await this.cacheManager.set(listKey, keys, CACHE_TTL.REGISTRY);
-    }
+    await setScoped(this.cacheManager, 'department', cacheKey, result, CACHE_TTL.LIST);
 
     return result;
   }

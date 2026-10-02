@@ -1,33 +1,41 @@
+import { randomUUID } from 'crypto';
 import { Cache } from 'cache-manager';
 
 /** cache-manager v7 reads every TTL in milliseconds. */
 export const CACHE_TTL = {
   LIST: 5 * 60_000,
   DETAIL: 10 * 60_000,
-  // Outlives every entry it tracks, so no tracked key is orphaned before it expires.
-  REGISTRY: 15 * 60_000,
 } as const;
 
-/** Registry of every cached appointment view (lists and details); other modules clear it when they change embedded data. */
-export const APPOINTMENT_CACHE_REGISTRY = 'appointment:query:keys';
+// Far longer than any entry, so an expired generation never brings old keys back.
+const GENERATION_TTL = 30 * 24 * 60 * 60_000;
 
-/** Caches `value` under `key` and records the key in `registry` so `clearRegistry` can drop it later. */
-export async function cacheAndRemember(
+/** Scope of every cached appointment view (lists and details); modules whose data they embed invalidate it too. */
+export const APPOINTMENT_CACHE_SCOPE = 'appointment';
+
+const generationKey = (scope: string) => `${scope}:generation`;
+
+/** `key` under the scope's current generation: invalidating the scope orphans every older entry at once. */
+export async function scopedKey(cache: Cache, scope: string, key: string): Promise<string> {
+  const generation = (await cache.get<string>(generationKey(scope))) ?? '0';
+  return `${key}#${generation}`;
+}
+
+export async function getScoped<T>(cache: Cache, scope: string, key: string): Promise<T | undefined> {
+  return (await cache.get<T>(await scopedKey(cache, scope, key))) ?? undefined;
+}
+
+export async function setScoped(
   cache: Cache,
-  registry: string,
+  scope: string,
   key: string,
   value: unknown,
   ttl: number,
 ): Promise<void> {
-  await cache.set(key, value, ttl);
-  const keys = (await cache.get<string[]>(registry)) ?? [];
-  if (!keys.includes(key)) keys.push(key);
-  await cache.set(registry, keys, CACHE_TTL.REGISTRY);
+  await cache.set(await scopedKey(cache, scope, key), value, ttl);
 }
 
-/** Deletes every key recorded in `registry`, then the registry itself. */
-export async function clearRegistry(cache: Cache, registry: string): Promise<void> {
-  const keys = (await cache.get<string[]>(registry)) ?? [];
-  for (const key of keys) await cache.del(key);
-  await cache.del(registry);
+/** One write, no read-modify-write: concurrent readers and writers cannot lose an invalidation. */
+export async function invalidateScope(cache: Cache, scope: string): Promise<void> {
+  await cache.set(generationKey(scope), randomUUID(), GENERATION_TTL);
 }

@@ -8,7 +8,7 @@ function setup(existing: { id: string; name: string; code: string } | null) {
     create: jest.fn((d) => d),
     save: jest.fn(async (d) => ({ id: 'new', ...d })),
   };
-  const cache = { get: jest.fn().mockResolvedValue([]), del: jest.fn() };
+  const cache = { get: jest.fn().mockResolvedValue([]), set: jest.fn(), del: jest.fn() };
   return { service: new SpecialtyService(repo as any, cache as any), repo };
 }
 

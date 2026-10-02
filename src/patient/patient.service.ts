@@ -16,10 +16,11 @@ import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
 import { nextCode } from 'src/common/sequence/next-code';
 import {
-  APPOINTMENT_CACHE_REGISTRY,
+  APPOINTMENT_CACHE_SCOPE,
   CACHE_TTL,
-  cacheAndRemember,
-  clearRegistry,
+  getScoped,
+  invalidateScope,
+  setScoped,
 } from 'src/common/cache/cache-registry';
 import { DataSource, In, IsNull, Repository } from 'typeorm';
 import { CreatePatientDto } from './dto/create-patient.dto';
@@ -84,20 +85,9 @@ export class PatientService {
    * 🔥 Método para limpiar cache de paginaciones dinámicas
    */
   private async clearQueryCache(): Promise<void> {
-    const listKey = 'patient:query:keys';
-
-    // Recuperamos las keys almacenadas manualmente
-    const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
-
-    // Eliminamos cada key asociada a consultas paginadas
-    for (const key of keys) {
-      await this.cacheManager.del(key);
-    }
-
-    // Finalmente limpiamos la lista de claves
-    await this.cacheManager.del(listKey);
+    await invalidateScope(this.cacheManager, 'patient');
     // Appointment views embed this entity: drop them too
-    await clearRegistry(this.cacheManager, APPOINTMENT_CACHE_REGISTRY);
+    await invalidateScope(this.cacheManager, APPOINTMENT_CACHE_SCOPE);
   }
 
   private async getPatientImageUrl(commonPersonId: string): Promise<string | null> {
@@ -290,10 +280,9 @@ export class PatientService {
     const cacheKey = `patient:query:${JSON.stringify({ ...query, doctorId })}`;
 
     // 📌 Key donde guardamos TODAS las keys usadas por findAll
-    const listKey = 'patient:query:keys';
 
     // 1️⃣ Consultar cache
-    const cached = await this.cacheManager.get(cacheKey);
+    const cached = await getScoped(this.cacheManager, 'patient', cacheKey);
     if (cached) return cached;
 
     // 2️⃣ Construir QueryBuilder
@@ -342,15 +331,7 @@ export class PatientService {
     const result = { data: enrichedItems, total, page, limit };
 
     // 3️⃣ Guardar en cache por 5 min
-    await this.cacheManager.set(cacheKey, result, CACHE_TTL.LIST);
-
-    // 4️⃣ Registrar la key para poder limpiarla después
-    const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
-
-    if (!keys.includes(cacheKey)) {
-      keys.push(cacheKey);
-      await this.cacheManager.set(listKey, keys, CACHE_TTL.REGISTRY);
-    }
+    await setScoped(this.cacheManager, 'patient', cacheKey, result, CACHE_TTL.LIST);
 
     return result;
   }
@@ -377,7 +358,7 @@ export class PatientService {
 
     try {
       // Consultar cache
-      const cached = await this.cacheManager.get<Patient>(cacheKey);
+      const cached = await getScoped<Patient>(this.cacheManager, 'patient', cacheKey);
       if (cached) return cached;
 
       const patient = await this.patientRepository.findOne({
@@ -400,7 +381,8 @@ export class PatientService {
       const result = { ...patient, imageUrl } as any;
 
       // Guardar en cache por 10 min
-      await this.cacheManager.set(cacheKey, result, CACHE_TTL.DETAIL);
+      // Scoped: catalog edits (allergies, medications…) invalidate it along with the lists
+      await setScoped(this.cacheManager, 'patient', cacheKey, result, CACHE_TTL.DETAIL);
 
       return result;
     } catch (error) {
@@ -421,7 +403,7 @@ export class PatientService {
   ): Promise<Patient | null> {
     const cacheKey = `patient:doc:${letter || ''}${documentNumber}`;
     try {
-      const cached = await this.cacheManager.get<Patient>(cacheKey);
+      const cached = await getScoped<Patient>(this.cacheManager, 'patient', cacheKey);
       if (cached) return cached;
 
       const qb = this.patientRepository
@@ -447,7 +429,7 @@ export class PatientService {
       }
 
       // Tracked with the lists so update/remove drop it (the key has no patient id)
-      await cacheAndRemember(this.cacheManager, 'patient:query:keys', cacheKey, patient, CACHE_TTL.DETAIL);
+      await setScoped(this.cacheManager, 'patient', cacheKey, patient, CACHE_TTL.DETAIL);
 
       return patient;
     } catch (error) {
@@ -563,7 +545,6 @@ export class PatientService {
       const updatedPatient = await this.patientRepository.save(patient);
 
       // 🧹 Limpiar caches
-      await this.cacheManager.del(`patient:${id}`);
       await this.cacheManager.del('patient:all');
       await this.clearQueryCache();
 
@@ -602,7 +583,6 @@ export class PatientService {
       });
 
       // 🧹 Limpiar caches
-      await this.cacheManager.del(`patient:${id}`);
       await this.cacheManager.del('patient:all');
       await this.clearQueryCache();
     } catch (error) {

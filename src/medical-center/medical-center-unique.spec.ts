@@ -4,7 +4,7 @@ import { MedicalCenterService } from './medical-center.service';
 
 function setup(rows: any[]) {
   const repo = new FakeRepo(rows);
-  const cache = { get: jest.fn().mockResolvedValue([]), del: jest.fn() };
+  const cache = { get: jest.fn().mockResolvedValue([]), set: jest.fn(), del: jest.fn() };
   const service = new MedicalCenterService(
     repo as any,
     {} as any,

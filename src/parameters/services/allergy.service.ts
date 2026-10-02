@@ -7,7 +7,13 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
-import { CACHE_TTL } from 'src/common/cache/cache-registry';
+import {
+  APPOINTMENT_CACHE_SCOPE,
+  CACHE_TTL,
+  getScoped,
+  invalidateScope,
+  setScoped,
+} from 'src/common/cache/cache-registry';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { Repository } from 'typeorm';
 import { CreateAllergyDto } from '../dto/allergy/create-allergy.dto';
@@ -27,12 +33,10 @@ export class AllergyService {
   ) {}
 
   private async clearQueryCache(): Promise<void> {
-    const listKey = 'allergy:query:keys';
-    const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
-    for (const key of keys) {
-      await this.cacheManager.del(key);
-    }
-    await this.cacheManager.del(listKey);
+    await invalidateScope(this.cacheManager, 'allergy');
+    // Appointment (and patient) views embed this catalog
+    await invalidateScope(this.cacheManager, APPOINTMENT_CACHE_SCOPE);
+    await invalidateScope(this.cacheManager, 'patient');
   }
 
   async create(createAllergyDto: CreateAllergyDto): Promise<Allergy> {
@@ -61,9 +65,8 @@ export class AllergyService {
     const { page, limit, order, search, isActive } = query;
 
     const cacheKey = `allergy:query:${JSON.stringify(query)}`;
-    const listKey = 'allergy:query:keys';
 
-    const cached = await this.cacheManager.get(cacheKey);
+    const cached = await getScoped(this.cacheManager, 'allergy', cacheKey);
     if (cached) return cached;
 
     const qb = this.allergyRepository
@@ -85,13 +88,7 @@ export class AllergyService {
 
     const result = { data: items, total, page, limit };
 
-    await this.cacheManager.set(cacheKey, result, CACHE_TTL.LIST);
-
-    const keys = (await this.cacheManager.get<string[]>(listKey)) ?? [];
-    if (!keys.includes(cacheKey)) {
-      keys.push(cacheKey);
-      await this.cacheManager.set(listKey, keys, CACHE_TTL.REGISTRY);
-    }
+    await setScoped(this.cacheManager, 'allergy', cacheKey, result, CACHE_TTL.LIST);
 
     return result;
   }
