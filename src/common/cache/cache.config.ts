@@ -13,8 +13,9 @@ export function cacheOptionsFactory(config: ConfigService): CacheModuleOptions {
     },
     password: config.get<string>('REDIS_PASSWORD') || undefined,
   });
-  // No prefix: keys stay exactly as the services write them (appointment:detail:<id>)
-  const keyv = new Keyv({ store, useKeyPrefix: false });
+  // No prefix: keys stay exactly as the services write them (appointment:detail:<id>).
+  // namespace must be undefined too, or Keyv hands 'keyv' to the store and it writes keyv::<key>.
+  const keyv = new Keyv({ store, useKeyPrefix: false, namespace: undefined });
   // A listener keeps a Redis outage from surfacing as an unhandled 'error' event
   keyv.on('error', (err) => new Logger('Cache').error(`Redis cache: ${err?.message ?? err}`));
   return { stores: [keyv], ttl: Number(config.get('CACHE_TTL_MS')) };
