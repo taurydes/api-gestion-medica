@@ -72,7 +72,7 @@ de médicos en la interfaz.
 | `855cb01` | api | `setSchedule`: el centro debe ser uno de los del médico → 400 |
 | `d3eebf2` | api | Recetas: escrituras acotadas al médico de la receta/historia; `POST` exige paciente, médico y cita de la historia; `PATCH` sin `medicalAppointmentId` |
 | `cd41550` | api | `AppointmentFileAccessService` (renombrado desde `AppointmentUploadTargetService`): listar y descargar archivos de cita solo para su médico o un administrador |
-| `7466074`, `07f3709` | api | `POST /medical-appointments`: un médico solo agenda a su nombre (403 antes de crear al paciente); el controlador pasa el usuario (`createdBy`) |
+| `7466074`, `0709eb7` | api | `POST /medical-appointments`: un médico solo agenda a su nombre (403 antes de crear al paciente); el controlador pasa el usuario (`createdBy`) |
 | `46512e8` | api | Migración `RevokeDoctorCreateFromMedico1790510100000` (con `down`) |
 | `640d089` | app | `doctor-list` → `onDelete`: confirma la baja; los errores los muestra el interceptor |
 

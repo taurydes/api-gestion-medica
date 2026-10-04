@@ -14,7 +14,7 @@ horario o darlo de baja. Desde esta versión toda escritura sigue la misma regla
 
 Commits de `api-gestion-medica`: `a2652b2` (médicos y horarios), `be94683` (citas), `8caec14`
 (historias), `b71d517` (archivos y análisis); segunda tanda: `855cb01` (horario solo en centros del
-médico), `d3eebf2` (recetas), `cd41550` (listar/descargar archivos), `7466074` y `07f3709` (alta de
+médico), `d3eebf2` (recetas), `cd41550` (listar/descargar archivos), `7466074` y `0709eb7` (alta de
 citas a nombre propio), `46512e8` (`medico` sin `doctors.crear`).
 
 ## Qué cambió en esta versión
