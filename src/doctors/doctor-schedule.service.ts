@@ -12,6 +12,7 @@ import { IsNull, Repository } from 'typeorm';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { DoctorSchedule } from './entities/doctor-schedule.entity';
 import { Doctor } from './entities/doctor.entity';
+import { timeToMinutes } from './schedule-time.util';
 import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity';
 import {
   CreateDoctorScheduleDto,
@@ -59,7 +60,7 @@ export class DoctorScheduleService {
 
     // Validar bloques horarios (hora fin > hora inicio)
     for (const block of dto.blocks) {
-      if (block.startTime >= block.endTime) {
+      if (timeToMinutes(block.startTime) >= timeToMinutes(block.endTime)) {
         throw new BadRequestException(
           `La hora de inicio (${block.startTime}) debe ser anterior a la hora de fin (${block.endTime})`,
         );
@@ -164,7 +165,7 @@ export class DoctorScheduleService {
     // Validar hora si se actualizan
     const startTime = dto.startTime || block.startTime;
     const endTime = dto.endTime || block.endTime;
-    if (startTime >= endTime) {
+    if (timeToMinutes(startTime) >= timeToMinutes(endTime)) {
       throw new BadRequestException(
         'La hora de inicio debe ser anterior a la hora de fin',
       );

@@ -26,6 +26,7 @@ import {
 } from './entities/medical-appointment.entity';
 import { Patient } from 'src/patient/entities/patient.entity';
 import { Doctor } from 'src/doctors/entities/doctor.entity';
+import { dateToMinutes, fitsInBlock } from 'src/doctors/schedule-time.util';
 import { CommonPerson } from 'src/common-person/entities/common-person.entity';
 import { personDocumentWhere } from 'src/common-person/person-document.util';
 import { Specialty } from 'src/parameters/entities/specialty.entity';
@@ -312,6 +313,7 @@ export class MedicalAppointmentsService {
     doctorId: string,
     medicalCenterId: string,
     appointmentDate: Date,
+    durationMinutes = 30,
   ): Promise<void> {
     const dayOfWeek = appointmentDate.getDay(); // 0=Domingo ... 6=Sábado
     const schedules = await this.scheduleService.getScheduleForDoctorOnDay(
@@ -327,11 +329,10 @@ export class MedicalAppointmentsService {
       );
     }
 
-    // Validar que la hora de la cita esté dentro de algún bloque horario
-    const appointmentTime = appointmentDate.toTimeString().slice(0, 5); // HH:mm
-    const inBlock = schedules.some(
-      (s) => appointmentTime >= s.startTime && appointmentTime < s.endTime,
-    );
+    // Minutes, not text: 'HH:mm' >= 'HH:mm:ss' is false as strings and rejected the block's first slot.
+    const appointmentTime = appointmentDate.toTimeString().slice(0, 5); // HH:mm, for the message
+    const startMinutes = dateToMinutes(appointmentDate);
+    const inBlock = schedules.some((s) => fitsInBlock(s, startMinutes, durationMinutes));
     if (!inBlock) {
       throw new BadRequestException(
         `La hora ${appointmentTime} no está dentro del horario del doctor en este centro médico.`,
@@ -500,6 +501,7 @@ export class MedicalAppointmentsService {
           dto.doctorId,
           dto.medicalCenterId,
           appointmentDate,
+          dto.durationMinutes ?? 30,
         );
         await this.validateDailyAppointmentLimit(
           dto.doctorId,
