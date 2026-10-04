@@ -1,6 +1,9 @@
 import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
-/** Insert-only trail of successful writes and clinical reads (MJ-39); request bodies are never stored. */
+/** 'login_failed' rows have no user; resourceId carries the credential typed (never the password). */
+export type AccessLogAction = 'read' | 'write' | 'login_failed';
+
+/** Insert-only trail of successful writes, clinical reads and failed logins (MJ-39); request bodies are never stored. */
 @Entity({ name: 'access_log', schema: 'auditoria' })
 @Index('idx_access_log_created_at', ['createdAt'])
 @Index('idx_access_log_user', ['userId'])
@@ -30,8 +33,8 @@ export class AccessLog {
   resourceId: string | null;
 
   /** 'read' for clinical reads, 'write' for every successful POST/PUT/PATCH/DELETE. */
-  @Column({ type: 'varchar', length: 5 })
-  action: 'read' | 'write';
+  @Column({ type: 'varchar', length: 20 })
+  action: AccessLogAction;
 
   @Column({ name: 'status_code', type: 'int' })
   statusCode: number;

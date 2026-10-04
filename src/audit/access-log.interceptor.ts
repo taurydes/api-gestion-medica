@@ -1,4 +1,4 @@
-import { CallHandler, ExecutionContext, Injectable, Logger, NestInterceptor } from '@nestjs/common';
+import { CallHandler, ExecutionContext, HttpException, Injectable, Logger, NestInterceptor } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Observable, tap } from 'rxjs';
 import { Repository } from 'typeorm';
@@ -15,21 +15,29 @@ export const AUDITED_READ_PREFIXES = [
   '/files/appointment-files',
 ];
 const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
-// Login and token refresh are not data changes; failures already go to auditoria.error_log.
-const SKIPPED_WRITES = new Set(['/auth/login', '/auth/refresh', '/auth/logout']);
+// Token refresh and logout are session noise, not data changes; a successful login is not recorded either.
+const SKIPPED_WRITES = new Set(['/auth/refresh', '/auth/logout']);
+// API login and the Bull Board login: only failures are recorded (no user, the credential typed as resourceId).
+const LOGIN_PATHS = new Set(['/auth/login', '/admin/login']);
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
-/** What to record for a request, or null when it is not audited. */
-export function describeAccess(method: string, url: string, params: Record<string, string> = {}) {
+type LoginBody = { credential?: unknown; username?: unknown } | undefined;
+
+/** What to record for a request, or null when it is not audited; `failedOnly` rows are written only on error. */
+export function describeAccess(method: string, url: string, params: Record<string, string> = {}, body?: LoginBody) {
   const path = url.split('?')[0];
   const resource = path.split('/').filter(Boolean)[0] ?? '';
+  if (method === 'POST' && LOGIN_PATHS.has(path)) {
+    const attempted = String(body?.credential ?? body?.username ?? '').trim().slice(0, 64) || null;
+    return { path, resource, resourceId: attempted, action: 'login_failed', failedOnly: true } as const;
+  }
   const isWrite = WRITE_METHODS.has(method);
   const auditedRead = method === 'GET' && AUDITED_READ_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
   if (isWrite ? SKIPPED_WRITES.has(path) : !auditedRead) {
     return null;
   }
   const resourceId = params.id ?? params.fileId ?? Object.values(params).find((v) => UUID.test(v)) ?? UUID.exec(path)?.[0] ?? null;
-  return { path: path.slice(0, 500), resource: resource.slice(0, 60), resourceId, action: isWrite ? 'write' : 'read' } as const;
+  return { path: path.slice(0, 500), resource: resource.slice(0, 60), resourceId, action: isWrite ? 'write' : 'read', failedOnly: false } as const;
 }
 
 /** Records successful audited requests after the response is produced; a failed insert never fails the request. */
@@ -45,21 +53,29 @@ export class AccessLogInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     if (context.getType() !== 'http') return next.handle();
     const req = context.switchToHttp().getRequest();
-    const access = describeAccess(req.method, req.originalUrl ?? req.url ?? '', req.params);
-    if (!access) return next.handle();
+    const described = describeAccess(req.method, req.originalUrl ?? req.url ?? '', req.params, req.body);
+    if (!described) return next.handle();
+    const { failedOnly, ...access } = described;
+
+    const record = (statusCode: number) =>
+      this.repo
+        .insert({
+          ...access,
+          method: req.method,
+          userId: req.user?.id ?? null,
+          statusCode,
+          ip: (req.ip ?? '').slice(0, 64) || null,
+        })
+        .catch((error) => this.logger.error(`No se pudo registrar el acceso: ${error.message}`));
 
     return next.handle().pipe(
-      tap(() => {
-        const res = context.switchToHttp().getResponse();
-        this.repo
-          .insert({
-            ...access,
-            method: req.method,
-            userId: req.user?.id ?? null,
-            statusCode: res.statusCode,
-            ip: (req.ip ?? '').slice(0, 64) || null,
-          })
-          .catch((error) => this.logger.error(`No se pudo registrar el acceso: ${error.message}`));
+      tap({
+        next: () => {
+          if (!failedOnly) record(context.switchToHttp().getResponse().statusCode);
+        },
+        error: (error) => {
+          if (failedOnly) record(error instanceof HttpException ? error.getStatus() : 500);
+        },
       }),
     );
   }

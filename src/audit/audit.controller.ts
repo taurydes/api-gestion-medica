@@ -8,13 +8,13 @@ import { Permission } from 'src/auth/decorators/permission.decorator';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { ModuleItemsMenu } from 'src/menu/menu.const';
 import { PermissionActionsMenu } from 'src/permission/permission.const';
-import { AccessLog } from './entities/access-log.entity';
+import { AccessLog, AccessLogAction } from './entities/access-log.entity';
 
 export class AccessLogQueryDto {
   @IsOptional() @IsUUID() userId?: string;
   @IsOptional() @IsString() resource?: string;
   @IsOptional() @IsString() resourceId?: string;
-  @IsOptional() @IsIn(['read', 'write']) action?: 'read' | 'write';
+  @IsOptional() @IsIn(['read', 'write', 'login_failed']) action?: AccessLogAction;
   @IsOptional() @IsISO8601() from?: string;
   @IsOptional() @IsISO8601() to?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) page = 1;

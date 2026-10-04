@@ -1,3 +1,4 @@
+import { UnauthorizedException } from '@nestjs/common';
 import { lastValueFrom, of, throwError } from 'rxjs';
 import { AccessLogInterceptor, describeAccess } from './access-log.interceptor';
 import { AuditController } from './audit.controller';
@@ -19,15 +20,25 @@ describe('What the access trail records (MJ-39)', () => {
     ['GET', '/departments'],
     ['GET', '/files/profile-photos/u1/x.webp'],
     ['GET', '/patientes'],
-    ['POST', '/auth/login'],
     ['POST', '/auth/refresh'],
+    ['POST', '/auth/logout'],
   ])('%s %s → not recorded', (method, url) => {
     expect(describeAccess(method, url)).toBeNull();
   });
+
+  it('API and Bull Board logins are recorded only when they fail, with the credential typed', () => {
+    expect(describeAccess('POST', '/auth/login', {}, { credential: ' cmendoza ', password: 'x' } as any)).toEqual({
+      path: '/auth/login', resource: 'auth', resourceId: 'cmendoza', action: 'login_failed', failedOnly: true,
+    });
+    expect(describeAccess('POST', '/admin/login', {}, { username: 'admin', password: 'x' } as any)).toMatchObject({
+      resource: 'admin', resourceId: 'admin', action: 'login_failed', failedOnly: true,
+    });
+    expect(describeAccess('POST', '/auth/login', {}, {})).toMatchObject({ resourceId: null });
+  });
 });
 
-function context(method: string, url: string, statusCode = 200) {
-  const req = { method, originalUrl: url, params: {}, user: { id: 'user-a' }, ip: '10.0.0.7' };
+function context(method: string, url: string, statusCode = 200, body: unknown = {}, user: unknown = { id: 'user-a' }) {
+  const req = { method, originalUrl: url, params: {}, user, ip: '10.0.0.7', body };
   return {
     getType: () => 'http',
     switchToHttp: () => ({ getRequest: () => req, getResponse: () => ({ statusCode }) }),
@@ -53,6 +64,31 @@ describe('AccessLogInterceptor', () => {
     await expect(
       lastValueFrom(interceptor.intercept(context('PATCH', '/patient/x'), { handle: () => throwError(() => new Error('403')) })),
     ).rejects.toThrow('403');
+    expect(repo.insert).not.toHaveBeenCalled();
+  });
+
+  it('a failed login inserts a row without user, with the credential and the status; the password never', async () => {
+    const repo = { insert: jest.fn().mockResolvedValue(undefined) };
+    const interceptor = new AccessLogInterceptor(repo as any);
+    const ctx = context('POST', '/auth/login', 200, { credential: 'cmendoza', password: 'Secreta1' }, null);
+
+    await expect(
+      lastValueFrom(interceptor.intercept(ctx, { handle: () => throwError(() => new UnauthorizedException('Credenciales inválidas')) })),
+    ).rejects.toThrow(UnauthorizedException);
+
+    expect(repo.insert).toHaveBeenCalledTimes(1);
+    expect(repo.insert).toHaveBeenCalledWith({
+      path: '/auth/login', resource: 'auth', resourceId: 'cmendoza', action: 'login_failed',
+      method: 'POST', userId: null, statusCode: 401, ip: '10.0.0.7',
+    });
+    expect(JSON.stringify(repo.insert.mock.calls[0][0])).not.toContain('Secreta1');
+  });
+
+  it('a successful login is not recorded', async () => {
+    const repo = { insert: jest.fn() };
+    const interceptor = new AccessLogInterceptor(repo as any);
+    const ctx = context('POST', '/auth/login', 201, { credential: 'cmendoza', password: 'x' }, null);
+    await lastValueFrom(interceptor.intercept(ctx, { handle: () => of({ access_token: 't' }) }));
     expect(repo.insert).not.toHaveBeenCalled();
   });
 
