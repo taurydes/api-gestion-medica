@@ -61,15 +61,47 @@ Más: adaptar el frontend, actualizar HU, el documento de mejoras y una guía de
 
 Casos API (resumen): baja de médico por A sobre B y sobre sí misma → 403; A cambia su `isActive` → 403; A edita su perfil reenviando `isActive: true` → 200; admin desactiva/reactiva/da de baja al médico QA → 200. Horario: A sobre bloque de B (`PATCH`, `DELETE`, `POST`) → 403; A sobre bloque propio → 200; admin sobre B → 200. Citas: A sobre cita de B (`PATCH`, `/confirm`, `/start-consultation`, `/cancel`, `/finish-consultation`, `DELETE`) → 403; A reasigna su cita a B → 403; A cierra su cita `pending` → 400; `/complete` → 404; flujo propio confirm → start → finish → 200; admin sobre B → 200. Historias: B `PATCH` historia de A → 403; A `PATCH` propia → 200, con `patientId`/`doctorId` → 400; A `POST` a nombre de B → 403; admin `PATCH`/`DELETE` → 200. Subida: A con `patientId` ajeno → 400; B a cita de A → 403; A con y sin `patientId` → 201, ambos archivos guardados con el paciente y la historia de la cita; admin a cita de B → 201.
 
+## Segunda tanda (mismo día): cierre de lo que había quedado fuera
+
+Pedido: cerrar MJ-19 (centro del horario), MJ-28, el resto de MJ-32, el alta a nombre de otro médico,
+`doctors.crear` del rol `medico`, las 7 citas `completed` sin historia y el manejo de errores de la baja
+de médicos en la interfaz.
+
+| Commit | Repo | Contenido |
+|---|---|---|
+| `855cb01` | api | `setSchedule`: el centro debe ser uno de los del médico → 400 |
+| `d3eebf2` | api | Recetas: escrituras acotadas al médico de la receta/historia; `POST` exige paciente, médico y cita de la historia; `PATCH` sin `medicalAppointmentId` |
+| `cd41550` | api | `AppointmentFileAccessService` (renombrado desde `AppointmentUploadTargetService`): listar y descargar archivos de cita solo para su médico o un administrador |
+| `7466074`, `07f3709` | api | `POST /medical-appointments`: un médico solo agenda a su nombre (403 antes de crear al paciente); el controlador pasa el usuario (`createdBy`) |
+| `46512e8` | api | Migración `RevokeDoctorCreateFromMedico1790510100000` (con `down`) |
+| `640d089` | app | `doctor-list` → `onDelete`: confirma la baja; los errores los muestra el interceptor |
+
+| Decisión | Por qué |
+|---|---|
+| El centro del horario se valida también para administradores (400, no 403) | Es una regla de datos, no de alcance: un horario en un centro ajeno acepta citas donde el médico no trabaja. En la base había 0 bloques así |
+| Recetas: mismo helper `assertDoctorScope`; dispensar también acotado | Hoy no hay rol de farmacia: dispensa el médico o un administrador (el seed dispensa como administrador) |
+| Archivos: lectura acotada sin excepción para otros roles | Solo `superusuario` y `medico` tienen `file.consultar` (verificado en la base); el único consumidor es el detalle de la cita, ya acotado. Un rol futuro sin perfil de médico no se acota por médico, como el resto |
+| Alta de citas: validar (403) en vez de forzar el `doctorId` | Forzarlo cambiaría en silencio lo que el cliente pidió. El `enfermero` no tiene `appointments.crear`, así que no hay flujo de recepción que preservar; la interfaz del médico ya solo le ofrece su perfil |
+| Retirar `doctors.crear` a `medico` | Solo protege `POST /doctors`, que la interfaz no usa: el alta de médicos va por `POST /users` (`user.crear`, que `medico` no tiene). Los botones "Nuevo doctor" se ocultan por el permiso |
+| Las 7 citas `completed` sin historia → `cancelled` con motivo, no historia inventada | Son pruebas de feb–mar 2026 (médicos `ysleidy`, `jean`, `daniel`; motivos sin contenido clínico), sin recetas ni archivos. Crear una historia fabricaría un registro clínico; `cancelled` es final y coherente. Script con verificaciones: `docs/info/migrations/2026-10-04-citas-completadas-sin-historia.sql` (corrido dos veces: 7 filas y luego 0) |
+| `onDelete` no agrega un snackbar de error | El `errorInterceptor` global ya muestra el mensaje de la API en cada error (403 incluido, cubierto por `error.interceptor.spec.ts`); un segundo snackbar lo duplicaría. Se agregó la confirmación de éxito |
+
+| Verificación | Resultado |
+|---|---|
+| `tsc` antes de cada commit | 0 errores |
+| `npx jest --ci` | **416/416** (baseline 395) — specs nuevas en `doctor-scope.spec.ts` (MJ-19), `recipe-scope.spec.ts`, `appointment-upload-scope.spec.ts` (listar/descargar con `FilesService` real y archivo en disco), `appointment-scope.spec.ts` (alta) |
+| Migración `run` → `revert` → `run` | OK |
+| `npx ng build` / `ng test` | OK / **80/80** |
+| Contenedores reconstruidos | `RevokeDoctorCreateFromMedico1790510100000` ya aplicada desde local ("No migrations are pending") |
+| API (`verify2.js` en el scratchpad) | **21/21**: horario en centro no asignado → 400; `medico` `POST /doctors` → 403; A agenda para B → 403, para sí → 201, admin para B → 201; recetas de B por A (`PATCH`, `/dispense`, `/cancel`, `POST` sobre historia de B) → 403, admin `POST` con otro paciente → 400, B edita la suya → 200, admin dispensa → 200; A lista/descarga archivos de B → 403, B y admin → 200; 0 citas `completed` sin historia. Re-corrida de `verify-scope.js` (primera tanda): 49/49 + 1 omitido |
+| Limpieza | Citas `QA-*`, bloques, historias, recetas y archivos de prueba borrados (0 citas `QA-*` en la base); 13 archivos físicos huérfanos de las corridas borrados del volumen (la primera limpieza había fallado por la conversión de rutas de Git Bash); médico QA restaurado; caches limpiadas |
+
 ## Lo que quedó fuera
 
-- **MJ-19**: verificar que el médico pertenezca al centro del horario, solapes y transacción del reemplazo.
-- **MJ-28**: escrituras de recetas sin acotar.
-- **MJ-32 (resto)**: listar y descargar archivos de cita sin acotar (hay que decidir si un especialista ve estudios de citas ajenas).
-- `POST /medical-appointments`: un médico todavía agenda a nombre de otro (HU-05.1).
-- `doctors.crear` en el rol `medico`.
-- 7 citas `completed` sin historia, anteriores a este cambio: no se tocaron.
-- `doctor-list` → `onDelete` solo registra el error en consola (un 403 no se muestra al usuario).
+Todo lo de la primera tanda se cerró en la segunda. Sigue fuera:
+
+- **MJ-19 (resto)**: `slotDurationMinutes`/`maxPatientsPerSlot` sin efecto, solapes entre bloques y transacción del reemplazo.
+- **MJ-25 (resto)**: transacción paciente + cita en el alta.
 
 ## Pendiente para otros
 

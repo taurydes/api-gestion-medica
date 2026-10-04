@@ -13,7 +13,9 @@ horario o darlo de baja. Desde esta versión toda escritura sigue la misma regla
 - **Personal sin perfil de médico**: no se acota por médico (hoy ningún rol no médico tiene permisos de escritura sobre citas, historias ni horarios).
 
 Commits de `api-gestion-medica`: `a2652b2` (médicos y horarios), `be94683` (citas), `8caec14`
-(historias), `b71d517` (archivos y análisis).
+(historias), `b71d517` (archivos y análisis); segunda tanda: `855cb01` (horario solo en centros del
+médico), `d3eebf2` (recetas), `cd41550` (listar/descargar archivos), `7466074` y `07f3709` (alta de
+citas a nombre propio), `46512e8` (`medico` sin `doctors.crear`).
 
 ## Qué cambió en esta versión
 
@@ -32,6 +34,12 @@ Commits de `api-gestion-medica`: `a2652b2` (médicos y horarios), `be94683` (cit
 | `PATCH /medical-history/:id` con `patientId`, `doctorId` o `medicalAppointmentId` | Movía la historia | **400** | No enviar esos campos |
 | `POST /medical-history` con `medicalAppointmentId` | Aceptaba otro paciente o médico | Paciente y médico deben ser los de la cita → **400** | — |
 | `POST /files/appointment-upload` | Guardaba `patientId` y `medicalCenterId` del cuerpo | Paciente, centro e historia **se toman de la cita**. Si el cuerpo los envía distintos → **400**. Solo el médico de la cita o un administrador → si no, **403**. Cita inexistente → 404 | Puede seguir enviando `patientId`, `medicalCenterId` y `medicalHistoryId` de la cita (se aceptan), o dejar de enviarlos |
+| `POST /doctors/schedules` con un centro que no es del médico | 200 | **400** (también para administradores) | La pantalla ya ofrece solo los centros del médico |
+| `POST /doctors` por un `medico` | 200/400 | **403** (el rol ya no tiene `doctors.crear`) | Los botones "Nuevo doctor" ya se ocultan por ese permiso |
+| `POST /medical-appointments` con `doctorId` de otro médico (hecho por un médico) | 201 | **403**, antes de crear al paciente | Ninguna: el selector del médico solo lo muestra a él |
+| `POST`, `PATCH`, `/dispense`, `/cancel`, `DELETE` en `/recipes` sobre recetas o historias de otro médico | 200 | **403** | Ninguna: un médico solo lista sus recetas |
+| `POST /recipes` con paciente, médico o cita distintos a los de la historia | 201 | **400** | — |
+| `GET /files/appointment-files?appointmentId=` y `GET /files/appointment-files/:fileId` de citas ajenas | 200 | **403**; cita o archivo inexistente → 404 | Ninguna: solo los usa el detalle de la cita |
 | `POST /mammography-analyses` | Tomaba el paciente del archivo | Toma el paciente **de la cita**; un archivo cuyo paciente no coincide → **409** | Mostrar el `error` |
 
 ## Errores (payloads reales, 2026-10-04 contra `medos-backend`)
@@ -55,6 +63,14 @@ Commits de `api-gestion-medica`: `a2652b2` (médicos y horarios), `be94683` (cit
 | Subida con `medicalCenterId` / `medicalHistoryId` distinto | 400 | `medicalCenterId no corresponde al centro de la cita.` / `medicalHistoryId no corresponde al historial de la cita.` |
 | Subida a la cita de otro médico | 403 | `Solo el médico asignado puede adjuntar archivos a esta cita.` |
 | Subida a una cita inexistente | 404 | `La cita indicada no existe.` |
+| Horario en un centro no asignado al médico | 400 | `El médico no está asignado a ese centro médico.` |
+| `medico` hace `POST /doctors` | 403 | `No tienes permisos. Se requiere uno de: doctors.crear` |
+| Médico agenda a nombre de otro | 403 | `Un médico solo puede agendar citas a su nombre.` |
+| Médico escribe la receta (o la historia de la receta) de otro | 403 | `Solo el médico de la consulta puede modificar esta receta.` |
+| Médico borra la receta de otro (con permiso de borrado) | 403 | `No tiene acceso a esta receta.` |
+| `POST /recipes` con paciente o médico ajenos a la historia | 400 | `patientId y doctorId deben ser los del historial médico indicado.` |
+| `POST /recipes` con cita ajena a la historia | 400 | `medicalAppointmentId no corresponde al historial médico indicado.` |
+| Listar o descargar archivos de una cita ajena | 403 | `No tiene acceso a los archivos de esta cita.` |
 | Análisis de un archivo con paciente distinto al de su cita | 409 | `El archivo no corresponde al paciente de la cita; no se puede analizar.` |
 
 Los errores de validación del DTO llegan con `error` como **arreglo**; los de regla de negocio, como texto.
@@ -76,11 +92,9 @@ Ejemplos reales:
 ## Qué NO cambió
 
 - Las **lecturas** siguen igual (ya estaban acotadas): un médico ve solo sus citas, historias y perfil.
-- `POST /medical-appointments` no se acotó: un médico todavía puede agendar a nombre de otro médico (HU-05.1, brecha abierta).
-- Recetas (`/recipes`) no se tocaron: sus escrituras siguen sin acotar (MJ-28, abierta).
-- Listar y descargar archivos de cita (`GET /files/appointment-files…`) no se acotó (queda en MJ-32).
 - La respuesta de `POST /files/appointment-upload` no cambia de forma: es el mismo registro de `appointment_files`; `patientId` y `medicalHistoryId` ahora son los de la cita aunque el cuerpo no los traiga.
-- Los datos existentes no se modificaron: en la base había 0 archivos y 0 análisis con paciente distinto al de su cita. Quedan 7 citas `completed` sin historia, anteriores a este cambio.
+- En la base había 0 archivos y 0 análisis con paciente distinto al de su cita, y 0 bloques de horario en centros no asignados. Las 7 citas `completed` sin historia (pruebas de feb–mar 2026) pasaron a `cancelled` con motivo `Cerrada sin consulta registrada (dato de prueba anterior a la regla de cierre).` (`docs/info/migrations/2026-10-04-citas-completadas-sin-historia.sql`); el listado las muestra como canceladas.
+- La respuesta de `POST /recipes` y de los endpoints de archivos no cambia de forma.
 - `scripts/seed-demo.js` sigue funcionando: el administrador crea y cancela; cada médico cierra y sube a sus propias citas `confirmed`.
 
 ## Checklist de migración
@@ -89,4 +103,4 @@ Ejemplos reales:
 - [x] No usar `PATCH /medical-appointments/:id/complete` (la interfaz no lo usaba).
 - [ ] Si se agrega una pantalla de edición de historias: no enviar `patientId`, `doctorId` ni `medicalAppointmentId`.
 - [ ] Si se agrega borrado de bloques condicionado por permiso: usar `doctors.actualizar`.
-- [ ] Mostrar el `error` de los 403 nuevos donde hoy solo se registra en consola (p. ej. `doctor-list` → `onDelete`).
+- [x] Mostrar el `error` de los 403: lo hace el interceptor global (`error.interceptor.ts`) con el mensaje de la API; `doctor-list` → `onDelete` ya no lo duplica y confirma la baja (`app` `640d089`).
