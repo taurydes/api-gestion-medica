@@ -3,6 +3,7 @@ import { User } from 'src/user/entities/user.entity';
 import { MedicalAppointment } from 'src/medical-appointments/entities/medical-appointment.entity';
 import { AppointmentFile } from 'src/files/entities/appointment-file.entity';
 import {
+  Check,
   Column,
   CreateDateColumn,
   Entity,
@@ -35,14 +36,22 @@ export enum MammographyAnalysisStatus {
  * Schema: public
  * Tabla: mammography_analyses
  *
- * Persiste cada ejecución del clasificador de cáncer de mama. Está pensada
- * como un historial completo: cada análisis es una fila — pueden coexistir
- * varios para una misma cita o archivo de mamografía. La probabilidad
+ * Persiste cada ejecución del clasificador de cáncer de mama: una cita puede
+ * tener varios análisis, pero cada archivo vivo tiene uno solo (MJ-44). La probabilidad
  * permite ordenar la bandeja de revisión por gravedad.
  */
+export const DOCTOR_AGREEMENTS = ['accepted', 'rejected', 'uncertain'] as const;
+export type DoctorAgreement = (typeof DOCTOR_AGREEMENTS)[number];
+
 @Entity({ schema: 'public', name: 'mammography_analyses' })
 @Index('idx_mammography_analyses_created_at', ['createdAt'])
 @Index('idx_mammography_analyses_appointment', ['appointmentId'])
+@Index('UQ_mammography_analyses_file_active', ['appointmentFileId'], {
+  unique: true,
+  where: '"appointment_file_id" IS NOT NULL AND "deleted_at" IS NULL',
+})
+@Check('CHK_mammography_analyses_doctor_agreement', `"doctor_agreement" IN ('accepted', 'rejected', 'uncertain')`)
+@Check('CHK_mammography_analyses_review_agreement', `"review_agreement" IN ('accepted', 'rejected', 'uncertain')`)
 export class MammographyAnalysis {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -152,6 +161,14 @@ export class MammographyAnalysis {
   @Column({ name: 'review_notes', type: 'text', nullable: true })
   reviewNotes: string | null;
 
+  /** Agreement of the consulting doctor with the model, structured for concordance (MJ-33). */
+  @Column({ name: 'doctor_agreement', type: 'varchar', length: 10, nullable: true })
+  doctorAgreement: DoctorAgreement | null;
+
+  /** Agreement of the reviewer with the model (MJ-33). */
+  @Column({ name: 'review_agreement', type: 'varchar', length: 10, nullable: true })
+  reviewAgreement: DoctorAgreement | null;
+
   // ─── Auditoría ─────────────────────────────────────────────────────────────
 
   @CreateDateColumn({ name: 'created_at' })
@@ -162,6 +179,13 @@ export class MammographyAnalysis {
 
   @Column({ name: 'deleted_at', type: 'timestamp', nullable: true })
   deletedAt: Date | null;
+
+  /** Why an analysis made by mistake was withdrawn, and by whom (MJ-37). */
+  @Column({ name: 'deletion_reason', type: 'text', nullable: true })
+  deletionReason: string | null;
+
+  @Column({ name: 'deleted_by', type: 'uuid', nullable: true })
+  deletedBy: string | null;
 
   // ─── Relaciones (lectura) ──────────────────────────────────────────────────
 

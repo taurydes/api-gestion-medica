@@ -107,6 +107,10 @@ export class MammographyAnalysisService {
       throw new BadRequestException('patientId no corresponde al archivo indicado.');
     }
 
+    // One live analysis per file (MJ-44): a repeated request gets the existing one without re-running the model.
+    const existing = await this.findLiveForFile(apptFile.id);
+    if (existing) return this.serialize(existing);
+
     const stored = await this.readStoredFile(apptFile);
     const image = await this.prepareForDetector(stored);
     const result = await this.detector.predict(image);
@@ -135,13 +139,25 @@ export class MammographyAnalysisService {
       label: result.label,
       rawResponse: result.raw,
       notes: dto.notes ?? null,
+      doctorAgreement: dto.doctorAgreement ?? null,
       imagePath,
       imageMimeType,
       sourceFileName: dto.sourceFileName ?? apptFile.originalName ?? null,
       isReviewed: false,
     });
 
-    return this.serialize(await this.analysisRepo.save(record));
+    try {
+      return this.serialize(await this.analysisRepo.save(record));
+    } catch (error) {
+      // A concurrent request for the same file won the unique index: answer with its analysis.
+      const winner = (error as any)?.code === '23505' ? await this.findLiveForFile(apptFile.id) : null;
+      if (winner) return this.serialize(winner);
+      throw error;
+    }
+  }
+
+  private findLiveForFile(appointmentFileId: string): Promise<MammographyAnalysis | null> {
+    return this.analysisRepo.findOne({ where: { appointmentFileId, deletedAt: IsNull() } });
   }
 
   /** Corre el modelo sobre una imagen subida sin guardar nada (detector independiente). */
@@ -482,13 +498,33 @@ export class MammographyAnalysisService {
     userId: string | null,
   ): Promise<MammographyAnalysis> {
     const record = await this.findOne(id, userId ? { id: userId } : undefined);
+    // The first review is kept: who reviewed and what they said (MJ-34).
+    if (record.isReviewed) {
+      throw new ConflictException('El análisis ya fue revisado; la revisión no se sobrescribe.');
+    }
     record.isReviewed = true;
     record.reviewedBy = userId;
     record.reviewedAt = new Date();
     if (dto.reviewNotes !== undefined) {
       record.reviewNotes = dto.reviewNotes;
     }
+    if (dto.reviewAgreement !== undefined) {
+      record.reviewAgreement = dto.reviewAgreement;
+    }
     return this.analysisRepo.save(record);
+  }
+
+  /** Withdraws an analysis made by mistake (MJ-37); a reviewed one is part of the record and stays. */
+  async remove(id: string, reason: string, userId: string | null): Promise<void> {
+    const record = await this.findOne(id, userId ? { id: userId } : undefined);
+    if (record.isReviewed) {
+      throw new ConflictException('Un análisis revisado no se puede eliminar.');
+    }
+    await this.analysisRepo.update(id, {
+      deletedAt: new Date(),
+      deletionReason: reason.trim(),
+      deletedBy: await this.resolveAnalyzedBy(userId),
+    });
   }
 
   /* ============================================================
@@ -639,6 +675,8 @@ export class MammographyAnalysisService {
       reviewedBy: r.reviewedBy,
       reviewedAt: r.reviewedAt,
       reviewNotes: r.reviewNotes,
+      doctorAgreement: r.doctorAgreement ?? null,
+      reviewAgreement: r.reviewAgreement ?? null,
       sourceFileName: r.sourceFileName,
       imageUrl: r.imagePath ? this.buildImageUrl(r.id) : null,
       createdAt: r.createdAt,

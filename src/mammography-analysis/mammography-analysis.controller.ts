@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Patch,
   Post,
@@ -30,6 +33,7 @@ import { MammographyAnalysisService } from './mammography-analysis.service';
 import { CreateMammographyAnalysisDto } from './dto/create-mammography-analysis.dto';
 import { QueryMammographyAnalysisDto } from './dto/query-mammography-analysis.dto';
 import { ReviewMammographyAnalysisDto } from './dto/review-mammography-analysis.dto';
+import { DeleteMammographyAnalysisDto } from './dto/delete-mammography-analysis.dto';
 
 @ApiTags('Mammography Analysis')
 @ApiBearerAuth()
@@ -169,6 +173,21 @@ export class MammographyAnalysisController {
     @GetUser('id') userId: string,
   ) {
     return this.service.markReviewed(id, dto, userId);
+  }
+
+  /** Soft delete with a reason (MJ-37); 409 once reviewed. */
+  @ApiOperation({ summary: 'Retirar un análisis hecho por error' })
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Permission(
+    `${ModuleItemsMenu.MammographyAnalysisModule}.${PermissionActionsMenu.DELETE}`,
+  )
+  remove(
+    @Param('id', ParseUuid) id: string,
+    @Body() dto: DeleteMammographyAnalysisDto,
+    @GetUser('id') userId: string,
+  ) {
+    return this.service.remove(id, dto.reason, userId);
   }
 
   /* ============================================================

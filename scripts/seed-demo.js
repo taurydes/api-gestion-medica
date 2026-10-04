@@ -725,7 +725,9 @@ async function runMammography(doc, patient, apt, family, images, review, rng) {
       });
       try {
         const notes = rng.chance(0.5) ? rng.pick(CREATION_NOTES) : undefined;
-        const analysis = await api(token, 'POST', '/mammography-analyses', { appointmentFileId: file.id, ...(notes ? { notes } : {}) });
+        // Structured agreement next to the note, as the consultation screen sends it (MJ-33)
+        const doctorAgreement = notes?.startsWith('Médico: Confirma') ? 'accepted' : notes?.startsWith('Médico: Incierto') ? 'uncertain' : undefined;
+        const analysis = await api(token, 'POST', '/mammography-analyses', { appointmentFileId: file.id, ...(notes ? { notes } : {}), ...(doctorAgreement ? { doctorAgreement } : {}) });
         if (Math.abs(analysis.rawScore - v.raw) > 1e-4) stats.scoreMismatch++;
         bump(`analyses_${analysis.prediction}`);
         results.push(analysis);
@@ -741,7 +743,7 @@ async function runMammography(doc, patient, apt, family, images, review, rng) {
     for (const a of results) {
       const disagree = review === 'disagree';
       const notes = disagree ? REVIEW_DISAGREE[family] : rng.pick(REVIEW_AGREE[family]);
-      await api(token, 'PATCH', `/mammography-analyses/${a.id}/review`, { reviewNotes: notes });
+      await api(token, 'PATCH', `/mammography-analyses/${a.id}/review`, { reviewNotes: notes, reviewAgreement: disagree ? 'rejected' : 'accepted' });
       bump('analyses_reviewed');
     }
   }

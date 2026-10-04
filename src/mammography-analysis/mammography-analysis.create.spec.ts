@@ -46,6 +46,7 @@ function setup(
     originalName: 'mamo.jpg',
   };
   const analysisRepo = {
+    findOne: jest.fn().mockResolvedValue(null),
     create: jest.fn((x) => x),
     save: jest.fn(async (x) => ({ ...x, id: 'new-id', createdAt: new Date() })),
   };

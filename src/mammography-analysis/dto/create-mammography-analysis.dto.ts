@@ -1,4 +1,5 @@
-import { IsEmpty, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { IsEmpty, IsIn, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { DOCTOR_AGREEMENTS, DoctorAgreement } from '../entities/mammography-analysis.entity';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 /** Rejects a model output sent by the client: the backend computes it by calling the detector. */
@@ -20,6 +21,11 @@ export class CreateMammographyAnalysisDto {
   @IsString()
   @MaxLength(2000)
   notes?: string;
+
+  @ApiPropertyOptional({ description: 'Acuerdo del médico con el modelo (MJ-33)', enum: DOCTOR_AGREEMENTS })
+  @IsOptional()
+  @IsIn(DOCTOR_AGREEMENTS, { message: 'doctorAgreement debe ser accepted, rejected o uncertain.' })
+  doctorAgreement?: DoctorAgreement;
 
   @ApiPropertyOptional({ description: 'Si se envía, debe coincidir con la cita del archivo' })
   @IsOptional()
