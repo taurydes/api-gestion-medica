@@ -56,8 +56,28 @@ defectos de backend de la tabla "Inconsistencias encontradas al verificar" de
 
 ## Verificación
 
-(pendiente)
+| Qué | Resultado |
+|---|---|
+| `npx tsc -p tsconfig.build.json --noEmit` antes de cada commit | 0 errores |
+| `npx jest --ci` | **592/592** (baseline 574; +18). Specs nuevas con el servicio o controlador real: `profile.service` (prioridad de la foto en `getOwnProfile` y `findOne`), `photo-access` (perfil ajeno solo admin; permisos de las 4 rutas), `departments-audit-fields` (controlador + servicio), `medical-center-remove-doctor`, `update-recipe.dto`, `mammography-analysis.rules` (motivo recortado), `health.controller`, `http-exception-filter` (503 con `details`), `access-log.interceptor` (login fallido API y panel; login correcto no) |
+| Migraciones (2 nuevas) | `LogsMenuAccessLog1790520800000` y `AccessLogLoginFailed1790520900000`: `run` → `revert` → `run`; `migration:generate --dryrun --check` → "No changes in database schema were found" tras cada una |
+| Contenedor | `medos-backend` reconstruido con `1b8a2d2` (+ el comentario de `b2e01a7`): "No migrations are pending" (ya aplicadas desde el host), `/health` 200 |
+| Base | `seguridad.menu` slug `logs` → `Bitácora de accesos`, `/audit/access-log`, `es_visible = true`; `auditoria.access_log.action` → `varchar(20)` |
+| API (`verify-followups.mjs` en el scratchpad) | **17/17**: `cmendoza` `/auth/profile.imageUrl` = `commonPerson.photoUrl`; foto de perfil de `cmendoza` → `rparedes` 403, `enf.ramirez` 403, propia 200, `admin.caracas` 200; `enf.ramirez` crea paciente (201) y le sube foto (201), la ve (200) y `rparedes` también (200); la enfermera sobre la persona de un médico → 403; `PATCH /recipes/:id` con `medicalAppointmentId` → 400 con el campo; `admin.caracas` crea y edita un departamento → `created_by`/`updated_by` = su id; contraseña errónea → 401 y `POST /admin/login` → 401, ambos en `GET /audit/access-log?action=login_failed` con `userId` null y la credencial |
+| `/health` con `medos-ml-api` detenido | **503** `{"error":"Servicio no disponible: detector","statusCode":503,"details":{…,"detector":{"status":"down","message":"fetch failed"}}}`; al arrancarlo de nuevo, 200 |
+
+Limpieza: paciente, persona y departamento de la verificación borrados (filas y la carpeta `uploads/common-persons/<personId>`);
+6 filas de `access_log` de la corrida borradas (los `login_failed` incluidos); el contador de fallos de `cmendoza` se limpió con un login correcto.
 
 ## Lo que quedó fuera
 
-(pendiente)
+- **Defecto 5** (`GET /medical-appointments` sin alcance por centro para personal no médico): sin efecto hoy; no se tocó.
+- **Defectos 12–15** son de frontend (horario sin `maxDailyAppointments`, `birthDate`/`sex` en médicos y usuarios, botones de la cita, etiqueta de la bandeja).
+- **Defecto 19** (lecturas de horario y disponibilidad sin usuario): anotado en las HU; no se cambió.
+- `/auth/me` no expone foto; no se agregó.
+- Un login correcto no se registra en la bitácora (decisión, ver arriba).
+
+## Pendiente para otros
+
+- Front: el sidebar puede mostrar la bitácora con el nombre del menú (`Bitácora de accesos`) ahora que es visible; hoy ya la resuelve por `slug`.
+- Front (opcional): en la pantalla de bitácora, filtro `action=login_failed` y mostrar `resourceId` como "usuario intentado".
