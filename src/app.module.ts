@@ -12,6 +12,7 @@ import { configuration, validationSchema } from './configuration/index';
 import { getMainConnection } from './database/getMainConnection';
 import { HealthModule } from './health/health.module';
 import { LogsModule } from './logs/logs.module';
+import { AuditModule } from './audit/audit.module';
 import { PermissionModule } from './permission/permission.module';
 import { BullBoardModule } from './queues/bull-board/bull-board.module';
 import { QueuesModule } from './queues/queues.module';
@@ -77,6 +78,7 @@ import { MammographyAnalysisModule } from './mammography-analysis/mammography-an
     RoleModule,
     PermissionModule,
     LogsModule,
+    AuditModule,
     QueuesModule,
     BullBoardModule,
     RedisSessionModule,
