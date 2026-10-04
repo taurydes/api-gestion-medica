@@ -28,6 +28,7 @@ Commits de `api-gestion-medica` (rama `dt/modules`): `a8f71e7` (MJ-24 + cupo dia
 | `POST /auth/login` | Solo límite por IP | 5 fallos de la **misma credencial** en 15 min → **429** `Demasiados intentos fallidos. La cuenta quedó bloqueada 15 minutos.` durante 15 min | Mostrar el `error` (ya lo hace) |
 | `GET /users*`, `PATCH /users/:id` por `medico` / `enfermero` | 200 | **403** (se retiró `user.consultar`/`user.actualizar`) | Foto y datos propios por `GET /auth/profile` (`imageUrl`), no por `GET /users/:id` |
 | `GET /allergies`, `/chronic-diseases`, `/medications` por `enfermero` | 403 | **200** (`parameters.consultar`) | — |
+| `GET /auth/profile`, `GET /users/:id`, `GET /users` → `imageUrl` | Solo la última fila de `common_person_images`; quedaba `null` tras `POST /files/profile-photo` + `PATCH /auth/me` | **Foto efectiva**: `commonPerson.photoUrl` si existe; si no, la última imagen activa de `common_person_images`; si no, `null` | Leer solo `imageUrl` para el avatar (hecho: `app` `28da880`) |
 | `GET /permissions/role/:roleId` | Siempre 404 | Lista `[{ module, action, permissionId, menuId, isActive }]`; rol inexistente o borrado → 404 | — (la pantalla usa `GET /roles/:id`) |
 | `DELETE /roles/:id` | Borrado físico (500 si tenía usuarios) | Borrado **lógico**; con usuarios vivos → **409**; `superusuario`/`medico` → **400**; el nombre queda libre | Mostrar el `error` |
 | Menús | `mammography-analysis` y `machine-learning` ocultos | Visibles: **"Bandeja de análisis IA"** (`url: /machine-learning/review-inbox`, `fa-inbox`) y **"Detector IA"** (`url: /machine-learning/cancer-detector`) | El sidebar usa `url` (ícono mapeado: `app` `39ede77`) |
@@ -161,5 +162,5 @@ Se registran todas las escrituras exitosas (salvo login/refresh/logout) y las le
 - [x] `supportsMammography`, `birthDate`/`sex`, `requestedExams`, `doctorAgreement`/`reviewAgreement`, retiro de análisis.
 - [x] Panel del personal con `patient.consultar`.
 - [x] Foto del paciente después de crearlo.
-- [ ] Layout: foto del usuario por `GET /auth/profile` (`imageUrl`) en vez de `GET /users/:id` (el médico y el enfermero ya no tienen `user.consultar`; hoy el error se ignora y no se muestra foto).
-- [ ] Opcional: pantalla para `GET /audit/access-log`.
+- [x] Layout: foto del usuario por `GET /auth/profile` (`imageUrl`) en vez de `GET /users/:id` (`app` `28da880`); `imageUrl` ya devuelve la foto subida con `POST /files/profile-photo`.
+- [x] Pantalla para `GET /audit/access-log` (`app` `22e13d6`); el menú `logs` apunta a `/audit/access-log` con el nombre "Bitácora de accesos".

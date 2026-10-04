@@ -100,6 +100,41 @@ describe('GET /auth/profile: perfil propio sin permiso de módulo (fase 2)', () 
     expect(repo.findOne.mock.calls[0][0].where.id).toBe('u1');
   });
 
+  function buildUserService(found: any, image: any) {
+    const images = { findOne: jest.fn().mockResolvedValue(image) };
+    const files = { getCommonPersonImageUrl: jest.fn((id: string) => `/files/common-person-image/${id}`) };
+    const cache = { get: jest.fn().mockResolvedValue(undefined), set: jest.fn(), del: jest.fn() };
+    const userService = new UserService(
+      { findOne: jest.fn().mockResolvedValue(found) } as any, {} as any, images as any, files as any,
+      cache as any, {} as any, {} as any, { find: jest.fn().mockResolvedValue([]) } as any,
+    );
+    return { userService, images };
+  }
+
+  it('imageUrl prefiere commonPerson.photoUrl (POST /files/profile-photo) sobre common_person_images', async () => {
+    const photoUrl = 'http://localhost:8008/files/profile-photos/u1/a.webp';
+    const { userService, images } = buildUserService(
+      { ...stored, commonPerson: { ...stored.commonPerson, photoUrl } },
+      { id: 'img1' },
+    );
+
+    const profile: any = await userService.getOwnProfile('u1');
+    const detail: any = await userService.findOne('u1');
+
+    expect(profile.imageUrl).toBe(photoUrl);
+    expect(detail.imageUrl).toBe(photoUrl);
+    expect(images.findOne).not.toHaveBeenCalled();
+  });
+
+  it('sin photoUrl cae a la última imagen activa; sin ninguna, null', async () => {
+    const withImage = buildUserService({ ...stored, commonPerson: { ...stored.commonPerson, photoUrl: null } }, { id: 'img9' });
+    const withoutImage = buildUserService({ ...stored, commonPerson: { ...stored.commonPerson, photoUrl: null } }, null);
+
+    expect((await withImage.userService.getOwnProfile('u1') as any).imageUrl).toBe('/files/common-person-image/img9');
+    expect((await withImage.userService.findOne('u1') as any).imageUrl).toBe('/files/common-person-image/img9');
+    expect((await withoutImage.userService.getOwnProfile('u1') as any).imageUrl).toBeNull();
+  });
+
   it('un usuario de seguridad sin persona recibe commonPerson null', async () => {
     const secRepo = {
       findOne: jest.fn().mockResolvedValue({ id: 's1', name: 'admin', email: 'a@x.com', password: 'h', role: { id: 'r0', name: 'superusuario' } }),

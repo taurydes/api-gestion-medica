@@ -95,9 +95,14 @@ export class UserService {
     return centers.map(({ id, name }) => ({ id, name }));
   }
 
-  private async getUserImageUrl(commonPersonId: string): Promise<string | null> {
+  /** Effective photo: `commonPerson.photoUrl` (set by POST /files/profile-photo) wins over the legacy image table. */
+  private async getUserImageUrl(
+    person: Pick<CommonPerson, 'id' | 'photoUrl'> | null | undefined,
+  ): Promise<string | null> {
+    if (!person?.id) return null;
+    if (person.photoUrl) return person.photoUrl;
     const img = await this.commonPersonImageRepo.findOne({
-      where: { commonPersonId, isActive: true, deletedAt: IsNull() },
+      where: { commonPersonId: person.id, isActive: true, deletedAt: IsNull() },
       order: { createdAt: 'DESC' },
     });
     return img ? this.filesService.getCommonPersonImageUrl(img.id) : null;
@@ -346,9 +351,7 @@ export class UserService {
     const enriched = await Promise.all(
       items.map(async ({ password, ...rest }) => ({
         ...rest,
-        imageUrl: rest.commonPerson?.id
-          ? await this.getUserImageUrl(rest.commonPerson.id)
-          : null,
+        imageUrl: await this.getUserImageUrl(rest.commonPerson),
       })),
     );
 
@@ -388,9 +391,7 @@ export class UserService {
 
     const { password, ...rest } = user;
 
-    const imageUrl = rest.commonPerson?.id
-      ? await this.getUserImageUrl(rest.commonPerson.id)
-      : null;
+    const imageUrl = await this.getUserImageUrl(rest.commonPerson);
 
     const medicalCenters = await this.centerSummaries(id);
     const result = { ...rest, imageUrl, medicalCenters } as any;
@@ -577,9 +578,7 @@ export class UserService {
     if (!user) return null;
 
     const { password, role, ...rest } = user;
-    const imageUrl = rest.commonPerson?.id
-      ? await this.getUserImageUrl(rest.commonPerson.id)
-      : null;
+    const imageUrl = await this.getUserImageUrl(rest.commonPerson);
     return {
       ...rest,
       role: role ? { id: role.id, name: role.name } : null,
