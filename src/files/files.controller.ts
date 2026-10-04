@@ -398,7 +398,12 @@ export class FilesController {
       limits: { fileSize: 5 * 1024 * 1024 },
     }),
   )
-  @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.CREATE}`)
+  // A nurse may create and photograph a patient without file.crear; PhotoAccessService still checks the owner (MJ-43).
+  @Permission(
+    `${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.CREATE}`,
+    `${ModuleItemsMenu.PatientModule}.${PermissionActionsMenu.CREATE}`,
+    `${ModuleItemsMenu.PatientModule}.${PermissionActionsMenu.UPDATE}`,
+  )
   async uploadCommonPersonPhoto(
     @UploadedFile() file: Express.Multer.File,
     @Body('personId') personId: string,
@@ -416,7 +421,10 @@ export class FilesController {
     description: 'Devuelve la imagen de la persona almacenada como stream.',
   })
   @Get('common-person-photos/:personId/:filename')
-  @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.VIEW}`)
+  @Permission(
+    `${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.VIEW}`,
+    `${ModuleItemsMenu.PatientModule}.${PermissionActionsMenu.VIEW}`,
+  )
   async serveCommonPersonPhoto(
     @Param('personId') personId: string,
     @Param('filename') filename: string,
@@ -479,7 +487,11 @@ export class FilesController {
       limits: { fileSize: 5 * 1024 * 1024 },
     }),
   )
-  @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.CREATE}`)
+  @Permission(
+    `${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.CREATE}`,
+    `${ModuleItemsMenu.PatientModule}.${PermissionActionsMenu.CREATE}`,
+    `${ModuleItemsMenu.PatientModule}.${PermissionActionsMenu.UPDATE}`,
+  )
   async uploadCommonPersonImage(
     @UploadedFile() file: Express.Multer.File,
     @Body('commonPersonId') commonPersonId: string,
@@ -500,7 +512,10 @@ export class FilesController {
     description: 'Devuelve la imagen como stream buscándola por su ID en BD.',
   })
   @Get('common-person-images/:imageId')
-  @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.VIEW}`)
+  @Permission(
+    `${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.VIEW}`,
+    `${ModuleItemsMenu.PatientModule}.${PermissionActionsMenu.VIEW}`,
+  )
   async serveCommonPersonImage(
     @Param('imageId', ParseUuid) imageId: string,
     @Res() res,

@@ -11,7 +11,7 @@ const USERS = {
 };
 
 /** Real service; `inScope` is what the patient-scope query answers for the patient person. */
-function build(options: { inScope?: boolean; hasFileView?: boolean } = {}) {
+function build(options: { inScope?: boolean } = {}) {
   const userRepo = {
     findOne: jest.fn(async ({ where }: any) => ({ id: where.id, commonPerson: { id: `cp-${where.id}` } })),
   };
@@ -19,8 +19,7 @@ function build(options: { inScope?: boolean; hasFileView?: boolean } = {}) {
     findOne: jest.fn(async ({ where }: any) => (where.commonPersonId === 'cp-patient' ? { id: 'pat-1' } : null)),
     query: jest.fn().mockResolvedValue(options.inScope ? [{ ok: 1 }] : []),
   };
-  const userAccess = { hasPermission: jest.fn().mockResolvedValue(!!options.hasFileView) };
-  return new PhotoAccessService(userRepo as any, patientRepo as any, authContextForUsers(USERS), userAccess as any);
+  return new PhotoAccessService(userRepo as any, patientRepo as any, authContextForUsers(USERS));
 }
 
 describe('Photos check the owner of the record (MJ-43)', () => {
@@ -53,15 +52,27 @@ describe('Own profile photo with a session only (MJ-46)', () => {
     await expect(build().assertProfileOwner('user-admin', 'user-a')).resolves.toBeUndefined();
   });
 
-  it('serve: own photo without file.consultar → ok; someone else\'s needs it', async () => {
-    await expect(build({ hasFileView: false }).assertCanReadProfile('nurse-1', 'nurse-1')).resolves.toBeUndefined();
-    await expect(build({ hasFileView: false }).assertCanReadProfile('nurse-1', 'user-a')).rejects.toThrow(ForbiddenException);
-    await expect(build({ hasFileView: true }).assertCanReadProfile('user-a', 'nurse-1')).resolves.toBeUndefined();
+  it('serve: own photo with a session → ok; a foreign one only for an admin (never file.consultar alone)', async () => {
+    await expect(build().assertCanReadProfile('nurse-1', 'nurse-1')).resolves.toBeUndefined();
+    await expect(build().assertCanReadProfile('nurse-1', 'user-a')).rejects.toThrow(ForbiddenException);
+    // user-a is a doctor with file.consultar in the real matrix: still 403 on a foreign profile photo.
+    await expect(build().assertCanReadProfile('user-a', 'nurse-1')).rejects.toThrow(ForbiddenException);
+    await expect(build().assertCanReadProfile('user-admin', 'nurse-1')).resolves.toBeUndefined();
   });
 
   it('the profile photo routes carry no module permission (session is enough)', () => {
     expect(Reflect.getMetadata(PERMISSIONS_KEY, FilesController.prototype.uploadProfilePhoto)).toBeUndefined();
     expect(Reflect.getMetadata(PERMISSIONS_KEY, FilesController.prototype.serveProfilePhoto)).toBeUndefined();
+  });
+
+  it('person photos accept patient.crear/actualizar (upload) and patient.consultar (read) besides file.*', () => {
+    const perms = (name: keyof FilesController) => Reflect.getMetadata(PERMISSIONS_KEY, FilesController.prototype[name]);
+    for (const upload of ['uploadCommonPersonPhoto', 'uploadCommonPersonImage'] as const) {
+      expect(perms(upload)).toEqual(['file.crear', 'patient.crear', 'patient.actualizar']);
+    }
+    for (const read of ['serveCommonPersonPhoto', 'serveCommonPersonImage'] as const) {
+      expect(perms(read)).toEqual(['file.consultar', 'patient.consultar']);
+    }
   });
 
   it('the upload defaults the owner to the caller', async () => {

@@ -3,7 +3,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { AuthContextService } from 'src/common/services/auth-context.service';
-import { UserAccessService } from 'src/common/services/user-access.service';
 import { User } from 'src/user/entities/user.entity';
 import { Patient } from 'src/patient/entities/patient.entity';
 import { assertPatientInScope } from 'src/patient/patient-scope';
@@ -19,7 +18,6 @@ export class PhotoAccessService {
     @InjectRepository(Patient, DatabaseConnectionName.DB_MAIN)
     private readonly patientRepo: Repository<Patient>,
     private readonly authContext: AuthContextService,
-    private readonly userAccess: UserAccessService,
   ) {}
 
   /** Profile photo: session-only for one's own account (MJ-46); someone else's needs an admin. */
@@ -28,12 +26,10 @@ export class PhotoAccessService {
     await this.authContext.assertAdmin(actorId, FOREIGN_PHOTO);
   }
 
-  /** Serving a profile photo: one's own with a session, anyone else's with file.consultar. */
+  /** Serving a profile photo: one's own with a session; someone else's only for an admin (security.consultar). */
   async assertCanReadProfile(actorId: string, ownerId: string): Promise<void> {
     if (ownerId === actorId) return;
-    if (!(await this.userAccess.hasPermission(actorId, 'file.consultar'))) {
-      throw new ForbiddenException('No tiene acceso a esta foto.');
-    }
+    await this.authContext.assertAdmin(actorId, 'No tiene acceso a esta foto.');
   }
 
   /** Person photo: the actor's own person, a patient the actor may edit, or anyone for an admin. */
