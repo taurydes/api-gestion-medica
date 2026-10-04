@@ -1,4 +1,6 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { findAllOrFail } from 'src/common/validation/find-all-or-fail';
+import { assertNoOpenAppointments } from 'src/medical-appointments/open-appointments';
 import {
   BadRequestException,
   Inject,
@@ -42,6 +44,10 @@ export class DepartmentsService {
 
   // ─── Cache helpers ─────────────────────────────────────────────────────────
 
+  private findSpecialties(ids: string[]): Promise<Specialty[]> {
+    return findAllOrFail(this.specialtyRepository, ids, 'Especialidades');
+  }
+
   private async clearQueryCache(): Promise<void> {
     await invalidateScope(this.cacheManager, 'department');
     // Appointment (and patient) views embed this catalog
@@ -72,9 +78,7 @@ export class DepartmentsService {
       // Resolver especialidades si se proporcionan
       let specialties: Specialty[] = [];
       if (specialtyIds && specialtyIds.length > 0) {
-        specialties = await this.specialtyRepository.findBy({
-          id: In(specialtyIds),
-        });
+        specialties = await this.findSpecialties(specialtyIds);
       }
 
       const department = this.departmentRepository.create({
@@ -200,9 +204,7 @@ export class DepartmentsService {
       // Actualizar especialidades si se proporcionan
       if (specialtyIds) {
         if (specialtyIds.length > 0) {
-          department.specialties = await this.specialtyRepository.findBy({
-            id: In(specialtyIds),
-          });
+          department.specialties = await this.findSpecialties(specialtyIds);
         } else {
           department.specialties = [];
         }
@@ -238,6 +240,9 @@ export class DepartmentsService {
       if (!department) {
         throw new NotFoundException(`Departamento con ID ${id} no encontrado.`);
       }
+      await assertNoOpenAppointments(
+        this.departmentRepository.manager, { departmentId: id }, 'eliminar el departamento',
+      );
 
       department.deletedAt = new Date();
       department.isActive = false;
@@ -247,7 +252,6 @@ export class DepartmentsService {
       await this.cacheManager.del('department:all');
       await this.clearQueryCache();
     } catch (error) {
-      if (error instanceof NotFoundException) throw error;
       throw toHttpException(error, 'Error al eliminar el departamento.');
     }
   }

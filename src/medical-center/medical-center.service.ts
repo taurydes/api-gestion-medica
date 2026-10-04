@@ -1,4 +1,6 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { assertNoOpenAppointments } from 'src/medical-appointments/open-appointments';
+import { detachDoctorFromCenter } from 'src/doctors/doctor-center-detach';
 import {
   BadRequestException,
   ConflictException,
@@ -337,12 +339,15 @@ export class MedicalCenterService {
    */
   async remove(id: string): Promise<void> {
     try {
-      const center = await this.medicalCenterRepository.findOneBy({ id });
+      const center = await this.medicalCenterRepository.findOneBy({ id, deletedAt: IsNull() });
       if (!center) {
         throw new NotFoundException(
           `Centro médico con ID ${id} no encontrado.`,
         );
       }
+      await assertNoOpenAppointments(
+        this.medicalCenterRepository.manager, { medicalCenterId: id }, 'eliminar el centro médico',
+      );
 
       center.deletedAt = new Date();
       await this.medicalCenterRepository.save(center);
@@ -381,8 +386,9 @@ export class MedicalCenterService {
     doctorId: string,
     departmentId?: string,
   ): Promise<MedicalCenterDetailDto> {
+    // Deleted centers, doctors and departments cannot be linked (MJ-15).
     const center = await this.medicalCenterRepository.findOne({
-      where: { id: medicalCenterId },
+      where: { id: medicalCenterId, deletedAt: IsNull() },
       relations: ['doctors'],
     });
 
@@ -394,7 +400,7 @@ export class MedicalCenterService {
 
     // Cargar el doctor con sus relaciones actuales
     const currentDoctor = await this.doctorRepository.findOne({
-      where: { id: doctorId },
+      where: { id: doctorId, deletedAt: IsNull() },
       relations: ['medicalCenters', 'departments', 'departments.doctors'],
     });
 
@@ -414,7 +420,7 @@ export class MedicalCenterService {
     // 2. Asignar al Departamento si se proporciona y no está asignado
     if (departmentId) {
       const department = await this.departmentRepository.findOne({
-        where: { id: departmentId, medicalCenterId: medicalCenterId },
+        where: { id: departmentId, medicalCenterId: medicalCenterId, deletedAt: IsNull() },
       });
 
       if (!department) {
@@ -471,8 +477,10 @@ export class MedicalCenterService {
       );
     }
 
-    center.doctors.splice(doctorIndex, 1);
-    await this.medicalCenterRepository.save(center);
+    // Also drops the doctor's departments and schedule of this center; 409 with open appointments (MJ-15).
+    await this.medicalCenterRepository.manager.transaction((manager) =>
+      detachDoctorFromCenter(manager, doctorId, medicalCenterId),
+    );
 
     // Limpiar caches
     await this.cacheManager.del(`medicalCenter:${medicalCenterId}`);

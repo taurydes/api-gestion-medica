@@ -1,4 +1,6 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { detachDoctorFromCenter } from './doctor-center-detach';
+import { findAllOrFail } from 'src/common/validation/find-all-or-fail';
 import {
   BadRequestException,
   ConflictException,
@@ -336,19 +338,30 @@ export class DoctorsService {
         );
       }
 
-      // 1. Sincronizar Centros Médicos y Especialidades
+      // 1. Sincronizar Centros Médicos y Especialidades (ids inexistentes → 400, MJ-13)
       if (dto.medicalCenterIds) {
-        const centers = await this.medicalCenterRepository.findBy({
-          id: In(dto.medicalCenterIds),
-        });
+        const centers = await findAllOrFail(this.medicalCenterRepository, dto.medicalCenterIds, 'Centros médicos');
+        const current = new Set(doctor.medicalCenters.map((mc) => mc.id));
+        const requested = new Set(centers.map((mc) => mc.id));
+        const removed = [...current].filter((id) => !requested.has(id));
+        const changed = removed.length > 0 || [...requested].some((id) => !current.has(id));
+        // The center list decides what the doctor sees: only an admin changes it (MJ-17).
+        if (changed) {
+          await this.authContextService.assertAdmin(
+            authUser?.id,
+            'Solo un administrador puede cambiar los centros médicos de un médico.',
+          );
+        }
+        if (removed.length) {
+          await this.doctorRepository.manager.transaction(async (manager) => {
+            for (const centerId of removed) await detachDoctorFromCenter(manager, id, centerId);
+          });
+        }
         doctor.medicalCenters = centers;
       }
 
       if (dto.specialtyIds) {
-        const specialties = await this.specialtyRepository.findBy({
-          id: In(dto.specialtyIds),
-        });
-        doctor.specialties = specialties;
+        doctor.specialties = await findAllOrFail(this.specialtyRepository, dto.specialtyIds, 'Especialidades');
       }
       // 2. Actualizar CommonPerson si se proporciona
       if (dto.commonPerson && doctor.commonPerson) {

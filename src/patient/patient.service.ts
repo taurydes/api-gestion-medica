@@ -1,4 +1,5 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { assertNoOpenAppointments } from 'src/medical-appointments/open-appointments';
 import {
   ConflictException,
   ForbiddenException,
@@ -579,6 +580,10 @@ export class PatientService {
         throw new NotFoundException(`Paciente con ID ${id} no encontrado.`);
       }
 
+      await assertNoOpenAppointments(
+        this.patientRepository.manager, { patientId: id }, 'eliminar el paciente',
+      );
+
       // Soft delete: establecer deletedAt
       await this.patientRepository.update(id, {
         deletedAt: new Date(),
@@ -589,7 +594,6 @@ export class PatientService {
       await this.cacheManager.del('patient:all');
       await this.clearQueryCache();
     } catch (error) {
-      if (error instanceof NotFoundException) throw error;
       throw toHttpException(error, 'Error al eliminar el paciente.');
     }
   }
