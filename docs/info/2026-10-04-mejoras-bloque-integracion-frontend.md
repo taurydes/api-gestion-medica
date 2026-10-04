@@ -29,6 +29,16 @@ Commits de `api-gestion-medica` (rama `dt/modules`): `a8f71e7` (MJ-24 + cupo dia
 | `GET /users*`, `PATCH /users/:id` por `medico` / `enfermero` | 200 | **403** (se retiró `user.consultar`/`user.actualizar`) | Foto y datos propios por `GET /auth/profile` (`imageUrl`), no por `GET /users/:id` |
 | `GET /allergies`, `/chronic-diseases`, `/medications` por `enfermero` | 403 | **200** (`parameters.consultar`) | — |
 | `GET /auth/profile`, `GET /users/:id`, `GET /users` → `imageUrl` | Solo la última fila de `common_person_images`; quedaba `null` tras `POST /files/profile-photo` + `PATCH /auth/me` | **Foto efectiva**: `commonPerson.photoUrl` si existe; si no, la última imagen activa de `common_person_images`; si no, `null` | Leer solo `imageUrl` para el avatar (hecho: `app` `28da880`) |
+| `POST /files/common-person-photo`, `/common-person-image` | Solo `file.crear` (el `enfermero` no lo tiene: el alta de paciente con foto quedaba sin foto) | `file.crear` **o** `patient.crear` **o** `patient.actualizar`; sus `GET` aceptan `file.consultar` o `patient.consultar`. La regla de dueño (MJ-43) sigue igual | Ninguna: el formulario de paciente ya sube la foto después de crearlo |
+| `GET /files/profile-photos/:ownerId/:file` ajena | 200 con `file.consultar` (p. ej. `medico`) | **403** `No tiene acceso a esta foto.` salvo administrador (`security.consultar`) | Mostrar solo la foto propia (`/auth/profile`) |
+| `PATCH /recipes/:id` con `medicalAppointmentId`, `patientId`, `doctorId` o `medicalHistoryId` | Se descartaban en silencio (200) | **400** `<campo> no se puede cambiar en una receta emitida.` | No enviar esos campos al editar |
+| `DELETE /mammography-analyses/:id` con `reason` solo de espacios | 204 con motivo vacío | **400** `El motivo es requerido.`; el motivo se guarda recortado | — |
+| `POST /mammography-analyses` con `patientId` ajeno a la cita | 400 "…al archivo indicado" | 400 `patientId no corresponde al paciente de la cita.` | — |
+| `POST`/`PATCH /medical-appointments` con `medicalCenterId` inexistente o borrado | — | **404** `Centro médico con ID <uuid> no encontrado.` (el 400 `Indique el centro médico de la cita.` es solo cuando falta) | Tratar 404 como centro inválido |
+| `GET /health` con un indicador caído | 503 `{"error":"Service Unavailable Exception"}` | **503** `{"error":"Servicio no disponible: detector","details":{…}}` con el mapa completo de indicadores | Leer `details.<indicador>.status` |
+| `GET /audit/access-log` | Solo `read` y `write` | + filas **`login_failed`**: `POST /auth/login` y `POST /admin/login` fallidos, `userId` null, `resourceId` = credencial escrita (nunca la contraseña), `statusCode` 401/429. Filtro `action=login_failed` | Mostrar la credencial como "usuario intentado" |
+| `POST`/`PATCH /departments` | `createdBy`/`updatedBy` siempre null | Se guardan desde la sesión | — |
+| Menú `logs` | `Logs`, `url '#'`, oculto | `Bitácora de accesos`, `/audit/access-log`, visible para quien tenga `logs.consultar` | Ninguna: el sidebar ya resuelve el `slug` |
 | `GET /permissions/role/:roleId` | Siempre 404 | Lista `[{ module, action, permissionId, menuId, isActive }]`; rol inexistente o borrado → 404 | — (la pantalla usa `GET /roles/:id`) |
 | `DELETE /roles/:id` | Borrado físico (500 si tenía usuarios) | Borrado **lógico**; con usuarios vivos → **409**; `superusuario`/`medico` → **400**; el nombre queda libre | Mostrar el `error` |
 | Menús | `mammography-analysis` y `machine-learning` ocultos | Visibles: **"Bandeja de análisis IA"** (`url: /machine-learning/review-inbox`, `fa-inbox`) y **"Detector IA"** (`url: /machine-learning/cancer-detector`) | El sidebar usa `url` (ícono mapeado: `app` `39ede77`) |
@@ -117,9 +127,11 @@ Análisis y revisión:
 {"code":200,"data":[{"id":"5625e4a5-5f9a-4150-a9c7-c80bc199567a","createdAt":"2026-10-04T14:47:41.954Z","userId":"00709eb2-63a2-4168-ad25-2eec990476e8","method":"GET","path":"/mammography-analyses/recent","resource":"mammography-analyses","resourceId":null,"action":"read","statusCode":200,"ip":"::ffff:172.19.0.1"}],"total":16,"page":1,"limit":1}
 ```
 
-Se registran todas las escrituras exitosas (salvo login/refresh/logout) y las lecturas de `/patient`,
+Se registran todas las escrituras exitosas (salvo login/refresh/logout), las lecturas de `/patient`,
 `/medical-history`, `/recipes`, `/mammography-analyses`, `/medical-appointments` y
-`/files/appointment-files`. Nunca el cuerpo ni la query string.
+`/files/appointment-files`, y los **logins fallidos** (`action: "login_failed"`, `userId: null`,
+`resourceId` = credencial escrita, `statusCode` 401 o 429; también los del panel `POST /admin/login`).
+Un login correcto no se registra. Nunca el cuerpo ni la query string.
 
 `GET /health`:
 
@@ -127,11 +139,19 @@ Se registran todas las escrituras exitosas (salvo login/refresh/logout) y las le
 {"code":200,"data":{"status":"ok","info":{"database":{"status":"up"},"memory_heap":{"status":"up"},"redis":{"status":"up"},"detector":{"status":"up"}},"error":{},"details":{…}}}
 ```
 
+`GET /health` con el detector detenido (503, envelope de error):
+
+```json
+{"data":null,"error":"Servicio no disponible: detector","statusCode":503,"details":{"database":{"status":"up"},"memory_heap":{"status":"up"},"redis":{"status":"up"},"detector":{"status":"down","message":"fetch failed"}}}
+```
+
 ## Códigos de error nuevos
 
 | Código | Cuándo | Mensaje |
 | --- | --- | --- |
-| 400 | Cita sin centro / centro inválido | `Indique el centro médico de la cita.` |
+| 400 | Cita sin centro | `Indique el centro médico de la cita.` |
+| 404 | Centro de la cita inexistente o borrado | `Centro médico con ID <uuid> no encontrado.` |
+| 400 | Campos fijos de la receta en `PATCH` | `medicalAppointmentId no se puede cambiar en una receta emitida.` (ídem `patientId`, `doctorId`, `medicalHistoryId`) |
 | 400 | Médico fuera del centro | `El médico no está asignado a este centro médico.` |
 | 400 | Cupo diario (suma de bloques) | `El doctor ya alcanzó el máximo de N citas para este día en este centro médico.` |
 | 400 | Contraseña nueva corta | `… debe tener al menos 8 caracteres` |
@@ -139,11 +159,12 @@ Se registran todas las escrituras exitosas (salvo login/refresh/logout) y las le
 | 400 | `sex`, `birthDate`, `maritalStatus` | `El sexo debe ser F o M` · `La fecha de nacimiento no puede ser futura` · `El estado civil debe ser uno de: …` |
 | 403 | Paciente fuera del alcance | `No tiene acceso a este paciente.` |
 | 403 | Centros del médico por no admin | `Solo un administrador puede cambiar los centros médicos de un médico.` |
-| 403 | Foto ajena | `No puede cambiar la foto de otra persona.` |
+| 403 | Foto ajena | `No puede cambiar la foto de otra persona.` (subir) · `No tiene acceso a esta foto.` (ver perfil ajeno sin ser administrador) |
 | 409 | Borrado con citas abiertas | `No se puede eliminar … / retirar al médico del centro: tiene N cita(s) pendiente(s) o en curso…` |
 | 409 | Rol con usuarios | `El rol '<nombre>' tiene N usuario(s) asignado(s); reasígnelos antes de eliminarlo.` |
 | 409 | Revisión repetida / borrar revisado | `El análisis ya fue revisado; la revisión no se sobrescribe.` · `Un análisis revisado no se puede eliminar.` |
 | 429 | Bloqueo por intentos | `Demasiados intentos fallidos. La cuenta quedó bloqueada 15 minutos.` |
+| 503 | `/health` con un indicador caído | `Servicio no disponible: <indicadores>` + `details` |
 
 ## Datos en la base
 

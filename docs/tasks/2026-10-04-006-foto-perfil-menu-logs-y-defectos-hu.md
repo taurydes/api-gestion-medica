@@ -18,7 +18,14 @@ defectos de backend de la tabla "Inconsistencias encontradas al verificar" de
 
 | Commit | Contenido |
 |---|---|
-| (pendiente) | `imageUrl` = `commonPerson.photoUrl` → última imagen activa → `null`, en perfil propio, detalle y listado de usuarios; specs con el `UserService` real |
+| `a128225` | `imageUrl` = `commonPerson.photoUrl` → última imagen activa → `null`, en perfil propio, detalle y listado de usuarios; specs con el `UserService` real |
+| `0113865` | Migración `LogsMenuAccessLog1790520800000`: menú `logs` → "Bitácora de accesos", `/audit/access-log`, visible; `down` restaura `Logs` / `#` / oculto |
+| `9003bc2` | Defectos 1 y 2: fotos de persona con `file.crear` **o** `patient.crear`/`patient.actualizar` (lectura con `file.consultar` o `patient.consultar`); foto de perfil ajena solo para administrador (`assertAdmin`), se retira `UserAccessService` de `PhotoAccessService` |
+| `ecfac67` | Defectos 3, 4, 7, 8, 9, 11, 17: `createdBy`/`updatedBy` de departamentos; `removeDoctor` con `deletedAt IS NULL`; mensaje de `patientId`; `reason` recortado; `PATCH /recipes` rechaza ids fijos con 400 (`@IsEmpty`); comentario del panel; `limit` del Swagger |
+| `96cb806` | Defecto 10: `/health` en 503 dice `Servicio no disponible: <indicadores>` y el filtro reenvía `details` |
+| `5f4acb2` | Defecto 16: logins fallidos (`/auth/login`, `/admin/login`) en `access_log` como `login_failed`; migración `AccessLogLoginFailed1790520900000` (`action` a 20 caracteres) |
+| `app` `934d26d`, `60e15d0` | Fila MJ-39 y línea "Estado" de `docs/plans/2026-10-04-mejoras-detectadas-hu.md` (una línea cada uno) |
+| (este) | Guía de integración, nota de credenciales en el QA de fases 0-1 y este documento |
 
 ## Decisiones
 
@@ -28,6 +35,24 @@ defectos de backend de la tabla "Inconsistencias encontradas al verificar" de
   la tabla gana porque esos registros nunca pasan por `profile-photo`. No se tocó para no cambiar un contrato que el
   front ya consume.
 - **`/auth/me`** no expone foto; no se tocó.
+- **Fotos de persona (defecto 1)**: se eligió ampliar los permisos de las rutas (`file.crear` o `patient.crear`/`patient.actualizar`)
+  en vez de dar `file.crear` al `enfermero` por migración: `file.crear` abre también `upload-base64`, `video`,
+  `appointment-upload` y `dicom-convert`, que la enfermera no necesita. La guarda de dueño de MJ-43 (`assertCanSetPersonPhoto`)
+  sigue decidiendo *de quién* puede ser la foto; el permiso solo decide *quién entra*. Los `GET` correspondientes aceptan
+  `patient.consultar` para que la misma enfermera vea la foto que subió.
+- **Foto de perfil ajena (defecto 2)**: `security.consultar` (mismo criterio de "administrador" del resto del sistema), como
+  decía la guía. Un médico con `file.consultar` ya no la ve.
+- **`PATCH /recipes` (defecto 9)**: `@IsEmpty` por campo en el DTO en lugar de `forbidNonWhitelisted` global, que cambiaría
+  el contrato de todos los endpoints (hoy los campos desconocidos se descartan en silencio en toda la API).
+- **Centro inexistente al agendar (defecto 6)**: se mantiene el **404**; se corrigió la guía, que lo ponía bajo el 400.
+- **Logins fallidos (defecto 16)**: solo se registran los fallos (401 y 429; un 400 de validación también entra con su código).
+  El login correcto no se registra (no es un cambio de datos y `req.user` no existe en ese punto); `refresh` y `logout`
+  siguen fuera por ruido. La credencial escrita va en `resourceId` (64 caracteres, nunca la contraseña). `action` pasa a
+  `varchar(20)`; el `down` borra las filas `login_failed` antes de estrechar la columna.
+- **`/health` (defecto 10)**: se resuelve en el controlador (terminus lanza su resultado sin `message`) y el filtro global
+  reenvía `details` solo cuando la excepción lo trae; ningún otro endpoint lo produce.
+- **Defecto 5** (citas sin alcance por centro para personal no médico) no se tocó: ningún rol no médico tiene
+  `appointments.consultar`; sigue anotado en la HU.
 
 ## Verificación
 
