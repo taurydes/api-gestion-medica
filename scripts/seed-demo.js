@@ -17,6 +17,7 @@ const BCRYPT_COST = 10; // same cost as user.service.ts / profile.service.ts
 const BOOTSTRAP_USER = process.env.SEED_ADMIN || 'qa_super_clean';
 const UPLOADS = path.resolve(process.cwd(), process.env.UPLOADS_PATH || 'uploads');
 const ONLY_TODAY = process.argv.includes('--today');
+const CLEAN_JUNK = process.argv.includes('--clean-junk');
 const DAY = 86_400_000;
 const MIN = 60_000;
 // Past appointments are created this far ahead (same weekday and hour), processed, then moved back with SQL.
@@ -947,6 +948,91 @@ async function backdatePatients(roster) {
   }
 }
 
+// ───────────────────────────── optional: junk test rows ─────────────────────────────
+
+// Old manual-test rows that look bad in a demo. Deletions are soft (API) and only when nothing clinical hangs from them.
+const JUNK_USERS = ['alasdoasd', 'asdasdasd', 'marco', 'royfran'];
+const JUNK_DOCTOR_LICENSES = ['6546846']; // doctor without user, person "asdasda asdasdasdasd"
+const JUNK_PATIENT_CODES = ['PAC-2026-00002', 'PAC-2026-00003', 'QA-M18-002']; // QA patients without appointments
+// Kept users (QA reports rely on them) whose person had placeholder names.
+const PERSON_RENAMES = {
+  mario: { firstName: 'Mario', middleName: 'Alberto', lastName: 'Díaz', secondLastName: 'Rojas' },
+  ysleidy: { firstName: 'Ysleidy', middleName: 'Carolina', lastName: 'Rangel', secondLastName: 'Pérez' },
+};
+const CENTER_FIXES = {
+  'el rosal': { name: 'Clínica El Rosal', address: 'Av. Venezuela, El Rosal, Chacao, Caracas', phone: '+58 212-9531200' },
+  'montalbancito ': { name: 'Ambulatorio Montalbán', address: 'Av. Teherán, Montalbán, Caracas', phone: '+58 212-4723300' },
+  'san rafael': { name: 'Clínica San Rafael', address: 'Av. Principal de La Florida, Caracas', phone: '+58 212-7310500' },
+  'santa ines': { name: 'Centro Médico Santa Inés', address: 'Av. Principal de Santa Inés, Baruta, Miranda', phone: '+58 212-9452100' },
+  'Dr. perez carreño': { name: 'Hospital Dr. Pérez Carreño', address: 'Av. Intercomunal de El Valle, La Yaguara, Caracas', phone: '+58 212-4722331' },
+};
+const DEPARTMENT_RENAMES = { Cardiologia: 'Cardiología', mamografia: 'Mamografía', mastologia: 'Mastología', traumatologia: 'Traumatología' };
+
+async function cleanJunk(admin) {
+  const done = { usersDeleted: 0, doctorsDeleted: 0, patientsDeleted: 0, personsRenamed: 0, centersFixed: 0, departmentsRenamed: 0, skipped: [] };
+  const busyDoctor = async (doctorId) =>
+    (await q(`SELECT count(*)::int c FROM medical_appointments WHERE doctor_id = $1 AND deleted_at IS NULL`, [doctorId]))[0].c > 0;
+
+  for (const name of JUNK_USERS) {
+    const u = (await q(
+      `SELECT u.id, d.id doctor_id FROM users u LEFT JOIN doctors d ON d.common_person_id = u.common_person_id AND d.deleted_at IS NULL
+        WHERE u.name = $1 AND u.deleted_at IS NULL`, [name]))[0];
+    if (!u) continue;
+    if (u.doctor_id && (await busyDoctor(u.doctor_id))) {
+      done.skipped.push(`${name}: has appointments`);
+      continue;
+    }
+    if (u.doctor_id) {
+      await api(admin, 'DELETE', `/doctors/${u.doctor_id}`);
+      done.doctorsDeleted++;
+    }
+    await api(admin, 'DELETE', `/users/${u.id}`);
+    done.usersDeleted++;
+  }
+  for (const lic of JUNK_DOCTOR_LICENSES) {
+    const d = (await q(`SELECT id FROM doctors WHERE license_number = $1 AND deleted_at IS NULL`, [lic]))[0];
+    if (!d) continue;
+    if (await busyDoctor(d.id)) {
+      done.skipped.push(`doctor ${lic}: has appointments`);
+      continue;
+    }
+    await api(admin, 'DELETE', `/doctors/${d.id}`);
+    done.doctorsDeleted++;
+  }
+  for (const code of JUNK_PATIENT_CODES) {
+    const p = (await q(
+      `SELECT p.id, (SELECT count(*)::int FROM medical_appointments a WHERE a.patient_id = p.id AND a.deleted_at IS NULL) apts
+         FROM patients p WHERE p.patient_code = $1 AND p.deleted_at IS NULL`, [code]))[0];
+    if (!p) continue;
+    if (p.apts > 0) {
+      done.skipped.push(`${code}: has appointments`);
+      continue;
+    }
+    await api(admin, 'DELETE', `/patient/${p.id}`);
+    done.patientsDeleted++;
+  }
+  for (const [name, names] of Object.entries(PERSON_RENAMES)) {
+    const u = (await q(`SELECT common_person_id id FROM users WHERE name = $1 AND deleted_at IS NULL`, [name]))[0];
+    const cur = u && (await q(`SELECT primernombre FROM persona_comun WHERE id = $1`, [u.id]))[0];
+    if (!cur || cur.primernombre === names.firstName) continue;
+    await api(admin, 'PATCH', `/common-persons/${u.id}`, names);
+    done.personsRenamed++;
+  }
+  for (const [oldName, fix] of Object.entries(CENTER_FIXES)) {
+    const c = (await q(`SELECT id FROM parametro.medical_centers WHERE name = $1 AND deleted_at IS NULL`, [oldName]))[0];
+    if (!c) continue;
+    await api(admin, 'PATCH', `/medical-centers/${c.id}`, fix);
+    done.centersFixed++;
+  }
+  for (const [oldName, newName] of Object.entries(DEPARTMENT_RENAMES)) {
+    for (const d of await q(`SELECT id FROM parametro.departments WHERE name = $1 AND deleted_at IS NULL`, [oldName])) {
+      await api(admin, 'PATCH', `/departments/${d.id}`, { name: newName });
+      done.departmentsRenamed++;
+    }
+  }
+  log('clean-junk', JSON.stringify(done));
+}
+
 /** Direct SQL bypassed the services: drop every cache key except sessions and BullMQ queues. */
 async function purgeCache() {
   const redis = new Redis({ host: process.env.REDIS_HOST, port: Number(process.env.REDIS_PORT || 6379), password: process.env.REDIS_PASSWORD || process.env.REDIS_PASS || undefined });
@@ -970,6 +1056,11 @@ async function main() {
   try {
     await ensurePasswords();
     const admin = await tokenFor(BOOTSTRAP_USER);
+    if (CLEAN_JUNK) {
+      await cleanJunk(admin);
+      await purgeCache();
+      return;
+    }
     const specialtyIds = await ensureSpecialties(admin);
     const centers = await ensureCenters(admin, specialtyIds);
     const doctors = await ensureDoctors(admin, centers, specialtyIds);
