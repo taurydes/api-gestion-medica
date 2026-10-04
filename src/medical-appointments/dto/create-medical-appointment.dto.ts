@@ -3,6 +3,7 @@ import { Type } from 'class-transformer';
 import {
   IsDateString,
   IsEnum,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -16,6 +17,9 @@ import {
   AppointmentType,
 } from '../entities/medical-appointment.entity';
 import { CreatePatientDto } from 'src/patient/dto/create-patient.dto';
+
+// Later statuses are reached only through their dedicated endpoints.
+const INITIAL_APPOINTMENT_STATUSES = [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED];
 
 export class CreateMedicalAppointmentDto {
   // ─── Identificación del paciente ─────────────────────────────────────────
@@ -113,12 +117,14 @@ export class CreateMedicalAppointmentDto {
   durationMinutes?: number;
 
   @ApiPropertyOptional({
-    description: 'Estado inicial de la cita',
-    enum: AppointmentStatus,
+    description: 'Estado inicial de la cita (solo pending o confirmed)',
+    enum: INITIAL_APPOINTMENT_STATUSES,
     default: AppointmentStatus.PENDING,
   })
   @IsOptional()
-  @IsEnum(AppointmentStatus)
+  @IsIn(INITIAL_APPOINTMENT_STATUSES, {
+    message: 'Una cita nueva solo puede crearse como pendiente (pending) o confirmada (confirmed).',
+  })
   status?: AppointmentStatus;
 
   @ApiProperty({

@@ -11,7 +11,6 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
-  ApiBody,
   ApiOperation,
   ApiParam,
   ApiQuery,
@@ -23,6 +22,7 @@ import { CreateMedicalAppointmentDto } from './dto/create-medical-appointment.dt
 import { UpdateMedicalAppointmentDto } from './dto/update-medical-appointment.dto';
 import { QueryMedicalAppointmentDto } from './dto/query-medical-appointment.dto';
 import { CompleteConsultationDto } from './dto/complete-consultation.dto';
+import { CancelMedicalAppointmentDto } from './dto/cancel-medical-appointment.dto';
 import { Permission } from 'src/auth/decorators/permission.decorator';
 import { GetUser } from 'src/auth/decorators/get-user.decorator';
 import { ModuleItemsMenu } from 'src/menu/menu.const';
@@ -165,7 +165,7 @@ export class MedicalAppointmentsController {
   @ApiOperation({
     summary: 'Actualizar cita médica',
     description:
-      'Modifica datos de una cita (no permite cambios en citas completadas o canceladas).',
+      'Modifica datos de una cita (no permite cambios en citas completadas o canceladas). No acepta status: use /confirm, /start-consultation, /cancel o /finish-consultation.',
   })
   @Patch(':id')
   @Permission(
@@ -180,27 +180,15 @@ export class MedicalAppointmentsController {
     description:
       'Cambia el estado de la cita a "cancelled" con una razón requerida.',
   })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        cancellationReason: {
-          type: 'string',
-          example: 'El paciente no pudo asistir.',
-        },
-      },
-      required: ['cancellationReason'],
-    },
-  })
   @Patch(':id/cancel')
   @Permission(
     `${ModuleItemsMenu.MedicalAppointmentsModule}.${PermissionActionsMenu.UPDATE}`,
   )
   cancel(
     @Param('id', ParseUuid) id: string,
-    @Body('cancellationReason') cancellationReason: string,
+    @Body() dto: CancelMedicalAppointmentDto,
   ) {
-    return this.appointmentsService.cancel(id, cancellationReason);
+    return this.appointmentsService.cancel(id, dto.cancellationReason);
   }
 
   @ApiOperation({

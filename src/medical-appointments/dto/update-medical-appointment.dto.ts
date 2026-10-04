@@ -1,26 +1,19 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsString } from 'class-validator';
-import { PartialType } from '@nestjs/swagger';
+import { ApiHideProperty, OmitType, PartialType } from '@nestjs/swagger';
+import { IsEmpty } from 'class-validator';
 import { CreateMedicalAppointmentDto } from './create-medical-appointment.dto';
-import { AppointmentStatus } from '../entities/medical-appointment.entity';
 
 export class UpdateMedicalAppointmentDto extends PartialType(
-  CreateMedicalAppointmentDto,
+  OmitType(CreateMedicalAppointmentDto, ['status'] as const),
 ) {
-  @ApiPropertyOptional({
-    description: 'Nuevo estado de la cita',
-    enum: AppointmentStatus,
-    example: AppointmentStatus.CONFIRMED,
+  // Declared only to reject it with 400: with whitelist it would be dropped silently.
+  @ApiHideProperty()
+  @IsEmpty({
+    message:
+      'El estado de la cita no se cambia por este endpoint. Use /confirm, /start-consultation, /cancel o /finish-consultation.',
   })
-  @IsOptional()
-  @IsEnum(AppointmentStatus)
-  status?: AppointmentStatus;
+  status?: never;
 
-  @ApiPropertyOptional({
-    description: 'Razón de cancelación (requerida cuando se cancela la cita)',
-    example: 'El paciente no pudo asistir por motivos de fuerza mayor.',
-  })
-  @IsOptional()
-  @IsString()
-  cancellationReason?: string;
+  @ApiHideProperty()
+  @IsEmpty({ message: 'Para cancelar la cita use PATCH /medical-appointments/:id/cancel.' })
+  cancellationReason?: never;
 }
