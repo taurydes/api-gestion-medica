@@ -27,13 +27,15 @@ function build(scope: { isAdmin: boolean; doctorId: string | null }) {
   const qb = fakeQb([{ id: 'apt' }]);
   const appointmentRepo = { createQueryBuilder: () => qb };
   const authContext = {
-    isAdmin: jest.fn().mockResolvedValue(scope.isAdmin),
-    getDoctorIdForUser: jest.fn().mockResolvedValue(scope.doctorId),
+    resolveScope: jest.fn().mockResolvedValue(
+      scope.isAdmin ? null : { userId: 'u', doctorId: scope.doctorId, centerIds: scope.doctorId ? null : [] },
+    ),
   };
   const service = new DashboardService(
     appointmentRepo as any,
-    {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any,
+    {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any,
     authContext as any,
+    {} as any,
   );
   return { service, qb };
 }

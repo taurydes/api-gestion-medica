@@ -10,14 +10,9 @@ import { Department } from 'src/departments/entities/department.entity';
 import { Recipe } from 'src/recipe/entities/recipe.entity';
 import { MedicalHistory } from 'src/medical-history/entities/medical-history.entity';
 import { User } from 'src/user/entities/user.entity';
-import { AppointmentFile } from 'src/files/entities/appointment-file.entity';
-import { AuthContextService } from 'src/common/services/auth-context.service';
-
-/** Alcance de las consultas: admin ve todo, un doctor sus citas y el resto nada. */
-interface DashboardScope {
-  isAdmin: boolean;
-  doctorId: string | null;
-}
+import { AuthContextService, DataScope } from 'src/common/services/auth-context.service';
+import { MammographyAnalysis } from 'src/mammography-analysis/entities/mammography-analysis.entity';
+import { applyPatientScope } from 'src/patient/patient-scope';
 
 /**
  * Servicio de dashboard con estadísticas reales.
@@ -50,33 +45,38 @@ export class DashboardService {
     @InjectRepository(User, DatabaseConnectionName.DB_MAIN)
     private readonly userRepo: Repository<User>,
 
-    @InjectRepository(AppointmentFile, DatabaseConnectionName.DB_MAIN)
-    private readonly appointmentFileRepo: Repository<AppointmentFile>,
-
     private readonly authContextService: AuthContextService,
+
+    @InjectRepository(MammographyAnalysis, DatabaseConnectionName.DB_MAIN)
+    private readonly analysisRepo: Repository<MammographyAnalysis>,
   ) {}
 
-  private async resolveScope(authUser: any): Promise<DashboardScope> {
-    const userId = authUser?.id;
-    if (!userId) return { isAdmin: false, doctorId: null };
-    if (await this.authContextService.isAdmin(userId)) {
-      return { isAdmin: true, doctorId: null };
-    }
-    return {
-      isAdmin: false,
-      doctorId: await this.authContextService.getDoctorIdForUser(userId),
-    };
+  /** Admin: null (everything); doctor: their doctorId; other staff: their assigned centers (MJ-38). */
+  private async resolveScope(authUser: any): Promise<DataScope | null> {
+    return this.authContextService.resolveScope(authUser?.id);
   }
 
-  /** Aplica el alcance sobre una consulta de citas con el alias indicado. */
-  private applyScope(qb: any, scope: DashboardScope, doctorColumn: string): void {
-    if (scope.isAdmin) return;
+  /**
+   * Bounds a query by the doctor column or, for staff, by the center column. A staff user without
+   * centers, or a query with no center column for staff (null), sees nothing.
+   */
+  private applyScope(qb: any, scope: DataScope | null, doctorColumn: string, centerColumn: string | null = null): void {
+    if (!scope) return;
     if (scope.doctorId) {
       qb.andWhere(`${doctorColumn} = :doctorId`, { doctorId: scope.doctorId });
       return;
     }
-    // Sin perfil de doctor ni permiso de admin: no hay centros asignados que mostrar
+    if (centerColumn && scope.centerIds?.length) {
+      qb.andWhere(`${centerColumn} IN (:...scopeCenterIds)`, { scopeCenterIds: scope.centerIds });
+      return;
+    }
     qb.andWhere('1 = 0');
+  }
+
+  /** Centers that bound a non-admin: the doctor's or the staff user's. */
+  private async scopeCenterIds(scope: DataScope | null): Promise<string[]> {
+    if (!scope) return [];
+    return scope.doctorId ? this.getMedicalCenterIdsForDoctor(scope.doctorId) : scope.centerIds ?? [];
   }
 
   /**
@@ -95,19 +95,19 @@ export class DashboardService {
    */
   async getStats(authUser: any) {
     const scope = await this.resolveScope(authUser);
-    const doctorId = scope.doctorId;
-    const medicalCenterIds = doctorId
-      ? await this.getMedicalCenterIdsForDoctor(doctorId)
-      : [];
+    const doctorId = scope?.doctorId ?? null;
+    const medicalCenterIds = await this.scopeCenterIds(scope);
 
     // Base queries
     const appointmentQb = this.appointmentRepo
       .createQueryBuilder('a')
       .where('a.deletedAt IS NULL');
 
+    // Same bound as the patient list (MJ-45): no longer the global count for a doctor
     const patientQb = this.patientRepo
-      .createQueryBuilder('p')
-      .where('p.deletedAt IS NULL');
+      .createQueryBuilder('patient')
+      .where('patient.deletedAt IS NULL');
+    applyPatientScope(patientQb, scope);
 
     const recipeQb = this.recipeRepo
       .createQueryBuilder('r')
@@ -117,21 +117,36 @@ export class DashboardService {
       .createQueryBuilder('h')
       .where('h.deletedAt IS NULL');
 
-    // Si es doctor, filtrar solo sus datos
-    this.applyScope(appointmentQb, scope, 'a.doctorId');
+    // Doctor: own data; staff: their centers' appointments and histories (recipes carry no center)
+    this.applyScope(appointmentQb, scope, 'a.doctorId', 'a.medicalCenterId');
     this.applyScope(recipeQb, scope, 'r.doctorId');
-    this.applyScope(historyQb, scope, 'h.doctorId');
+    this.applyScope(historyQb, scope, 'h.doctorId', 'h.medicalCenterId');
 
-    // Conteos
-    const mlQb = this.appointmentFileRepo
-      .createQueryBuilder('af')
-      .where('af.deletedAt IS NULL')
-      .andWhere("af.fileType = 'mammography'");
-
-    if (doctorId) {
-      mlQb.innerJoin('af.medicalAppointment', 'apt');
+    // Analyses, not mammography files: the figure now matches the review inbox (MJ-45)
+    const mlQb = this.analysisRepo
+      .createQueryBuilder('ma')
+      .leftJoin('ma.appointment', 'apt')
+      .where('ma.deletedAt IS NULL');
+    if (scope?.doctorId) {
+      // Own appointments plus the standalone analyses the doctor ran, as in the inbox
+      mlQb.andWhere('(apt.doctorId = :doctorId OR (ma.appointmentId IS NULL AND ma.analyzedBy = :userId))', {
+        doctorId: scope.doctorId,
+        userId: scope.userId,
+      });
+    } else {
+      this.applyScope(mlQb, scope, 'apt.doctorId', 'apt.medicalCenterId');
     }
-    this.applyScope(mlQb, scope, 'apt.doctorId');
+
+    // Catalog figures are bounded to the user's centers for a non-admin (MJ-45)
+    const doctorQb = this.doctorRepo.createQueryBuilder('d').where('d.deletedAt IS NULL');
+    const centerQb = this.medicalCenterRepo.createQueryBuilder('mc').where('mc.deletedAt IS NULL');
+    const departmentQb = this.departmentRepo.createQueryBuilder('dp').where('dp.deletedAt IS NULL');
+    if (scope) {
+      const ids = medicalCenterIds.length ? medicalCenterIds : ['00000000-0000-0000-0000-000000000000'];
+      doctorQb.innerJoin('d.medicalCenters', 'dmc', 'dmc.id IN (:...ids)', { ids }).distinct(true);
+      centerQb.andWhere('mc.id IN (:...ids)', { ids });
+      departmentQb.andWhere('dp.medicalCenterId IN (:...ids)', { ids });
+    }
 
     const [
       totalAppointments,
@@ -151,9 +166,9 @@ export class DashboardService {
       appointmentQb.clone().andWhere("a.status = 'completed'").getCount(),
       appointmentQb.clone().andWhere("a.status = 'cancelled'").getCount(),
       patientQb.getCount(),
-      this.doctorRepo.createQueryBuilder('d').where('d.deletedAt IS NULL').getCount(),
-      this.medicalCenterRepo.createQueryBuilder('mc').where('mc.deletedAt IS NULL').getCount(),
-      this.departmentRepo.createQueryBuilder('dp').where('dp.deletedAt IS NULL').getCount(),
+      doctorQb.getCount(),
+      centerQb.getCount(),
+      departmentQb.getCount(),
       recipeQb.getCount(),
       historyQb.getCount(),
       mlQb.getCount(),
@@ -171,7 +186,7 @@ export class DashboardService {
       .andWhere('a.appointmentDate >= :today', { today })
       .andWhere('a.appointmentDate < :tomorrow', { tomorrow });
 
-    this.applyScope(todayQb, scope, 'a.doctorId');
+    this.applyScope(todayQb, scope, 'a.doctorId', 'a.medicalCenterId');
 
     const todayAppointments = await todayQb.getCount();
 
@@ -192,6 +207,8 @@ export class DashboardService {
       isDoctor: !!doctorId,
       doctorId,
       medicalCenterIds,
+      // global (admin), doctor (own data) or centers (staff bounded by their centers)
+      scope: !scope ? 'global' : scope.doctorId ? 'doctor' : 'centers',
     };
   }
 
@@ -212,7 +229,7 @@ export class DashboardService {
       .orderBy('a.appointmentDate', 'DESC')
       .take(10);
 
-    this.applyScope(qb, scope, 'a.doctorId');
+    this.applyScope(qb, scope, 'a.doctorId', 'a.medicalCenterId');
 
     return qb.getMany();
   }
@@ -230,7 +247,7 @@ export class DashboardService {
       .where('a.deletedAt IS NULL')
       .groupBy('a.status');
 
-    this.applyScope(qb, scope, 'a.doctorId');
+    this.applyScope(qb, scope, 'a.doctorId', 'a.medicalCenterId');
 
     return qb.getRawMany();
   }
@@ -252,7 +269,7 @@ export class DashboardService {
       .groupBy("EXTRACT(MONTH FROM a.appointmentDate)")
       .orderBy("EXTRACT(MONTH FROM a.appointmentDate)", 'ASC');
 
-    this.applyScope(qb, scope, 'a.doctorId');
+    this.applyScope(qb, scope, 'a.doctorId', 'a.medicalCenterId');
 
     const raw = await qb.getRawMany();
 
