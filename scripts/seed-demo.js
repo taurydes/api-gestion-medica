@@ -447,7 +447,7 @@ async function ensureCenters(admin, specialtyIds) {
       const d = DEPARTMENTS[code];
       let dep = (await q(`SELECT id FROM parametro.departments WHERE medical_center_id = $1 AND name = $2 AND deleted_at IS NULL`, [row.id, d.name]))[0];
       if (!dep) {
-        dep = await api(admin, 'POST', '/departments', { name: d.name, description: d.description, medicalCenterId: row.id, isActive: true, specialtyIds: [specialtyIds[code]] });
+        dep = await api(admin, 'POST', '/departments', { name: d.name, description: d.description, medicalCenterId: row.id, isActive: true, specialtyIds: [specialtyIds[code]], supportsMammography: /mamograf|mastolog/i.test(d.name) });
         bump('departments');
       }
       depts[code] = dep.id;

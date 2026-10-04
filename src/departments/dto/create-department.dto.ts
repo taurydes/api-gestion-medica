@@ -46,6 +46,14 @@ export class CreateDepartmentDto {
   isActive?: boolean;
 
   @ApiPropertyOptional({
+    description: 'Habilita el análisis de mamografía con IA en las consultas de este departamento',
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  supportsMammography?: boolean;
+
+  @ApiPropertyOptional({
     description: 'IDs de las especialidades asociadas al departamento (UUID)',
     example: ['a1b2c3d4-e5f6-7890-abcd-ef1234567890'],
     type: [String],

@@ -43,6 +43,10 @@ export class Department {
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
 
+  /** Enables the AI mammography tab at consultation; replaces matching the department name (MJ-14). */
+  @Column({ name: 'supports_mammography', type: 'boolean', default: false })
+  supportsMammography: boolean;
+
   // ========== AUDITORÍA ==========
 
   @CreateDateColumn({ name: 'created_at' })

@@ -37,6 +37,7 @@ export class MedicalCenterResponseDto {
 export class DepartmentResponseDto {
   id: string;
   name: string;
+  supportsMammography: boolean;
 }
 
 // ─── Patient DTO para listado (findAll) ──────────────────────────────────────
@@ -235,7 +236,7 @@ export function mapMedicalCenter(center: any): MedicalCenterResponseDto | null {
  */
 export function mapDepartment(dept: any): DepartmentResponseDto | null {
   if (!dept) return null;
-  return { id: dept.id, name: dept.name };
+  return { id: dept.id, name: dept.name, supportsMammography: dept.supportsMammography === true };
 }
 
 /**
