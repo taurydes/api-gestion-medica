@@ -40,6 +40,7 @@ function setup() {
   const redisSession = { deleteSession: jest.fn().mockResolvedValue(undefined) };
   const queryRunnerRepo = {
     findOne: jest.fn().mockResolvedValue(stored),
+    count: jest.fn().mockResolvedValue(0),
     update: jest.fn().mockResolvedValue(undefined),
     createQueryBuilder: jest.fn(() => ({
       update: () => ({ set: () => ({ where: () => ({ execute: jest.fn() }) }) }),

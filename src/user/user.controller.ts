@@ -19,6 +19,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { UserSecurityQueryDto } from './dto/user-security-query.dto';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 import { ParseUuid } from 'src/common/pipes/parse-uuid.pipe';
 @ApiTags('Users')
@@ -87,6 +88,18 @@ export class UserController {
   ) {
     // PermissionsGuard deja en la request los permisos del actor
     return this.userService.update(id, updateUserDto, req.userPermissions ?? [], req.user?.id ?? null);
+  }
+
+  /** Admin reset with a temporary password; the user must change it on next login (MJ-05). */
+  @ApiOperation({ summary: 'Restablecer contraseña (administrador)' })
+  @Patch(':id/reset-password')
+  @Permission(`${ModuleItemsMenu.UserModule}.${PermissionActionsMenu.UPDATE}`)
+  resetPassword(
+    @Param('id', ParseUuid) id: string,
+    @Body() dto: ResetPasswordDto,
+    @Req() req: any,
+  ) {
+    return this.userService.resetPassword(id, dto.newPassword, req.user?.id ?? null, req.userPermissions ?? []);
   }
 
   /**

@@ -80,7 +80,8 @@ export class ProfileService {
     }
 
     const password = await bcrypt.hash(dto.newPassword, 10);
-    const changes = { password, updatedAt: new Date() };
+    // A changed password ends the forced change after an admin reset (MJ-05).
+    const changes = { password, firstLogin: false, updatedAt: new Date() };
     if (secUser) {
       await this.userSecurityRepository.update(userId, changes);
     } else {

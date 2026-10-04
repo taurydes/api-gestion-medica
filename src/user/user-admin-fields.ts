@@ -10,6 +10,8 @@ import { RedisSessionService } from 'src/redis-session/redis-session.service';
 export const USER_ROLE_CHANGE_PERMISSION = `${ModuleItemsMenu.RoleModule}.${PermissionActionsMenu.UPDATE}`;
 /** Asignar centros a un usuario es una tarea de administración: misma regla que cambiar el rol. */
 export const USER_CENTERS_CHANGE_PERMISSION = USER_ROLE_CHANGE_PERMISSION;
+/** Restablecer la contraseña de otro usuario es administración: misma regla que cambiar el rol (MJ-05). */
+export const USER_PASSWORD_RESET_PERMISSION = USER_ROLE_CHANGE_PERMISSION;
 /** Activar o desactivar un usuario equivale a darlo de baja: exige `user.eliminar`. */
 export const USER_STATUS_CHANGE_PERMISSION = `${ModuleItemsMenu.UserModule}.${PermissionActionsMenu.DELETE}`;
 

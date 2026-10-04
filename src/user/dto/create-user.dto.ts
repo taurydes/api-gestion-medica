@@ -11,6 +11,7 @@ import {
   MinLength,
   ValidateNested,
 } from 'class-validator';
+import { PASSWORD_MIN_LENGTH, passwordMinLengthMessage } from 'src/common/validation/password-policy';
 import { CreateCommonPersonDto } from '../../common-person/dto/create-common-person.dto';
 import { CreateDoctorNestedDto } from 'src/doctors/dto/create-doctor-nested.dto';
 
@@ -33,10 +34,10 @@ export class CreateUserDto {
   @ApiProperty({
     description: 'Contraseña del usuario',
     example: 'password123',
-    minLength: 6,
+    minLength: PASSWORD_MIN_LENGTH,
   })
   @IsString({ message: 'La contraseña debe ser una cadena de texto' })
-  @MinLength(6, { message: 'La contraseña debe tener al menos 6 caracteres' })
+  @MinLength(PASSWORD_MIN_LENGTH, { message: passwordMinLengthMessage() })
   password: string;
 
   @ApiPropertyOptional({

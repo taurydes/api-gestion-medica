@@ -9,7 +9,9 @@ import {
   IsUUID,
   IsDateString,
   Length,
+  MinLength,
 } from 'class-validator';
+import { PASSWORD_MIN_LENGTH, passwordMinLengthMessage } from 'src/common/validation/password-policy';
 
 export class CreateUserSecurityDto {
   @ApiProperty({ example: 'Carlos Pérez' })
@@ -24,9 +26,10 @@ export class CreateUserSecurityDto {
   @MaxLength(255)
   email: string;
 
-  @ApiProperty({ example: 'MiClaveSegura123' })
+  @ApiProperty({ example: 'MiClaveSegura123', minLength: PASSWORD_MIN_LENGTH })
   @IsString()
   @IsNotEmpty()
+  @MinLength(PASSWORD_MIN_LENGTH, { message: passwordMinLengthMessage() })
   @MaxLength(255)
   password: string;
 

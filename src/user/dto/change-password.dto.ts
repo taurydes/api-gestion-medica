@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsString, MinLength } from 'class-validator';
+import { PASSWORD_MIN_LENGTH, passwordMinLengthMessage } from 'src/common/validation/password-policy';
 
 export class ChangePasswordDto {
   @ApiProperty({ description: 'Contraseña actual del usuario', example: 'claveActual1' })
@@ -7,8 +8,8 @@ export class ChangePasswordDto {
   @IsNotEmpty({ message: 'La contraseña actual es obligatoria' })
   currentPassword: string;
 
-  @ApiProperty({ description: 'Nueva contraseña', example: 'claveNueva1', minLength: 6 })
+  @ApiProperty({ description: 'Nueva contraseña', example: 'claveNueva1', minLength: PASSWORD_MIN_LENGTH })
   @IsString({ message: 'La nueva contraseña debe ser una cadena de texto' })
-  @MinLength(6, { message: 'La nueva contraseña debe tener al menos 6 caracteres' })
+  @MinLength(PASSWORD_MIN_LENGTH, { message: passwordMinLengthMessage('La nueva contraseña') })
   newPassword: string;
 }

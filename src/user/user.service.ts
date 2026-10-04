@@ -39,12 +39,14 @@ import {
   uniqueViolationToConflict,
 } from '../common-person/person-document.util';
 import { Doctor } from 'src/doctors/entities/doctor.entity';
+import { Patient } from 'src/patient/entities/patient.entity';
 import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity';
 import { Specialty } from 'src/parameters/entities/specialty.entity';
 import { FilesService } from 'src/files/files.service';
 import { RedisSessionService } from 'src/redis-session/redis-session.service';
 import {
   USER_CENTERS_CHANGE_PERMISSION,
+  USER_PASSWORD_RESET_PERMISSION,
   resolveAdminFieldChanges,
   revokeSessionOrFail,
 } from './user-admin-fields';
@@ -489,7 +491,7 @@ export class UserService {
       const userRepo = queryRunner.manager.getRepository(User);
       const cpRepo = queryRunner.manager.getRepository(CommonPerson);
 
-      const exists = await userRepo.findOne({ where: { id } });
+      const exists = await userRepo.findOne({ where: { id }, relations: ['commonPerson'] });
       if (!exists) {
         throw new NotFoundException(`Usuario con ID ${id} no encontrado.`);
       }
@@ -503,13 +505,15 @@ export class UserService {
         status: false,
       });
 
-      // Soft delete de persona_comun asociada (si existe)
-      await cpRepo
-        .createQueryBuilder()
-        .update()
-        .set({ deletedAt: now, updatedAt: now, isActive: false })
-        .where('id = (SELECT common_person_id FROM public.users WHERE id = :id)', { id })
-        .execute();
+      // The person outlives the account while it is still a live patient or doctor (MJ-03).
+      const personId = exists.commonPerson?.id;
+      const stillUsed =
+        !!personId &&
+        ((await queryRunner.manager.getRepository(Patient).count({ where: { commonPersonId: personId, deletedAt: IsNull() } })) > 0 ||
+          (await queryRunner.manager.getRepository(Doctor).count({ where: { commonPersonId: personId, deletedAt: IsNull() } })) > 0);
+      if (personId && !stillUsed) {
+        await cpRepo.update(personId, { deletedAt: now, updatedAt: now, isActive: false });
+      }
 
       // Revocar antes del commit: si Redis falla, el rollback deja al usuario intacto
       await revokeSessionOrFail(this.redisSession, id);
@@ -528,6 +532,26 @@ export class UserService {
     } finally {
       await queryRunner.release();
     }
+  }
+
+  /** Admin reset (MJ-05): temporary password, forced change on next login (firstLogin) and session revoked. */
+  async resetPassword(id: string, newPassword: string, actorId: string | null, actorPermissions: string[]): Promise<{ message: string }> {
+    if (!actorPermissions.includes(USER_PASSWORD_RESET_PERMISSION)) {
+      throw new ForbiddenException('No tiene permiso para restablecer contraseñas.');
+    }
+    if (actorId === id) {
+      throw new BadRequestException('Para cambiar su propia contraseña use PATCH /auth/change-password.');
+    }
+    const user = await this.repo.findOne({ where: { id, deletedAt: IsNull() } });
+    if (!user) {
+      throw new NotFoundException(`Usuario con ID ${id} no encontrado.`);
+    }
+    const password = await bcrypt.hash(newPassword, 10);
+    await this.repo.update(id, { password, firstLogin: true, updatedAt: new Date() });
+    // Any open session must log in again with the temporary password.
+    await revokeSessionOrFail(this.redisSession, id);
+    await this.cacheManager.del(`user:${id}`);
+    return { message: 'Contraseña restablecida. El usuario deberá cambiarla al iniciar sesión.' };
   }
 
   /** Own profile (GET /auth/profile): GET /users/:id shape without password or the role's grants; null if not a regular user. */
