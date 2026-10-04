@@ -155,6 +155,10 @@ export class MedicalHistory {
   @Column({ name: 'follow_up_notes', type: 'text', nullable: true })
   followUpNotes: string | null; // Notas para el seguimiento
 
+  /** Exams ordered during the consultation, as sent by the doctor (MJ-31). */
+  @Column({ name: 'requested_exams', type: 'jsonb', nullable: true })
+  requestedExams: { name: string; notes?: string }[] | null;
+
   // ========== ESTADO ==========
 
   @Column({

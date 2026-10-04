@@ -122,6 +122,7 @@ export class MedicalHistoryService {
     dto: CreateMedicalHistoryDto,
     userId?: string,
     manager?: EntityManager,
+    status: 'in_progress' | 'completed' = 'in_progress',
   ): Promise<MedicalHistory> {
     // With a caller-owned transaction every read/write uses its manager and the caller clears caches.
     const repo = <T extends object>(entity: new () => T, fallback: Repository<T>) =>
@@ -192,7 +193,7 @@ export class MedicalHistoryService {
         ...dto,
         consultationNumber,
         consultationDate: new Date(dto.consultationDate),
-        status: 'in_progress',
+        status,
         createdBy: userId,
       });
 
@@ -404,7 +405,8 @@ export class MedicalHistoryService {
         return cached;
       }
 
-      const whereClause: any = { patientId };
+      // Soft-deleted records stay out of the patient's history (MJ-41).
+      const whereClause: any = { patientId, deletedAt: IsNull() };
 
       // IDOR: si es doctor, solo sus historiales
       if (user) {

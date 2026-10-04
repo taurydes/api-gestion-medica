@@ -1045,7 +1045,8 @@ export class MedicalAppointmentsService {
         specialtyId: apt.specialtyId ?? undefined,
       };
 
-      const history = await this.historyService.create(historyDto, userId, manager);
+      // Closing the consultation closes its record too (MJ-50).
+      const history = await this.historyService.create(historyDto, userId, manager, 'completed');
 
       // 2️⃣ Crear Receta si se proporciona
       if (dto.recipe) {

@@ -8,11 +8,13 @@ import {
   IsArray,
   IsDateString,
   ArrayMinSize,
+  ArrayMaxSize,
   IsInt,
   Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { RequestedExamDto } from 'src/medical-history/dto/requested-exam.dto';
 
 /**
  * DTO simplificado para ítems de receta en la finalización de consulta
@@ -113,6 +115,14 @@ export class ConsultationHistoryInputDto {
   @IsOptional()
   @IsString()
   observations?: string;
+
+  @ApiPropertyOptional({ description: 'Exámenes solicitados en la consulta (MJ-31)', type: [RequestedExamDto] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(30)
+  @ValidateNested({ each: true })
+  @Type(() => RequestedExamDto)
+  requestedExams?: RequestedExamDto[];
 }
 
 /**

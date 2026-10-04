@@ -1,5 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { RequestedExamDto } from './requested-exam.dto';
 import {
+  ArrayMaxSize,
+  IsArray,
+  ValidateNested,
   IsNotEmpty,
   IsOptional,
   IsNumber,
@@ -143,4 +148,12 @@ export class CreateMedicalHistoryDto {
   @IsOptional()
   @IsUUID()
   medicalAppointmentId?: string;
+
+  @ApiPropertyOptional({ description: 'Exámenes solicitados en la consulta (MJ-31)', type: [RequestedExamDto] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(30)
+  @ValidateNested({ each: true })
+  @Type(() => RequestedExamDto)
+  requestedExams?: RequestedExamDto[];
 }

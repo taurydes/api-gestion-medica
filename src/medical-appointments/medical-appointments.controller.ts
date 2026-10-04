@@ -229,9 +229,8 @@ export class MedicalAppointmentsController {
       'Registra el historial médico, recetas y marca la cita como completada en un solo paso.',
   })
   @Patch(':id/finish-consultation')
-  @Permission(
-    `${ModuleItemsMenu.MedicalAppointmentsModule}.${PermissionActionsMenu.DIAGNOSTICAR}`,
-  )
+  // Closing writes the clinical record, so it needs medical-history.crear (MJ-50).
+  @Permission(`${ModuleItemsMenu.MedicalHistoryModule}.${PermissionActionsMenu.CREATE}`)
   finishConsultation(
     @Param('id', ParseUuid) id: string,
     @Body() dto: CompleteConsultationDto,

@@ -244,3 +244,57 @@ describe('finishConsultation — only open, attended appointments of the caller 
     expect(status(db)).toBe(AppointmentStatus.COMPLETED);
   });
 });
+
+describe('Closing a consultation closes its record and keeps the requested exams (MJ-50, MJ-31)', () => {
+  it('the history is created completed, with the structured exams', async () => {
+    const { service, db } = setup();
+    const body = dto();
+    body.medicalHistory.requestedExams = [{ name: 'Mamografía bilateral', notes: 'Control anual' }, { name: 'Ecografía mamaria' }];
+
+    await service.finishConsultation('apt-1', body, 'u1');
+
+    expect(db.rows(MedicalHistory)[0]).toMatchObject({
+      status: 'completed',
+      requestedExams: [{ name: 'Mamografía bilateral', notes: 'Control anual' }, { name: 'Ecografía mamaria' }],
+    });
+  });
+
+  it('the DTO rejects an exam without a name and keeps a well-formed list', async () => {
+    const pipe = new ValidationPipe({ whitelist: true, transform: true });
+    const base = { medicalHistory: { consultationDate: '2026-09-25', reasonForVisit: 'control' } };
+
+    await expect(
+      pipe.transform({ ...base, medicalHistory: { ...base.medicalHistory, requestedExams: [{ name: '' }] } }, { type: 'body', metatype: CompleteConsultationDto }),
+    ).rejects.toThrow();
+    const ok = await pipe.transform(
+      { ...base, medicalHistory: { ...base.medicalHistory, requestedExams: [{ name: 'Mamografía', notes: 'x' }] } },
+      { type: 'body', metatype: CompleteConsultationDto },
+    );
+    expect(ok.medicalHistory.requestedExams).toEqual([{ name: 'Mamografía', notes: 'x' }]);
+  });
+
+  it('PATCH /:id/finish-consultation requires medical-history.crear, not appointments.crear', () => {
+    const { MedicalAppointmentsController } = require('./medical-appointments.controller');
+    const { PERMISSIONS_KEY } = require('src/auth/decorators/permission.decorator');
+    const required = Reflect.getMetadata(PERMISSIONS_KEY, MedicalAppointmentsController.prototype.finishConsultation);
+    expect(required).toEqual(['medical-history.crear']);
+  });
+});
+
+describe('Patient history leaves soft-deleted records out (MJ-41)', () => {
+  it('findByPatient does not return a deleted history', async () => {
+    const db = new InMemoryDb().table(MedicalHistory, [
+      { id: 'h-live', patientId: 'pat-1', doctorId: 'doc-1', deletedAt: null },
+      { id: 'h-gone', patientId: 'pat-1', doctorId: 'doc-1', deletedAt: new Date('2026-09-01') },
+    ]);
+    const cache = { get: jest.fn(), set: jest.fn(), del: jest.fn() };
+    const history = new MedicalHistoryService(
+      db.repo(MedicalHistory), {} as any, {} as any, {} as any, {} as any, {} as any, cache as any,
+      {} as any, authContextFor({ isAdmin: true, doctorId: null }), {} as any,
+    );
+
+    const rows = await history.findByPatient('pat-1', { id: 'admin' });
+
+    expect(rows.map((h) => h.id)).toEqual(['h-live']);
+  });
+});
