@@ -56,6 +56,7 @@ export class DoctorScheduleService {
     // Validar que el doctor exista
     const doctor = await this.doctorRepo.findOne({
       where: { id: dto.doctorId, deletedAt: IsNull() },
+      relations: ['medicalCenters'],
     });
     if (!doctor) {
       throw new NotFoundException(`Doctor con ID ${dto.doctorId} no encontrado`);
@@ -69,6 +70,11 @@ export class DoctorScheduleService {
       throw new NotFoundException(
         `Centro médico con ID ${dto.medicalCenterId} no encontrado`,
       );
+    }
+
+    // A schedule in a center the doctor is not assigned to accepts appointments there (MJ-19)
+    if (!(doctor.medicalCenters ?? []).some((c) => c.id === dto.medicalCenterId)) {
+      throw new BadRequestException('El médico no está asignado a ese centro médico.');
     }
 
     // Validar bloques horarios (hora fin > hora inicio)

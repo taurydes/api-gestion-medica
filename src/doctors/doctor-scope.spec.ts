@@ -79,8 +79,11 @@ describe('DoctorScheduleService — a doctor manages only their own blocks (MJ-1
       { id: 'blk-a', doctorId: 'doc-a', medicalCenterId: 'c1', startTime: '08:00:00', endTime: '12:00:00', isActive: true, deletedAt: null },
       { id: 'blk-b', doctorId: 'doc-b', medicalCenterId: 'c1', startTime: '08:00:00', endTime: '12:00:00', isActive: true, deletedAt: null },
     ];
-    const doctors = [{ id: 'doc-a', deletedAt: null }, { id: 'doc-b', deletedAt: null }];
-    const centers = [{ id: 'c1', deletedAt: null }];
+    const doctors = [
+      { id: 'doc-a', deletedAt: null, medicalCenters: [{ id: 'c1' }] },
+      { id: 'doc-b', deletedAt: null, medicalCenters: [{ id: 'c1' }] },
+    ];
+    const centers = [{ id: 'c1', deletedAt: null }, { id: 'c2', deletedAt: null }];
     const cache = { del: jest.fn() };
     const service = new DoctorScheduleService(
       new FakeRepo(blocks) as any,
@@ -143,5 +146,24 @@ describe('DoctorScheduleService — a doctor manages only their own blocks (MJ-1
     const { service, block } = scheduleService();
     await expect(service.removeBlock('blk-a', 'user-b')).rejects.toThrow(ForbiddenException);
     expect(block('blk-a').deletedAt).toBeNull();
+  });
+});
+
+describe('DoctorScheduleService — a schedule only in an assigned center (MJ-19)', () => {
+  it('a center the doctor is not assigned to → 400, even for an admin, and nothing is replaced', async () => {
+    const blocks = [{ id: 'blk-a', doctorId: 'doc-a', medicalCenterId: 'c2', deletedAt: null }];
+    const service = new DoctorScheduleService(
+      new FakeRepo(blocks) as any,
+      new FakeRepo([{ id: 'doc-a', deletedAt: null, medicalCenters: [{ id: 'c1' }] }]) as any,
+      new FakeRepo([{ id: 'c1', deletedAt: null }, { id: 'c2', deletedAt: null }]) as any,
+      { del: jest.fn() } as any,
+      authContextForUsers(SCOPE_USERS),
+    );
+    const dto = { doctorId: 'doc-a', medicalCenterId: 'c2', blocks: [{ dayOfWeek: 1, startTime: '08:00:00', endTime: '12:00:00' }] };
+
+    await expect(service.setSchedule(dto, 'user-admin')).rejects.toThrow('El médico no está asignado a ese centro médico.');
+    expect(blocks).toEqual([expect.objectContaining({ id: 'blk-a', deletedAt: null })]);
+
+    await expect(service.setSchedule({ ...dto, medicalCenterId: 'c1' }, 'user-a')).resolves.toHaveLength(1);
   });
 });
