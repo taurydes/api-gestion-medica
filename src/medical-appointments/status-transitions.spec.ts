@@ -113,6 +113,11 @@ describe('Appointment status contract through the global ValidationPipe (MJ-26)'
     expect(current()).toBe(AppointmentStatus.CONFIRMED);
   });
 
+  it('POST without a center → a single 400 message (MJ-24)', async () => {
+    const { medicalCenterId: _omit, ...withoutCenter } = createBody;
+    expect(await messages(CreateMedicalAppointmentDto, withoutCenter)).toEqual(['Indique el centro médico de la cita.']);
+  });
+
   it.each([AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED])('POST accepts initial status %s', async (status) => {
     expect(await messages(CreateMedicalAppointmentDto, { ...createBody, status })).toEqual([]);
   });

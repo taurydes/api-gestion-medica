@@ -86,8 +86,8 @@ export class CreateMedicalAppointmentDto {
     description: 'ID del centro médico (UUID). El médico debe estar asignado al centro.',
     example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
   })
-  @IsNotEmpty({ message: 'Indique el centro médico de la cita.' })
-  @IsUUID()
+  // One message whether missing or malformed (IsUUID also rejects undefined).
+  @IsUUID('all', { message: 'Indique el centro médico de la cita.' })
   medicalCenterId: string;
 
   @ApiPropertyOptional({
