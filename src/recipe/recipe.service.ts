@@ -69,6 +69,14 @@ export class RecipeService {
     private readonly authContextService: AuthContextService,
   ) {}
 
+  private static readonly FOREIGN_RECIPE = 'Solo el médico de la consulta puede modificar esta receta.';
+
+  /** Writes follow the read rule: a doctor acts only on their own recipes (MJ-28). */
+  private async assertWriteAccess(recipe: { doctorId: string }, userId?: string): Promise<void> {
+    if (!userId) return;
+    await this.authContextService.assertDoctorScope(userId, recipe.doctorId, RecipeService.FOREIGN_RECIPE);
+  }
+
   private async enrichWithImages(record: any): Promise<any> {
     const [patientImageUrl, doctorImageUrl] = await Promise.all([
       record.patient?.commonPersonId
@@ -117,9 +125,10 @@ export class RecipeService {
   ): Promise<Recipe> {
     try {
       // Header and items in one transaction; a caller-owned manager (finishConsultation) commits and clears caches.
+      // finishConsultation (with a manager) already checked the caller against the appointment.
       const savedRecipe = manager
-        ? await this.createWithManager(dto, userId, manager)
-        : await this.dataSource.transaction((m) => this.createWithManager(dto, userId, m));
+        ? await this.createWithManager(dto, userId, manager, false)
+        : await this.dataSource.transaction((m) => this.createWithManager(dto, userId, m, true));
       if (manager) return savedRecipe;
 
       await this.invalidateCaches(savedRecipe);
@@ -136,6 +145,7 @@ export class RecipeService {
     dto: CreateRecipeDto,
     userId: string | undefined,
     manager: EntityManager,
+    checkScope: boolean,
   ): Promise<Recipe> {
     // 1️⃣ Verificar que el historial médico exista
     const medicalHistory = await manager.getRepository(MedicalHistory).findOne({
@@ -146,6 +156,15 @@ export class RecipeService {
       throw new NotFoundException(
         `El historial médico con ID ${dto.medicalHistoryId} no existe o ha sido eliminado.`,
       );
+    }
+    if (checkScope) await this.assertWriteAccess(medicalHistory, userId);
+
+    // Patient, doctor and appointment are the history's; a recipe cannot point elsewhere.
+    if (dto.patientId !== medicalHistory.patientId || dto.doctorId !== medicalHistory.doctorId) {
+      throw new BadRequestException('patientId y doctorId deben ser los del historial médico indicado.');
+    }
+    if (dto.medicalAppointmentId && dto.medicalAppointmentId !== medicalHistory.medicalAppointmentId) {
+      throw new BadRequestException('medicalAppointmentId no corresponde al historial médico indicado.');
     }
 
     // 2️⃣ Verificar que el paciente exista
@@ -437,6 +456,7 @@ export class RecipeService {
           `Receta con ID ${id} no encontrada.`,
         );
       }
+      await this.assertWriteAccess(recipe, userId);
 
       // No permitir actualizar recetas dispensadas o canceladas
       if (recipe.status === 'dispensed' || recipe.status === 'cancelled') {
@@ -500,6 +520,7 @@ export class RecipeService {
           `Receta con ID ${id} no encontrada.`,
         );
       }
+      await this.assertWriteAccess(recipe, userId);
 
       if (recipe.status !== 'active') {
         throw new BadRequestException(
@@ -518,9 +539,7 @@ export class RecipeService {
 
       return this.findOne(id);
     } catch (error) {
-      if (error instanceof NotFoundException || error instanceof BadRequestException) {
-        throw error;
-      }
+      if (error instanceof HttpException) throw error;
       throw toHttpException(error, 'Error al marcar la receta como dispensada.');
     }
   }
@@ -542,6 +561,7 @@ export class RecipeService {
           `Receta con ID ${id} no encontrada.`,
         );
       }
+      await this.assertWriteAccess(recipe, userId);
 
       if (recipe.status === 'dispensed') {
         throw new BadRequestException(
@@ -572,9 +592,10 @@ export class RecipeService {
    * Eliminar una receta médica (soft delete)
    * @param id - ID de la receta a eliminar
    */
-  async remove(id: string): Promise<void> {
+  async remove(id: string, userId?: string): Promise<void> {
     try {
-      const recipe = await this.findOne(id);
+      // findOne with the caller applies the doctor scope (403 on another doctor's recipe)
+      const recipe = await this.findOne(id, userId ? { id: userId } : undefined);
 
       if (!recipe) {
         throw new NotFoundException(

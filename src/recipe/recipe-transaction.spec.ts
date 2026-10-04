@@ -1,5 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
 import { InMemoryDb } from '../../test/in-memory-db';
+import { authContextFor } from '../../test/auth-context-stub';
 import { RecipeService } from './recipe.service';
 import { Recipe } from './entities/recipe.entity';
 import { RecipeItem } from './entities/recipe-item.entity';
@@ -16,10 +17,10 @@ function setup() {
   const db = new InMemoryDb()
     .table(Patient, [{ id: 'pat-1', deletedAt: null }])
     .table(Doctor, [{ id: 'doc-1', deletedAt: null }])
-    .table(MedicalHistory, [{ id: 'mh-1', deletedAt: null }])
+    .table(MedicalHistory, [{ id: 'mh-1', patientId: 'pat-1', doctorId: 'doc-1', deletedAt: null }])
     .table(Medication, [{ id: 'med-1', deletedAt: null }])
     .table(Recipe, [
-      { id: 'rec-1', status: 'active', patientId: 'pat-1', medicalHistoryId: 'mh-1', deletedAt: null },
+      { id: 'rec-1', status: 'active', patientId: 'pat-1', doctorId: 'doc-1', medicalHistoryId: 'mh-1', deletedAt: null },
     ])
     .table(RecipeItem, [{ id: 'item-old', recipeId: 'rec-1', medicationName: 'Anterior' }]);
 
@@ -34,7 +35,7 @@ function setup() {
     {} as any,
     { getLatestCommonPersonImageUrl: jest.fn(), getLatestDoctorImageUrl: jest.fn() } as any,
     db.dataSource,
-    {} as any,
+    authContextFor({ isAdmin: true, doctorId: null }),
   );
   return { service, db };
 }

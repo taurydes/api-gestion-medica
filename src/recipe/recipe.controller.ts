@@ -152,7 +152,7 @@ export class RecipeController {
   @ApiResponse({ status: 200, description: 'Receta eliminada exitosamente' })
   @ApiResponse({ status: 404, description: 'Receta no encontrada' })
   @Permission(`${ModuleItemsMenu.RecipeModule}.${PermissionActionsMenu.DELETE}`)
-  remove(@Param('id', ParseUuid) id: string) {
-    return this.recipeService.remove(id);
+  remove(@Param('id', ParseUuid) id: string, @GetUser('id') userId: string) {
+    return this.recipeService.remove(id, userId);
   }
 }
