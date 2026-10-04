@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import { QueryFailedError } from 'typeorm';
 import * as express from 'express';
 import * as request from 'supertest';
@@ -33,7 +33,15 @@ describe('HttpExceptionFilter — no raw DB messages to the client (M-08)', () =
     const { res, done } = run(new BadRequestException('Dato inválido'));
     await done;
     expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'Dato inválido' }));
+    expect(res.json).toHaveBeenCalledWith({ data: null, error: 'Dato inválido', statusCode: 400 });
+  });
+
+  it('a 503 from /health carries the indicator map in `details` next to the message', async () => {
+    const details = { database: { status: 'up' }, detector: { status: 'down', message: 'fetch failed' } };
+    const { res, done } = run(new ServiceUnavailableException({ message: 'Servicio no disponible: detector', details }));
+    await done;
+    expect(res.status).toHaveBeenCalledWith(503);
+    expect(res.json).toHaveBeenCalledWith({ data: null, error: 'Servicio no disponible: detector', statusCode: 503, details });
   });
 });
 

@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -37,11 +37,19 @@ export class HealthController {
   @ApiOperation({ summary: 'Health check de la API' })
   @ApiResponse({ status: 200, description: 'Estado de salud OK.' })
   async check() {
-    return this.health.check([
-      async () => this.db.pingCheck('database', { connection: this.mainDs }),
-      async () => this.memory.checkHeap('memory_heap', 150 * 1024 * 1024),
-      async () => this.dependencies.redisCheck(),
-      async () => this.dependencies.detectorCheck(),
-    ]);
+    try {
+      return await this.health.check([
+        async () => this.db.pingCheck('database', { connection: this.mainDs }),
+        async () => this.memory.checkHeap('memory_heap', 150 * 1024 * 1024),
+        async () => this.dependencies.redisCheck(),
+        async () => this.dependencies.detectorCheck(),
+      ]);
+    } catch (error) {
+      if (!(error instanceof ServiceUnavailableException)) throw error;
+      // Terminus throws its result without a message; name the failing indicators so the client knows what is down.
+      const result = error.getResponse() as Record<string, any>;
+      const down = Object.keys(result?.error ?? {}).sort();
+      throw new ServiceUnavailableException({ ...result, message: `Servicio no disponible: ${down.join(', ')}` });
+    }
   }
 }

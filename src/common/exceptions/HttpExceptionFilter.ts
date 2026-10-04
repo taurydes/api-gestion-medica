@@ -137,11 +137,13 @@ export class HttpExceptionFilter implements ExceptionFilter {
       console.error('Error al registrar el log, ' + error.message);
     }
 
-    // Devuelve respuesta estandarizada
+    // Devuelve respuesta estandarizada; `details` solo lo trae /health (mapa de indicadores de terminus).
+    const details = isHttp && body.details && typeof body.details === 'object' ? { details: body.details } : {};
     res.status(status).json({
       data: null,
       error: clientMessage,
       statusCode: status,
+      ...details,
     });
   }
 }
