@@ -459,7 +459,7 @@ export class MedicalCenterService {
     doctorId: string,
   ): Promise<MedicalCenterDetailDto> {
     const center = await this.medicalCenterRepository.findOne({
-      where: { id: medicalCenterId },
+      where: { id: medicalCenterId, deletedAt: IsNull() },
       relations: ['doctors'],
     });
 

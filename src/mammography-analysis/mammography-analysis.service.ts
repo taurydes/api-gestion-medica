@@ -104,7 +104,7 @@ export class MammographyAnalysisService {
       throw new ConflictException('El archivo no corresponde al paciente de la cita; no se puede analizar.');
     }
     if (dto.patientId && dto.patientId !== appointment.patientId) {
-      throw new BadRequestException('patientId no corresponde al archivo indicado.');
+      throw new BadRequestException('patientId no corresponde al paciente de la cita.');
     }
 
     // One live analysis per file (MJ-44): a repeated request gets the existing one without re-running the model.

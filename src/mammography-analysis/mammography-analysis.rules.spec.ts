@@ -146,7 +146,10 @@ describe('DELETE /mammography-analyses/:id withdraws with a reason (MJ-37)', () 
     expect(analyses[0].deletedAt).toBeNull();
   });
 
-  it('a blank reason → 400', async () => {
-    await expect(pipe.transform({ reason: '' }, { type: 'body', metatype: DeleteMammographyAnalysisDto })).rejects.toThrow();
+  it('a blank or whitespace-only reason → 400; a padded one is trimmed', async () => {
+    const body = (reason: string) => pipe.transform({ reason }, { type: 'body', metatype: DeleteMammographyAnalysisDto });
+    await expect(body('')).rejects.toThrow();
+    await expect(body('   ')).rejects.toThrow();
+    await expect(body('  Imagen equivocada  ')).resolves.toEqual({ reason: 'Imagen equivocada' });
   });
 });

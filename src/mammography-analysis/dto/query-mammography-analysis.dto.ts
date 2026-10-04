@@ -76,7 +76,7 @@ export class QueryMammographyAnalysisDto {
   @IsString()
   status?: string;
 
-  @ApiPropertyOptional({ default: 50 })
+  @ApiPropertyOptional({ description: 'Por defecto 10 en /recent y 200 en /inbox' })
   @IsOptional()
   @Type(() => Number)
   @IsNumber()

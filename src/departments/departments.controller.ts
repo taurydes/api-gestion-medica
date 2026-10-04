@@ -19,6 +19,7 @@ import { ModuleItemsMenu } from 'src/menu/menu.const';
 import { PermissionActionsMenu } from 'src/permission/permission.const';
 
 import { ParseUuid } from 'src/common/pipes/parse-uuid.pipe';
+import { GetUser } from 'src/auth/decorators/get-user.decorator';
 @ApiTags('Departments')
 @ApiBearerAuth()
 @Throttle({ short: {} })
@@ -35,8 +36,8 @@ export class DepartmentsController {
   @Permission(
     `${ModuleItemsMenu.DepartmentsModule}.${PermissionActionsMenu.CREATE}`,
   )
-  create(@Body() dto: CreateDepartmentDto) {
-    return this.departmentsService.create(dto);
+  create(@Body() dto: CreateDepartmentDto, @GetUser('id') userId: string) {
+    return this.departmentsService.create(dto, userId);
   }
 
   @ApiOperation({
@@ -73,8 +74,12 @@ export class DepartmentsController {
   @Permission(
     `${ModuleItemsMenu.DepartmentsModule}.${PermissionActionsMenu.UPDATE}`,
   )
-  update(@Param('id', ParseUuid) id: string, @Body() dto: UpdateDepartmentDto) {
-    return this.departmentsService.update(id, dto);
+  update(
+    @Param('id', ParseUuid) id: string,
+    @Body() dto: UpdateDepartmentDto,
+    @GetUser('id') userId: string,
+  ) {
+    return this.departmentsService.update(id, dto, userId);
   }
 
   @ApiOperation({
