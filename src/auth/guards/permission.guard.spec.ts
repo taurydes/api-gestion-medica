@@ -169,11 +169,11 @@ describe('Matriz de permisos de los endpoints corregidos (M-09, M-10)', () => {
       denied: [['file', 'consultar']],
     },
     {
-      name: 'GET /dashboard/recent-appointments exige appointments.consultar',
+      name: 'GET /dashboard/recent-appointments exige appointments.consultar o patient.consultar (MJ-38)',
       controller: DashboardController,
       method: 'getRecentAppointments',
-      allowed: [['appointments', 'consultar']],
-      denied: [['patient', 'consultar']],
+      allowed: [['appointments', 'consultar'], ['patient', 'consultar']],
+      denied: [['recipe', 'consultar']],
     },
     {
       name: 'PATCH /users-security/:id exige user-security.actualizar',

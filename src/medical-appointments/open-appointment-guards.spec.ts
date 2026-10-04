@@ -121,14 +121,15 @@ describe('Deletes refuse records with open appointments (MJ-12)', () => {
     const deps: any[] = Array(12).fill({});
     deps[0] = withManager(db, Patient);
     deps[9] = cache();
+    deps[11] = authContextForUsers(SCOPE_USERS);
     const service = new (PatientService as any)(...deps) as PatientService;
     jest.spyOn(service, 'findOne').mockResolvedValue({ id: 'pat-1' } as any);
 
-    await expect(service.remove('pat-1')).rejects.toThrow(ConflictException);
+    await expect(service.remove('pat-1', 'user-admin')).rejects.toThrow(ConflictException);
     expect(row(db, Patient, 'pat-1').deletedAt).toBeNull();
 
     db.rows(MedicalAppointment)[0].status = AppointmentStatus.CANCELLED;
-    await service.remove('pat-1');
+    await service.remove('pat-1', 'user-admin');
     expect(row(db, Patient, 'pat-1').deletedAt).toBeInstanceOf(Date);
   });
 });
