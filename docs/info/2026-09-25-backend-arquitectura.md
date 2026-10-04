@@ -257,10 +257,10 @@ Notación: `P(slug.accion)` = `@Permission(...)` con los valores reales. "Autent
 | GET | /patient/:id | P(patient.consultar) | Detalle (sin filtro por médico) |
 | PATCH/DELETE | /patient/:id | P(patient.actualizar / eliminar) | — |
 | POST/GET | /doctors | P(doctors.crear / consultar) | — |
-| GET/PATCH/DELETE | /doctors/:id | P(doctors.consultar / actualizar / eliminar) | — |
+| GET/PATCH/DELETE | /doctors/:id | P(doctors.consultar / actualizar / eliminar) | `DELETE` y cambio de `isActive`: solo administradores |
 | POST | /doctors/schedules | P(doctors.actualizar) | Configurar horarios |
 | GET | /doctors/:doctorId/schedules | P(doctors.consultar) | `?medicalCenterId&includeInactive` |
-| PATCH/DELETE | /doctors/schedules/:blockId | P(doctors.actualizar / eliminar) | Bloque de horario |
+| PATCH/DELETE | /doctors/schedules/:blockId | P(doctors.actualizar) | Bloque de horario; un médico solo los suyos |
 | POST/GET | /medical-centers | P(medical-center.crear / consultar) | — |
 | GET/PATCH/DELETE | /medical-centers/:id | P(medical-center.consultar / actualizar / eliminar) | — |
 | GET | /medical-centers/:id/images | P(medical-center.consultar) | — |
@@ -276,7 +276,6 @@ Notación: `P(slug.accion)` = `@Permission(...)` con los valores reales. "Autent
 | GET | /medical-appointments | P(appointments.consultar) | Listar |
 | GET/PATCH/DELETE | /medical-appointments/:id | P(appointments.consultar / actualizar / eliminar) | — |
 | PATCH | /medical-appointments/:id/cancel | P(appointments.actualizar) | Cancelar |
-| PATCH | /medical-appointments/:id/complete | P(appointments.actualizar) | Completar |
 | PATCH | /medical-appointments/:id/finish-consultation | P(appointments.crear) (`DIAGNOSTICAR`) | Crea historia + receta y cierra cita |
 | POST/GET | /medical-history | P(medical-history.crear / consultar) | — |
 | GET | /medical-history/:id | P(medical-history.consultar) | — |
