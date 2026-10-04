@@ -16,6 +16,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { DataSource } from 'typeorm';
 import { Public } from 'src/auth/decorators/public.decorator';
+import { DependenciesHealthIndicator } from './dependencies.health';
 
 @ApiTags('health')
 @Controller('health')
@@ -26,6 +27,7 @@ export class HealthController {
     private memory: MemoryHealthIndicator,
     @InjectDataSource(DatabaseConnectionName.DB_MAIN)
     private readonly mainDs: DataSource,
+    private readonly dependencies: DependenciesHealthIndicator,
   ) {}
 
   // Monitors and the compose healthcheck call it without a token
@@ -38,6 +40,8 @@ export class HealthController {
     return this.health.check([
       async () => this.db.pingCheck('database', { connection: this.mainDs }),
       async () => this.memory.checkHeap('memory_heap', 150 * 1024 * 1024),
+      async () => this.dependencies.redisCheck(),
+      async () => this.dependencies.detectorCheck(),
     ]);
   }
 }
