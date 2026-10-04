@@ -18,7 +18,7 @@ import {
   setScoped,
 } from 'src/common/cache/cache-registry';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
-import { DataSource, IsNull, Repository } from 'typeorm';
+import { DataSource, EntityManager, IsNull, Repository } from 'typeorm';
 import {
   AppointmentStatus,
   AppointmentType,
@@ -27,8 +27,12 @@ import {
 import { Patient } from 'src/patient/entities/patient.entity';
 import { Doctor } from 'src/doctors/entities/doctor.entity';
 import {
+  atMinutes,
   dateToMinutes,
   fitsInBlock,
+  minutesToTime,
+  slotsCovering,
+  timeToMinutes,
   formatLocalDate,
   parseLocalDate,
 } from 'src/doctors/schedule-time.util';
@@ -193,22 +197,19 @@ export class MedicalAppointmentsService {
   // ─── Private helpers ───────────────────────────────────────────────────────
 
   /**
-   * Genera un número único de cita: APT-YYYY-XXXXX
-   */
-  private async generateAppointmentNumber(): Promise<string> {
-    return nextCode(this.appointmentRepository, 'APT');
-  }
-
-  /**
    * Busca o crea un paciente según documentNumber o patientId
    */
   private async resolvePatient(
     dto: CreateMedicalAppointmentDto,
     userId?: string,
+    manager?: EntityManager,
   ): Promise<Patient> {
+    // Inside create's transaction a failed appointment rolls the new person and patient back (MJ-25).
+    const patientRepository = manager ? manager.getRepository(Patient) : this.patientRepository;
+    const commonPersonRepository = manager ? manager.getRepository(CommonPerson) : this.commonPersonRepository;
     // Si se proporcionó patientId, buscar directamente
     if (dto.patientId) {
-      const patient = await this.patientRepository.findOne({
+      const patient = await patientRepository.findOne({
         where: { id: dto.patientId, deletedAt: IsNull() },
         relations: ['commonPerson'],
       });
@@ -227,7 +228,7 @@ export class MedicalAppointmentsService {
       );
     }
 
-    let commonPerson = await this.commonPersonRepository.findOne({
+    let commonPerson = await commonPersonRepository.findOne({
       where: personDocumentWhere(dto.documentLetter, dto.documentNumber),
     });
 
@@ -238,25 +239,25 @@ export class MedicalAppointmentsService {
           `No se encontró ninguna persona con documento ${dto.documentLetter ?? ''}${dto.documentNumber}. Proporcione newPatientData para registrarla.`,
         );
       }
-      commonPerson = this.commonPersonRepository.create({
+      commonPerson = commonPersonRepository.create({
         ...dto.newPatientData.commonPerson,
         documentNumber: dto.documentNumber,
         letter: dto.documentLetter ?? null,
       });
-      commonPerson = await this.commonPersonRepository.save(commonPerson);
+      commonPerson = await commonPersonRepository.save(commonPerson);
     }
 
     // Verificar si ya existe un paciente con este commonPersonId
-    let patient = await this.patientRepository.findOne({
+    let patient = await patientRepository.findOne({
       where: { commonPersonId: commonPerson.id, deletedAt: IsNull() },
       relations: ['commonPerson'],
     });
 
     if (!patient) {
       // Generar código de paciente
-      const patientCode = await nextCode(this.patientRepository, 'PAC');
+      const patientCode = await nextCode(patientRepository, 'PAC');
 
-      const newPatient = this.patientRepository.create({
+      const newPatient = patientRepository.create({
         commonPersonId: commonPerson.id,
         commonPerson,
         patientCode,
@@ -264,10 +265,10 @@ export class MedicalAppointmentsService {
       });
       // Set audit field separately to avoid DeepPartial type conflict with null
       (newPatient as any).createdBy = userId ?? null;
-      const savedPatient = await this.patientRepository.save(newPatient);
+      const savedPatient = await patientRepository.save(newPatient);
 
       // Recargar con relaciones
-      const reloaded = await this.patientRepository.findOne({
+      const reloaded = await patientRepository.findOne({
         where: { id: savedPatient.id },
         relations: ['commonPerson'],
       });
@@ -387,6 +388,95 @@ export class MedicalAppointmentsService {
   }
 
   /**
+   * Slot rule (MJ-19): each slot of the block admits maxPatientsPerSlot overlapping appointments; an
+   * overlapping appointment in another center is a double booking (the doctor cannot be in two places).
+   */
+  private async validateSlotCapacity(
+    doctorId: string,
+    medicalCenterId: string,
+    appointmentDate: Date,
+    durationMinutes: number,
+    excludeId?: string,
+  ): Promise<void> {
+    const startMinutes = dateToMinutes(appointmentDate);
+    const blocks = await this.scheduleService.getScheduleForDoctorOnDay(
+      doctorId,
+      medicalCenterId,
+      appointmentDate.getDay(),
+    );
+    const block = blocks.find((b) => fitsInBlock(b, startMinutes, durationMinutes));
+    if (!block) return; // validateDoctorSchedule already rejected it
+
+    const endTime = new Date(appointmentDate.getTime() + durationMinutes * 60_000);
+    const slots = slotsCovering(block, startMinutes, durationMinutes);
+    // Window = the covered slots (wider than the appointment when slots are longer than it)
+    const windowStart = atMinutes(appointmentDate, Math.min(slots[0].start, startMinutes));
+    const windowEnd = new Date(Math.max(atMinutes(appointmentDate, slots[slots.length - 1].end).getTime(), endTime.getTime()));
+    const qb = this.appointmentRepository
+      .createQueryBuilder('apt')
+      .where('apt.doctorId = :doctorId', { doctorId })
+      .andWhere('apt.deletedAt IS NULL')
+      .andWhere('apt.status NOT IN (:...statuses)', { statuses: [AppointmentStatus.CANCELLED] })
+      .andWhere(
+        "apt.appointmentDate < :endTime AND (apt.appointmentDate + (apt.durationMinutes * interval '1 minute')) > :startTime",
+        { startTime: windowStart, endTime: windowEnd },
+      );
+    if (excludeId) qb.andWhere('apt.id != :excludeId', { excludeId });
+    const nearby = await qb.getMany();
+    const overlaps = (a: { appointmentDate: Date; durationMinutes: number }, from: Date, to: Date) => {
+      const aStart = new Date(a.appointmentDate);
+      return aStart < to && new Date(aStart.getTime() + a.durationMinutes * 60_000) > from;
+    };
+
+    const elsewhere = nearby.find(
+      (a) => a.medicalCenterId !== medicalCenterId && overlaps(a, appointmentDate, endTime),
+    );
+    if (elsewhere) {
+      throw new BadRequestException(
+        `El médico ya tiene una cita programada que se solapa con el horario solicitado (Cita #${elsewhere.appointmentNumber}).`,
+      );
+    }
+
+    const capacity = block.maxPatientsPerSlot || 1;
+    for (const slot of slots) {
+      const slotStart = atMinutes(appointmentDate, slot.start);
+      const slotEnd = atMinutes(appointmentDate, slot.end);
+      const taken = nearby.filter(
+        (a) => a.medicalCenterId === medicalCenterId && overlaps(a, slotStart, slotEnd),
+      ).length;
+      if (taken >= capacity) {
+        throw new BadRequestException(
+          `El turno de las ${minutesToTime(slot.start)} ya está completo: admite ${capacity} paciente(s) y tiene ${taken}.`,
+        );
+      }
+    }
+  }
+
+  /** Every slot of the day's blocks with its capacity and the active appointments that overlap it. */
+  private slotGrid(
+    day: Date,
+    blocks: Array<{ startTime: string; endTime: string; slotDurationMinutes?: number; maxPatientsPerSlot?: number }>,
+    appointments: Array<{ appointmentDate: Date; durationMinutes: number }>,
+  ): { start: Date; end: Date; capacity: number; booked: number; available: boolean }[] {
+    const grid: { start: Date; end: Date; capacity: number; booked: number; available: boolean }[] = [];
+    for (const block of blocks) {
+      const from = timeToMinutes(block.startTime);
+      const length = timeToMinutes(block.endTime) - from;
+      for (const slot of slotsCovering(block, from, length)) {
+        const start = atMinutes(day, slot.start);
+        const end = atMinutes(day, slot.end);
+        const capacity = block.maxPatientsPerSlot || 1;
+        const booked = appointments.filter((a) => {
+          const aStart = new Date(a.appointmentDate);
+          return aStart < end && new Date(aStart.getTime() + a.durationMinutes * 60_000) > start;
+        }).length;
+        grid.push({ start, end, capacity, booked, available: booked < capacity });
+      }
+    }
+    return grid.sort((a, b) => a.start.getTime() - b.start.getTime());
+  }
+
+  /**
    * Valida que el doctor no haya superado el máximo de citas diarias
    * configurado en su horario para ese centro médico.
    */
@@ -498,13 +588,9 @@ export class MedicalAppointmentsService {
         );
       }
 
-      // Resolver paciente (busca o crea)
-      const patient = await this.resolvePatient(dto, userId);
+      const duration = dto.durationMinutes ?? 30;
 
-      // Validar que el paciente no tenga otra cita a la misma hora
-      await this.checkPatientConflict(patient.id, appointmentDate, dto.durationMinutes ?? 30);
-
-      // Validar médico
+      // Every check that does not need the patient runs before anything is written (MJ-25).
       const doctor = await this.doctorRepository.findOne({
         where: { id: dto.doctorId, deletedAt: IsNull() },
       });
@@ -514,29 +600,14 @@ export class MedicalAppointmentsService {
         );
       }
 
-      // Verificar no solapamiento con otras citas del médico
-      await this.checkDoubleBooking(
-        dto.doctorId,
-        appointmentDate,
-        dto.durationMinutes ?? 30,
-      );
-
-      // Validar horario del doctor en el centro médico
       if (dto.medicalCenterId) {
-        await this.validateDoctorSchedule(
-          dto.doctorId,
-          dto.medicalCenterId,
-          appointmentDate,
-          dto.durationMinutes ?? 30,
-        );
-        await this.validateDailyAppointmentLimit(
-          dto.doctorId,
-          dto.medicalCenterId,
-          appointmentDate,
-        );
+        await this.validateDoctorSchedule(dto.doctorId, dto.medicalCenterId, appointmentDate, duration);
+        await this.validateSlotCapacity(dto.doctorId, dto.medicalCenterId, appointmentDate, duration);
+        await this.validateDailyAppointmentLimit(dto.doctorId, dto.medicalCenterId, appointmentDate);
+      } else {
+        await this.checkDoubleBooking(dto.doctorId, appointmentDate, duration);
       }
 
-      // Validar specialty, center y department si se proporcionan
       if (dto.specialtyId) {
         const specialty = await this.specialtyRepository.findOne({
           where: { id: dto.specialtyId, deletedAt: IsNull() },
@@ -570,25 +641,31 @@ export class MedicalAppointmentsService {
         }
       }
 
-      const appointmentNumber = await this.generateAppointmentNumber();
+      // Patient (found or created) and appointment commit together: a failure leaves no orphan patient.
+      const saved = await this.dataSource.transaction(async (manager) => {
+        const patient = await this.resolvePatient(dto, userId, manager);
+        await this.checkPatientConflict(patient.id, appointmentDate, duration);
 
-      const newAppointment = this.appointmentRepository.create({
-        appointmentNumber,
-        appointmentDate,
-        durationMinutes: dto.durationMinutes ?? 30,
-        status: dto.status ?? AppointmentStatus.PENDING,
-        type: dto.type ?? AppointmentType.FIRST_VISIT,
-        reason: dto.reason,
-        observations: dto.observations ?? null,
-        patientId: patient.id,
-        doctorId: dto.doctorId,
-        specialtyId: dto.specialtyId ?? null,
-        medicalCenterId: dto.medicalCenterId ?? null,
-        departmentId: dto.departmentId ?? null,
-        createdBy: userId ?? null,
+        const aptRepo = manager.getRepository(MedicalAppointment);
+        const appointmentNumber = await nextCode(aptRepo, 'APT');
+        return aptRepo.save(
+          aptRepo.create({
+            appointmentNumber,
+            appointmentDate,
+            durationMinutes: duration,
+            status: dto.status ?? AppointmentStatus.PENDING,
+            type: dto.type ?? AppointmentType.FIRST_VISIT,
+            reason: dto.reason,
+            observations: dto.observations ?? null,
+            patientId: patient.id,
+            doctorId: dto.doctorId,
+            specialtyId: dto.specialtyId ?? null,
+            medicalCenterId: dto.medicalCenterId ?? null,
+            departmentId: dto.departmentId ?? null,
+            createdBy: userId ?? null,
+          }),
+        );
       });
-
-      const saved = await this.appointmentRepository.save(newAppointment);
 
       await this.clearQueryCache();
 
@@ -826,10 +903,12 @@ export class MedicalAppointmentsService {
         );
       }
       await this.checkPatientConflict(apt.patientId, newDate, duration, id);
-      await this.checkDoubleBooking(doctorId, newDate, duration, id);
       if (medicalCenterId) {
         await this.validateDoctorSchedule(doctorId, medicalCenterId, newDate, duration);
+        await this.validateSlotCapacity(doctorId, medicalCenterId, newDate, duration, id);
         await this.validateDailyAppointmentLimit(doctorId, medicalCenterId, newDate, id);
+      } else {
+        await this.checkDoubleBooking(doctorId, newDate, duration, id);
       }
       apt.appointmentDate = newDate;
     }
@@ -1172,6 +1251,7 @@ export class MedicalAppointmentsService {
   ): Promise<{
     occupiedSlots: { start: Date; end: Date; appointmentNumber: string }[];
     schedule: { startTime: string; endTime: string; maxDailyAppointments: number }[];
+    slots: { start: Date; end: Date; capacity: number; booked: number; available: boolean }[];
     currentCount: number;
     available: boolean;
   }> {
@@ -1191,8 +1271,9 @@ export class MedicalAppointmentsService {
 
     // Obtener horarios del doctor para ese día
     let schedule: { startTime: string; endTime: string; maxDailyAppointments: number }[] = [];
+    let blocks: Awaited<ReturnType<DoctorScheduleService['getScheduleForDoctorOnDay']>> = [];
     if (medicalCenterId) {
-      const blocks = await this.scheduleService.getScheduleForDoctorOnDay(
+      blocks = await this.scheduleService.getScheduleForDoctorOnDay(
         doctorId,
         medicalCenterId,
         dayOfWeek,
@@ -1232,9 +1313,10 @@ export class MedicalAppointmentsService {
 
     const currentCount = appointments.length;
     const maxDaily = schedule.length > 0 ? schedule[0].maxDailyAppointments : 20;
-    const available = schedule.length > 0 && currentCount < maxDaily;
+    const slots = this.slotGrid(dayStart, blocks, appointments);
+    const available = schedule.length > 0 && currentCount < maxDaily && slots.some((s) => s.available);
 
-    return { occupiedSlots, schedule, currentCount, available };
+    return { occupiedSlots, schedule, slots, currentCount, available };
   }
 
   /**
@@ -1260,12 +1342,10 @@ export class MedicalAppointmentsService {
       medicalCenterId,
     );
 
-    // Mapear los días que tiene disponible
-    const scheduledDays = new Map<number, { maxDailyAppointments: number }>();
+    // Blocks per weekday: a day can have several (morning and afternoon)
+    const scheduledDays = new Map<number, typeof schedules>();
     for (const sc of schedules) {
-      scheduledDays.set(sc.dayOfWeek, {
-        maxDailyAppointments: sc.maxDailyAppointments,
-      });
+      scheduledDays.set(sc.dayOfWeek, [...(scheduledDays.get(sc.dayOfWeek) ?? []), sc]);
     }
 
     const result: { date: string; dayOfWeek: number; slotsAvailable: number }[] = [];
@@ -1274,16 +1354,16 @@ export class MedicalAppointmentsService {
 
     while (current <= end) {
       const dayOfWeek = current.getDay();
-      const config = scheduledDays.get(dayOfWeek);
+      const blocks = scheduledDays.get(dayOfWeek);
 
-      if (config) {
+      if (blocks) {
         // Contar citas existentes para ese día
         const dayStart = new Date(current);
         dayStart.setHours(0, 0, 0, 0);
         const dayEnd = new Date(current);
         dayEnd.setHours(23, 59, 59, 999);
 
-        const count = await this.appointmentRepository
+        const dayAppointments = await this.appointmentRepository
           .createQueryBuilder('apt')
           .where('apt.doctorId = :doctorId', { doctorId })
           .andWhere('apt.medicalCenterId = :medicalCenterId', { medicalCenterId })
@@ -1295,9 +1375,14 @@ export class MedicalAppointmentsService {
             dayStart,
             dayEnd,
           })
-          .getCount();
+          .getMany();
 
-        const slotsAvailable = config.maxDailyAppointments - count;
+        // Bounded by both the daily cap and the free places left in the day's slots (MJ-19)
+        const freeInSlots = this.slotGrid(dayStart, blocks, dayAppointments).reduce(
+          (sum, s) => sum + Math.max(0, s.capacity - s.booked),
+          0,
+        );
+        const slotsAvailable = Math.min(blocks[0].maxDailyAppointments - dayAppointments.length, freeInSlots);
         if (slotsAvailable > 0) {
           result.push({
             date: formatLocalDate(current),

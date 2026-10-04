@@ -32,3 +32,32 @@ export function formatLocalDate(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
+
+/** Slots of the block's grid (every slotDurationMinutes from its start) touched by [start, start + duration). */
+export function slotsCovering(
+  block: { startTime: string; slotDurationMinutes?: number | null },
+  startMinutes: number,
+  durationMinutes: number,
+): { start: number; end: number }[] {
+  const size = block.slotDurationMinutes || 30;
+  const origin = timeToMinutes(block.startTime);
+  const first = Math.floor((startMinutes - origin) / size);
+  const last = Math.floor((startMinutes + durationMinutes - 1 - origin) / size);
+  const slots: { start: number; end: number }[] = [];
+  for (let i = first; i <= last; i++) slots.push({ start: origin + i * size, end: origin + (i + 1) * size });
+  return slots;
+}
+
+/** Local Date of a minute of the same day as `day`. */
+export function atMinutes(day: Date, minutes: number): Date {
+  const d = new Date(day);
+  d.setHours(0, 0, 0, 0);
+  d.setMinutes(minutes);
+  return d;
+}
+
+/** 'HH:mm' of minutes since midnight. */
+export function minutesToTime(minutes: number): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
+}

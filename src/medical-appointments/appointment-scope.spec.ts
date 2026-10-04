@@ -79,22 +79,23 @@ describe('MedicalAppointmentsService.create — a doctor books only in their own
   const booking = (doctorId: string) =>
     ({ doctorId, patientId: 'pat-1', appointmentDate: '2099-01-05T13:00:00Z', type: 'first_visit', reason: 'control' }) as any;
 
-  function withPatientStep() {
+  function withDoctorStep() {
     const { service } = setup();
-    // The patient step is the first write; reaching it means the scope check let the call through.
-    const resolvePatient = jest.spyOn(service as any, 'resolvePatient').mockRejectedValue(new BadRequestException('patient step reached'));
-    return { service, resolvePatient };
+    // The doctor lookup is the first step after the scope check; reaching it means the call got through.
+    const doctorLookup = jest.fn().mockRejectedValue(new BadRequestException('doctor step reached'));
+    (service as any).doctorRepository = { findOne: doctorLookup };
+    return { service, doctorLookup };
   }
 
   it('doctor A booking for doctor B → 403 before any patient is resolved or created', async () => {
-    const { service, resolvePatient } = withPatientStep();
+    const { service, doctorLookup } = withDoctorStep();
     await expect(service.create(booking('doc-b'), 'user-a')).rejects.toThrow(ForbiddenException);
-    expect(resolvePatient).not.toHaveBeenCalled();
+    expect(doctorLookup).not.toHaveBeenCalled();
   });
 
   it('doctor A booking for themselves and an admin booking for anyone pass the scope check', async () => {
-    const { service } = withPatientStep();
-    await expect(service.create(booking('doc-a'), 'user-a')).rejects.toThrow('patient step reached');
-    await expect(service.create(booking('doc-b'), 'user-admin')).rejects.toThrow('patient step reached');
+    const { service } = withDoctorStep();
+    await expect(service.create(booking('doc-a'), 'user-a')).rejects.toThrow('doctor step reached');
+    await expect(service.create(booking('doc-b'), 'user-admin')).rejects.toThrow('doctor step reached');
   });
 });
