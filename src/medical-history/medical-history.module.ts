@@ -6,6 +6,7 @@ import { MedicalHistory } from './entities/medical-history.entity';
 import { MedicalHistoryService } from './medical-history.service';
 import { MedicalHistoryController } from './medical-history.controller';
 import { Patient } from 'src/patient/entities/patient.entity';
+import { MedicalAppointment } from 'src/medical-appointments/entities/medical-appointment.entity';
 import { Doctor } from 'src/doctors/entities/doctor.entity';
 import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity';
 import { Specialty } from 'src/parameters/entities/specialty.entity';
@@ -21,7 +22,7 @@ import { FilesModule } from 'src/files/files.module';
   imports: [
     CommonModule,
     TypeOrmModule.forFeature(
-      [MedicalHistory, Patient, Doctor, MedicalCenter, Specialty, User],
+      [MedicalHistory, Patient, Doctor, MedicalCenter, Specialty, User, MedicalAppointment],
       DatabaseConnectionName.DB_MAIN,
     ),
     FilesModule,

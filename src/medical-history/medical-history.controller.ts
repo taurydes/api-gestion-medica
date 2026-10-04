@@ -141,7 +141,7 @@ export class MedicalHistoryController {
   @ApiResponse({ status: 200, description: 'Historial médico eliminado exitosamente' })
   @ApiResponse({ status: 404, description: 'Historial médico no encontrado' })
   @Permission(`${ModuleItemsMenu.MedicalHistoryModule}.${PermissionActionsMenu.DELETE}`)
-  remove(@Param('id', ParseUuid) id: string) {
-    return this.medicalHistoryService.remove(id);
+  remove(@Param('id', ParseUuid) id: string, @GetUser('id') userId: string) {
+    return this.medicalHistoryService.remove(id, userId);
   }
 }

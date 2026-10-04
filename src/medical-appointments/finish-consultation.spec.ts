@@ -46,6 +46,7 @@ function setup(authContext: any = authContextFor({ isAdmin: true, doctorId: null
     cache as any,
     {} as any,
     {} as any,
+    db.repo(MedicalAppointment),
   );
   const recipe = new RecipeService(
     db.repo(Recipe),

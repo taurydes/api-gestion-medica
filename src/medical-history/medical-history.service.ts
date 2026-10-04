@@ -24,6 +24,7 @@ import { UpdateMedicalHistoryDto } from './dto/update-medical-history.dto';
 import { CreateMedicalReviewDto } from './dto/create-medical-review.dto';
 import { MedicalHistoryQueryDto } from './dto/medical-history-query.dto';
 import { Patient } from 'src/patient/entities/patient.entity';
+import { MedicalAppointment } from 'src/medical-appointments/entities/medical-appointment.entity';
 import { Doctor } from 'src/doctors/entities/doctor.entity';
 import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity';
 import { Specialty } from 'src/parameters/entities/specialty.entity';
@@ -63,7 +64,12 @@ export class MedicalHistoryService {
     private readonly filesService: FilesService,
 
     private readonly authContextService: AuthContextService,
+
+    @InjectRepository(MedicalAppointment, DatabaseConnectionName.DB_MAIN)
+    private readonly appointmentRepository: Repository<MedicalAppointment>,
   ) {}
+
+  private static readonly FOREIGN_HISTORY = 'Solo el médico asignado puede modificar este historial médico.';
 
   private async enrichWithImages(record: any): Promise<any> {
     const [patientImageUrl, doctorImageUrl] = await Promise.all([
@@ -122,6 +128,14 @@ export class MedicalHistoryService {
       manager ? manager.getRepository(entity) : fallback;
     const historyRepo = repo(MedicalHistory, this.medicalHistoryRepository);
     try {
+      // finishConsultation (with a manager) already checked the caller against the appointment.
+      if (!manager && userId) {
+        await this.authContextService.assertDoctorScope(userId, dto.doctorId, MedicalHistoryService.FOREIGN_HISTORY);
+      }
+      if (dto.medicalAppointmentId) {
+        await this.assertMatchesAppointment(dto, repo(MedicalAppointment, this.appointmentRepository));
+      }
+
       // 1️⃣ Verificar que el paciente exista
       const patient = await repo(Patient, this.patientRepository).findOne({
         where: { id: dto.patientId, deletedAt: IsNull() },
@@ -192,6 +206,22 @@ export class MedicalHistoryService {
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
       throw toHttpException(error, 'Error al crear el historial médico.');
+    }
+  }
+
+  /** A history linked to an appointment must carry that appointment's patient and doctor. */
+  private async assertMatchesAppointment(
+    dto: CreateMedicalHistoryDto,
+    appointments: Repository<MedicalAppointment>,
+  ): Promise<void> {
+    const apt = await appointments.findOne({
+      where: { id: dto.medicalAppointmentId, deletedAt: IsNull() },
+    });
+    if (!apt) {
+      throw new BadRequestException(`La cita con ID ${dto.medicalAppointmentId} no existe o ha sido eliminada.`);
+    }
+    if (apt.patientId !== dto.patientId || apt.doctorId !== dto.doctorId) {
+      throw new BadRequestException('patientId y doctorId deben ser los de la cita indicada.');
     }
   }
 
@@ -424,34 +454,15 @@ export class MedicalHistoryService {
         );
       }
 
+      if (userId) {
+        await this.authContextService.assertDoctorScope(userId, history.doctorId, MedicalHistoryService.FOREIGN_HISTORY);
+      }
+
       // No permitir actualizar consultas completadas o canceladas
       if (history.status !== 'in_progress') {
         throw new BadRequestException(
           'No se puede actualizar una consulta que ya ha sido completada o cancelada.',
         );
-      }
-
-      // Validaciones de relaciones si se actualizan
-      if (dto.patientId && dto.patientId !== history.patientId) {
-        const patient = await this.patientRepository.findOne({
-          where: { id: dto.patientId, deletedAt: IsNull() },
-        });
-        if (!patient) {
-          throw new BadRequestException(
-            `El paciente con ID ${dto.patientId} no existe.`,
-          );
-        }
-      }
-
-      if (dto.doctorId && dto.doctorId !== history.doctorId) {
-        const doctor = await this.doctorRepository.findOne({
-          where: { id: dto.doctorId, deletedAt: IsNull() },
-        });
-        if (!doctor) {
-          throw new BadRequestException(
-            `El doctor con ID ${dto.doctorId} no existe.`,
-          );
-        }
       }
 
       await this.medicalHistoryRepository.update(id, {
@@ -593,9 +604,10 @@ export class MedicalHistoryService {
    * Eliminar un historial médico (soft delete)
    * @param id - ID del historial médico a eliminar
    */
-  async remove(id: string): Promise<void> {
+  async remove(id: string, userId?: string): Promise<void> {
     try {
-      const history = await this.findOne(id);
+      // findOne with the caller applies the same doctor scope as the read (403 on another doctor's history)
+      const history = await this.findOne(id, userId ? { id: userId } : undefined);
 
       if (!history) {
         throw new NotFoundException(
