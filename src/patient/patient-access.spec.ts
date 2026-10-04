@@ -38,13 +38,13 @@ describe('PatientService.findOne — filtro por médico (M-11)', () => {
   it('médico con cita con el paciente → lo ve', async () => {
     const { service, patientRepo } = build({ isDoctor: true, hasAppointment: true });
     await expect(service.findOne('p1', { id: 'u1' })).resolves.toMatchObject({ id: 'p1' });
-    expect(patientRepo.query).toHaveBeenCalledWith(expect.any(String), ['p1', 'doc-A']);
+    expect(patientRepo.query).toHaveBeenCalledWith(expect.any(String), ['p1', 'u1', 'doc-A']);
   });
 
-  it('usuario que no es médico → sin filtro (igual que findAll)', async () => {
+  it('personal no médico sin centros ni pacientes propios → 403 (MJ-02)', async () => {
     const { service, patientRepo } = build({ isDoctor: false, hasAppointment: false });
-    await expect(service.findOne('p1', { id: 'u1' })).resolves.toMatchObject({ id: 'p1' });
-    expect(patientRepo.query).not.toHaveBeenCalled();
+    await expect(service.findOne('p1', { id: 'u1' })).rejects.toThrow(ForbiddenException);
+    expect(patientRepo.query).toHaveBeenCalledWith(expect.any(String), ['p1', 'u1']);
   });
 
   it('admin con registro de doctor → acceso global, sin filtro', async () => {
@@ -57,11 +57,11 @@ describe('PatientService.findOne — filtro por médico (M-11)', () => {
 describe('PatientService.findAll — alcance por médico (M-11)', () => {
   const query = { page: 1, limit: 10 } as any;
 
-  it('admin con registro de doctor → consulta global (doctorId null)', async () => {
+  it('admin con registro de doctor → consulta global (sin alcance)', async () => {
     const { service, cache } = build({ isAdmin: true, isDoctor: true, hasAppointment: false });
     cache.get.mockResolvedValue({ data: [] });
     await service.findAll(query, { id: 'u1' });
-    expect(cache.get).toHaveBeenCalledWith(expect.stringContaining('"doctorId":null'));
+    expect(cache.get).toHaveBeenCalledWith(expect.stringContaining('"scope":null'));
   });
 
   it('médico común → consulta restringida a su doctorId', async () => {

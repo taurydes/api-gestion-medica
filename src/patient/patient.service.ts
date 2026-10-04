@@ -1,4 +1,5 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { applyPatientScope, assertPatientInScope } from './patient-scope';
 import { assertNoOpenAppointments } from 'src/medical-appointments/open-appointments';
 import {
   ConflictException,
@@ -277,11 +278,11 @@ export class PatientService {
   async findAll(query: PatientQueryDto, user?: any) {
     const { page, limit, order, search, bloodType, isActive } = query;
 
-    // IDOR: si es doctor, solo ve pacientes de sus citas
-    const doctorId = await this.authContextService.getScopedDoctorId(user?.id);
+    // Doctor: own patients; other staff: patients of their centers; both: the ones they registered.
+    const scope = await this.authContextService.resolveScope(user?.id);
 
     // 🔑 Key única para esta consulta
-    const cacheKey = `patient:query:${JSON.stringify({ ...query, doctorId })}`;
+    const cacheKey = `patient:query:${JSON.stringify({ ...query, scope })}`;
 
     // 📌 Key donde guardamos TODAS las keys usadas por findAll
 
@@ -310,15 +311,17 @@ export class PatientService {
       qb.andWhere('patient.bloodType = :bloodType', { bloodType });
     }
 
-    // IDOR: doctor solo ve pacientes con los que tiene citas
-    if (doctorId) {
-      qb.andWhere(
-        `patient.id IN (SELECT ma."patient_id" FROM medical_appointments ma WHERE ma."doctor_id" = :doctorId)`,
-        { doctorId },
-      );
+    // MJ-22: the filter was read and ignored
+    if (isActive !== undefined) {
+      qb.andWhere('patient.isActive = :isActive', { isActive });
     }
 
-    qb.orderBy('patient.id', order);
+    applyPatientScope(qb, scope);
+
+    // By surname and name (MJ-22); the id only breaks ties so pages stay stable.
+    qb.orderBy('commonPerson.lastName', order)
+      .addOrderBy('commonPerson.firstName', order)
+      .addOrderBy('patient.id', 'ASC');
     qb.skip((page - 1) * limit).take(limit);
 
     const [items, total] = await qb.getManyAndCount();
@@ -346,17 +349,8 @@ export class PatientService {
    * @returns Paciente encontrado con todas sus relaciones
    */
   async findOne(id: string, user?: any): Promise<Patient> {
-    // IDOR: mismo criterio que findAll — un doctor solo ve pacientes con los que tiene citas
-    const doctorId = await this.authContextService.getScopedDoctorId(user?.id);
-    if (doctorId) {
-      const rows = await this.patientRepository.query(
-        'SELECT 1 FROM medical_appointments WHERE patient_id = $1 AND doctor_id = $2 LIMIT 1',
-        [id, doctorId],
-      );
-      if (!rows?.length) {
-        throw new ForbiddenException('No tiene acceso a este paciente.');
-      }
-    }
+    // Same rule as findAll (MJ-20, MJ-02)
+    await assertPatientInScope(this.patientRepository, id, await this.authContextService.resolveScope(user?.id));
 
     const cacheKey = `patient:${id}`;
 
@@ -410,15 +404,16 @@ export class PatientService {
       const cached = await getScoped<Patient>(this.cacheManager, 'patient', cacheKey);
       if (cached) return cached;
 
+      // Identification only, unscoped so any doctor can book a patient registered by someone else:
+      // no allergies, diseases or medications (MJ-21).
       const qb = this.patientRepository
         .createQueryBuilder('patient')
         .leftJoinAndSelect('patient.commonPerson', 'commonPerson')
-        .leftJoinAndSelect('patient.allergies', 'allergies')
-        .leftJoinAndSelect('patient.chronicDiseases', 'chronicDiseases')
-        .leftJoinAndSelect('patient.medications', 'medications')
         .where('commonPerson.documentNumber = :documentNumber', {
           documentNumber,
-        });
+        })
+        // A deleted patient is not found (MJ-21)
+        .andWhere('patient.deletedAt IS NULL');
 
       if (letter) {
         qb.andWhere('commonPerson.letter = :letter', { letter });
@@ -453,6 +448,8 @@ export class PatientService {
     updatePatientDto: UpdatePatientDto,
     userId?: string,
   ): Promise<Patient> {
+    // Writes follow the read rule (MJ-21)
+    await assertPatientInScope(this.patientRepository, id, await this.authContextService.resolveScope(userId));
     try {
       const patient = await this.patientRepository.findOne({
         where: { id, deletedAt: IsNull() },
@@ -572,7 +569,8 @@ export class PatientService {
    * Eliminar un paciente (soft delete)
    * @param id - ID del paciente a eliminar
    */
-  async remove(id: string): Promise<void> {
+  async remove(id: string, userId?: string): Promise<void> {
+    await assertPatientInScope(this.patientRepository, id, await this.authContextService.resolveScope(userId));
     try {
       const patient = await this.findOne(id);
 

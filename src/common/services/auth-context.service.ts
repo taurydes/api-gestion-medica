@@ -1,6 +1,7 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
+import { UserMedicalCenter } from 'src/user/entities/user-medical-center.entity';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { User } from 'src/user/entities/user.entity';
 import { Doctor } from 'src/doctors/entities/doctor.entity';
@@ -9,6 +10,13 @@ import {
   ADMIN_SCOPE_PERMISSION,
   UserAccessService,
 } from './user-access.service';
+
+/** Read bound of a non-admin user: a doctor by doctorId, other staff by their centers (centerIds). */
+export interface DataScope {
+  userId: string;
+  doctorId: string | null;
+  centerIds: string[] | null;
+}
 
 export interface AuthContext {
   userId: string;
@@ -32,7 +40,30 @@ export class AuthContextService {
     private readonly doctorRepo: Repository<Doctor>,
 
     private readonly userAccessService: UserAccessService,
+
+    // Optional so the scope stubs of older specs still build the service
+    @Optional()
+    @InjectRepository(UserMedicalCenter, DatabaseConnectionName.DB_MAIN)
+    private readonly userCentersRepo?: Repository<UserMedicalCenter>,
   ) {}
+
+  /**
+   * Who bounds a read: an admin nothing (`null`), a doctor their own doctorId, any other staff user the
+   * centers assigned to them (MJ-02; an empty list leaves only what they created).
+   */
+  async resolveScope(userId: string | undefined): Promise<DataScope | null> {
+    if (!userId || (await this.isAdmin(userId))) return null;
+    const doctorId = await this.getDoctorIdForUser(userId);
+    if (doctorId) return { userId, doctorId, centerIds: null };
+    return { userId, doctorId: null, centerIds: await this.getStaffCenterIds(userId) };
+  }
+
+  /** Live centers of a staff user (users_medical_centers). */
+  async getStaffCenterIds(userId: string): Promise<string[]> {
+    if (!this.userCentersRepo) return [];
+    const links = await this.userCentersRepo.find({ where: { userId, deletedAt: IsNull() } });
+    return links.map((link) => link.medicalCenterId);
+  }
 
   /** Admin con alcance global: se decide por permiso del rol, no por el nombre del rol. */
   async isAdmin(userId: string): Promise<boolean> {

@@ -22,7 +22,7 @@ describe('findOne ignores soft-deleted rows (M-22)', () => {
       {} as any,
       cache() as any,
       {} as any,
-      { getScopedDoctorId: jest.fn().mockResolvedValue(null) } as any,
+      { resolveScope: jest.fn().mockResolvedValue(null) } as any,
     );
     await expect(service.findOne('x1')).rejects.toThrow(NotFoundException);
   });

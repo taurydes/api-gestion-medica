@@ -15,6 +15,8 @@ export function authContextFor(options: { isAdmin: boolean; doctorId: string | n
 export interface StubUser {
   isAdmin: boolean;
   doctorId: string | null;
+  /** Centers of a staff user without a doctor profile (users_medical_centers). */
+  centerIds?: string[];
 }
 
 /** Same real service, resolving each userId to its own role and doctor profile. */
@@ -34,7 +36,12 @@ export function authContextForUsers(users: Record<string, StubUser>) {
   const access = {
     hasPermission: jest.fn(async (userId: string) => !!users[userId]?.isAdmin),
   };
-  return new AuthContextService(userRepo as any, doctorRepo as any, access as any);
+  const userCentersRepo = {
+    find: jest.fn(async ({ where }: any) =>
+      (users[where.userId]?.centerIds ?? []).map((medicalCenterId) => ({ userId: where.userId, medicalCenterId })),
+    ),
+  };
+  return new AuthContextService(userRepo as any, doctorRepo as any, access as any, userCentersRepo as any);
 }
 
 /** Doctor A, doctor B and an admin: the three actors every scope rule is tested with. */

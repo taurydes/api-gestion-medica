@@ -4,13 +4,14 @@ import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { User } from 'src/user/entities/user.entity';
 import { UserSecurity } from 'src/user/entities/user.system.entity';
 import { Doctor } from 'src/doctors/entities/doctor.entity';
+import { UserMedicalCenter } from 'src/user/entities/user-medical-center.entity';
 import { AuthContextService } from './services/auth-context.service';
 import { UserAccessService } from './services/user-access.service';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature(
-      [User, UserSecurity, Doctor],
+      [User, UserSecurity, Doctor, UserMedicalCenter],
       DatabaseConnectionName.DB_MAIN,
     ),
   ],

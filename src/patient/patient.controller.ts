@@ -145,7 +145,7 @@ export class PatientController {
   @Permission(
     `${ModuleItemsMenu.PatientModule}.${PermissionActionsMenu.DELETE}`,
   )
-  async remove(@Param('id', ParseUuid) id: string) {
-    return await this.patientService.remove(id);
+  async remove(@Param('id', ParseUuid) id: string, @GetUser('id') userId: string) {
+    return await this.patientService.remove(id, userId);
   }
 }
