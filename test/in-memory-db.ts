@@ -111,7 +111,7 @@ export class FakeRepo {
 export class InMemoryDb {
   private readonly committed: Tables = new Map();
   private readonly options = new Map<Function, FakeTableOptions>();
-  private readonly failures = new Map<Function, number>();
+  private readonly failures = new Map<Function, { times: number; after: number }>();
 
   table(entity: Function, rows: Row[] = [], options: FakeTableOptions = {}) {
     this.committed.set(entity, rows.map((r) => ({ ...r })));
@@ -124,9 +124,9 @@ export class InMemoryDb {
     return this.committed.get(entity) ?? [];
   }
 
-  /** The next N saves on `entity` throw, to simulate a failure in the middle of a transaction. */
-  failSaves(entity: Function, times = 1) {
-    this.failures.set(entity, times);
+  /** After `after` successful saves, the next `times` saves on `entity` throw (a failure mid-transaction). */
+  failSaves(entity: Function, times = 1, after = 0) {
+    this.failures.set(entity, { times, after });
   }
 
   private managerOver(tables: Tables) {
@@ -138,9 +138,11 @@ export class InMemoryDb {
           const repo = new FakeRepo(tables.get(entity)!, this.options.get(entity));
           const originalSave = repo.save.bind(repo);
           repo.save = async (input: any) => {
-            const pending = this.failures.get(entity) ?? 0;
-            if (pending > 0) {
-              this.failures.set(entity, pending - 1);
+            const pending = this.failures.get(entity);
+            if (pending && pending.after > 0) {
+              pending.after--;
+            } else if (pending && pending.times > 0) {
+              pending.times--;
               throw new Error('simulated database failure');
             }
             return originalSave(input);

@@ -579,6 +579,13 @@ export class PermissionService {
     return permissions;
   }
 
+  /** Grants of a live role (GET /permissions/role/:roleId, MJ-08); 404 for a missing or deleted role. */
+  async getPermissionsByRole(roleId: string): Promise<DbPermission[]> {
+    const role = await this.roleRepo.findOne({ where: { id: roleId, deletedAt: IsNull() } });
+    if (!role) throw new NotFoundException(`Rol con ID ${roleId} no encontrado`);
+    return this.getRolePermissions(roleId);
+  }
+
   /**
    * Obtiene los permisos agrupados por módulo para un usuario (para frontend).
    * Optimizado: no trae todos los menús ni todos los permisos, solo los que el usuario posee.
@@ -1161,67 +1168,72 @@ export class PermissionService {
   ): Promise<{ created: number; skipped: number; deactivated: number }> {
     const { roleId, assignments } = dto;
 
-    const role = await this.roleRepo.findOne({ where: { id: roleId } });
+    const role = await this.roleRepo.findOne({ where: { id: roleId, deletedAt: IsNull() } });
     if (!role) throw new NotFoundException(`Rol con ID ${roleId} no existe`);
 
-    // Registros activos actuales del rol
-    const existing = await this.permissionMenuRepo.find({
-      where: { roleId, isActive: true },
-    });
-
-    const incomingKeys = new Set(
-      assignments.map(({ permissionId, submenuId }) => `${permissionId}:${submenuId}`),
-    );
-    const existingActiveMap = new Map(
-      existing.map((e) => [`${e.permissionId}:${e.menuId}`, e]),
-    );
-
-    let created = 0;
-    let skipped = 0;
-
-    for (const { permissionId, submenuId } of assignments) {
-      const key = `${permissionId}:${submenuId}`;
-      if (existingActiveMap.has(key)) {
-        skipped++;
-        continue;
-      }
-
-      // Intentar reactivar si existe pero inactivo
-      const inactive = await this.permissionMenuRepo.findOne({
-        where: { roleId, permissionId, menuId: submenuId, isActive: false },
+    // One transaction: a failure halfway leaves the previous matrix untouched (MJ-09).
+    const { created, skipped, deactivated } = await this.permissionMenuRepo.manager.transaction(async (manager) => {
+      const grants = manager.getRepository(PermissionMenu);
+      // Registros activos actuales del rol
+      const existing = await grants.find({
+        where: { roleId, isActive: true },
       });
-      if (inactive) {
-        inactive.isActive = true;
-        inactive.updatedAt = new Date();
-        inactive.deletedAt = null;
-        await this.permissionMenuRepo.save(inactive);
+
+      const incomingKeys = new Set(
+        assignments.map(({ permissionId, submenuId }) => `${permissionId}:${submenuId}`),
+      );
+      const existingActiveMap = new Map(
+        existing.map((e) => [`${e.permissionId}:${e.menuId}`, e]),
+      );
+
+      let created = 0;
+      let skipped = 0;
+
+      for (const { permissionId, submenuId } of assignments) {
+        const key = `${permissionId}:${submenuId}`;
+        if (existingActiveMap.has(key)) {
+          skipped++;
+          continue;
+        }
+
+        // Intentar reactivar si existe pero inactivo
+        const inactive = await grants.findOne({
+          where: { roleId, permissionId, menuId: submenuId, isActive: false },
+        });
+        if (inactive) {
+          inactive.isActive = true;
+          inactive.updatedAt = new Date();
+          inactive.deletedAt = null;
+          await grants.save(inactive);
+          created++;
+          continue;
+        }
+
+        const newRecord = grants.create({
+          roleId,
+          permissionId,
+          menuId: submenuId,
+          isActive: true,
+          userId: String(currentUser.id),
+        });
+        await grants.save(newRecord);
         created++;
-        continue;
       }
 
-      const newRecord = this.permissionMenuRepo.create({
-        roleId,
-        permissionId,
-        menuId: submenuId,
-        isActive: true,
-        userId: String(currentUser.id),
-      });
-      await this.permissionMenuRepo.save(newRecord);
-      created++;
-    }
-
-    // Desactivar los que ya no están en la nueva lista
-    let deactivated = 0;
-    for (const record of existing) {
-      const key = `${record.permissionId}:${record.menuId}`;
-      if (!incomingKeys.has(key)) {
-        record.isActive = false;
-        record.updatedAt = new Date();
-        record.deletedAt = new Date();
-        await this.permissionMenuRepo.save(record);
-        deactivated++;
+      // Desactivar los que ya no están en la nueva lista
+      let deactivated = 0;
+      for (const record of existing) {
+        const key = `${record.permissionId}:${record.menuId}`;
+        if (!incomingKeys.has(key)) {
+          record.isActive = false;
+          record.updatedAt = new Date();
+          record.deletedAt = new Date();
+          await grants.save(record);
+          deactivated++;
+        }
       }
-    }
+      return { created, skipped, deactivated };
+    });
 
     await this.invalidateRoleCache(roleId);
     this.logger.log(

@@ -124,7 +124,7 @@ export class CaslPermissionController {
     `${ModuleItemsMenu.PermissionModule}.${PermissionActionsMenu.VIEW}`,
   )
   async getRolePermissions(@Param('roleId', ParseUuid) roleId: string) {
-    return this.permissionService.getMenusForUserAndRole(String(roleId));
+    return this.permissionService.getPermissionsByRole(roleId);
   }
 
   /** Lista los permisos (acciones); única ruta GET /permissions. */
