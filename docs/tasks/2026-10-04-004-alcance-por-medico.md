@@ -96,12 +96,41 @@ de médicos en la interfaz.
 | API (`verify2.js` en el scratchpad) | **21/21**: horario en centro no asignado → 400; `medico` `POST /doctors` → 403; A agenda para B → 403, para sí → 201, admin para B → 201; recetas de B por A (`PATCH`, `/dispense`, `/cancel`, `POST` sobre historia de B) → 403, admin `POST` con otro paciente → 400, B edita la suya → 200, admin dispensa → 200; A lista/descarga archivos de B → 403, B y admin → 200; 0 citas `completed` sin historia. Re-corrida de `verify-scope.js` (primera tanda): 49/49 + 1 omitido |
 | Limpieza | Citas `QA-*`, bloques, historias, recetas y archivos de prueba borrados (0 citas `QA-*` en la base); 13 archivos físicos huérfanos de las corridas borrados del volumen (la primera limpieza había fallado por la conversión de rutas de Git Bash); médico QA restaurado; caches limpiadas |
 
+## Tercera tanda: resto de MJ-19 y MJ-25
+
+| Commit | Repo | Contenido |
+|---|---|---|
+| `12ae3dd` | api | `validateSlotCapacity`: turnos de `slotDurationMinutes` desde el inicio del bloque, `maxPatientsPerSlot` citas por turno (400 si está lleno); solape en otro centro = doble reserva. `availability` devuelve `slots`; `available-dates` se limita por los lugares libres. `create`: todas las validaciones antes de escribir y persona + paciente + cita en una transacción |
+| `4a10e09` | api | `assertNoOverlap` en alta, reemplazo y edición de bloques (cualquier centro); reemplazo en transacción (`DataSource` inyectado) |
+| `f47efc1` | app | La pantalla de horario reenvía `maxDailyAppointments` al reemplazar (antes volvía a 20) |
+
+| Decisión | Por qué |
+|---|---|
+| El turno es la grilla del bloque, no la cita; una cita cuenta en cada turno que toca | Con turnos más largos que la cita, dos citas del mismo turno compiten por el cupo aunque no se solapen entre sí. La consulta trae las citas de todo el tramo de los turnos, no solo del intervalo de la cita |
+| Con 1 paciente por turno el resultado equivale al solape anterior | Todos los médicos demo tienen 30 min / 1: el seed y la interfaz no cambian de comportamiento |
+| No se exige que la cita empiece en el borde de un turno | La interfaz pide la hora en un campo libre y hay citas existentes en minutos sueltos; exigirlo rompería reprogramaciones sin beneficio para el cupo |
+| Un solape en otro centro (o sin centro) sigue siendo doble reserva, sea cual sea el cupo | El médico no puede estar en dos lugares |
+| Solape de bloques en **cualquier** centro, contando los inactivos | Misma razón; un bloque inactivo sigue siendo parte del horario configurado y reactivarlo no debe crear un solape |
+| `maxPatientsPerSlot = 10` de `daniel`/`julio` → 1 | Datos de prueba sin sentido clínico; con la regla nueva habrían permitido 10 pacientes simultáneos |
+| Sin centro (`MJ-24`, abierta) se mantiene el solape simple | No hay bloque del que leer turno ni cupo |
+| Transacción de `create` con el patrón de la fase 1 (`dataSource.transaction` + repos del `manager`) | Igual que `finishConsultation`; las lecturas de validación quedan fuera porque no escriben |
+
+| Verificación | Resultado |
+|---|---|
+| `tsc` antes de cada commit / `ng build` | 0 errores / OK |
+| `npx jest --ci` | **432/432** (baseline 416): `slot-capacity.spec.ts` (turno lleno, 2 por turno, turno de 60 min, otro centro, grilla de `availability`, tope de `available-dates`), `create-transaction.spec.ts` (fallo al guardar la cita revierte persona y paciente; rechazo previo no escribe nada), `doctor-schedule-rules.spec.ts` (solapes en alta, en otro centro, en edición; reemplazo que falla conserva el horario) |
+| `ng test` | **80/80** |
+| Datos | `docs/info/migrations/2026-10-04-horarios-cupo-por-turno.sql`: 14 bloques actualizados, 2.ª corrida 0; 0 pares solapados antes y después |
+| API (`verify3.js`) | 9/9: dos bloques solapados → 400; `PATCH` de un bloque sobre otro → 400; horario sin cambios (6 bloques); alta normal → 201; segundo paciente en el mismo turno → 400 `El turno de las 08:00 ya está completo…`; persona nueva en el turno lleno → 400 y **0** `persona_comun` con ese documento; `availability` marca el turno 1/1 lleno. Cita de prueba borrada |
+| `seed-demo.js --today` | Terminó sin errores pero omitió la agenda: el 2026-10-04 es domingo y `cmendoza`/`lgutierrez` no trabajan ese día. Con 1 paciente por turno la regla equivale al solape anterior, que el seed ya respetaba |
+
 ## Lo que quedó fuera
 
-Todo lo de la primera tanda se cerró en la segunda. Sigue fuera:
+Todo lo de la primera tanda se cerró en la segunda y la tercera. Sigue fuera:
 
-- **MJ-19 (resto)**: `slotDurationMinutes`/`maxPatientsPerSlot` sin efecto, solapes entre bloques y transacción del reemplazo.
-- **MJ-25 (resto)**: transacción paciente + cita en el alta.
+- La interfaz pide la hora en un campo libre: podría ofrecer los `slots` libres de `availability`.
+- El cupo diario se toma del primer bloque del día.
+- `MJ-24`: sin centro no se validan horario, turnos ni cupo.
 
 ## Pendiente para otros
 

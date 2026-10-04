@@ -15,7 +15,8 @@ horario o darlo de baja. Desde esta versión toda escritura sigue la misma regla
 Commits de `api-gestion-medica`: `a2652b2` (médicos y horarios), `be94683` (citas), `8caec14`
 (historias), `b71d517` (archivos y análisis); segunda tanda: `855cb01` (horario solo en centros del
 médico), `d3eebf2` (recetas), `cd41550` (listar/descargar archivos), `7466074` y `0709eb7` (alta de
-citas a nombre propio), `46512e8` (`medico` sin `doctors.crear`).
+citas a nombre propio), `46512e8` (`medico` sin `doctors.crear`); tercera tanda: `12ae3dd` (cupo por
+turno y alta atómica de paciente + cita), `4a10e09` (bloques sin solape y reemplazo atómico).
 
 ## Qué cambió en esta versión
 
@@ -40,6 +41,11 @@ citas a nombre propio), `46512e8` (`medico` sin `doctors.crear`).
 | `POST`, `PATCH`, `/dispense`, `/cancel`, `DELETE` en `/recipes` sobre recetas o historias de otro médico | 200 | **403** | Ninguna: un médico solo lista sus recetas |
 | `POST /recipes` con paciente, médico o cita distintos a los de la historia | 201 | **400** | — |
 | `GET /files/appointment-files?appointmentId=` y `GET /files/appointment-files/:fileId` de citas ajenas | 200 | **403**; cita o archivo inexistente → 404 | Ninguna: solo los usa el detalle de la cita |
+| `POST`/`PATCH /medical-appointments` con centro | Rechazaba cualquier solape con otra cita del médico | Cuenta por **turno**: cada turno del bloque (`slotDurationMinutes` desde su inicio) admite `maxPatientsPerSlot` citas; turno lleno → **400**. Un solape en otro centro sigue siendo 400 | Mostrar el `error`; con 1 paciente por turno (todos los médicos demo) el efecto es el mismo que antes |
+| `POST /medical-appointments` con persona nueva | Creaba persona y paciente aunque la cita fallara | Valida todo antes y guarda persona, paciente y cita en **una transacción** | Ninguna: un reintento ya no choca con un paciente huérfano |
+| `GET /medical-appointments/availability` | Sin turnos | **Nuevo campo `slots`**: `[{ start, end, capacity, booked, available }]`; `available` exige además algún turno libre | Puede ofrecer los turnos libres en vez de la hora en campo libre (hoy la interfaz no lo hace) |
+| `GET /medical-appointments/available-dates` | `slotsAvailable = cupo diario − citas` | `mín(cupo diario − citas, lugares libres en los turnos)` | Ninguna (mismo contrato) |
+| `POST /doctors/schedules`, `PATCH /doctors/schedules/:blockId` | Aceptaban bloques solapados | Bloques del mismo día que se solapan, **en cualquier centro** → **400**; el reemplazo es atómico | Mostrar el `error`; un bloque inactivo también cuenta |
 | `POST /mammography-analyses` | Tomaba el paciente del archivo | Toma el paciente **de la cita**; un archivo cuyo paciente no coincide → **409** | Mostrar el `error` |
 
 ## Errores (payloads reales, 2026-10-04 contra `medos-backend`)
@@ -64,6 +70,8 @@ citas a nombre propio), `46512e8` (`medico` sin `doctors.crear`).
 | Subida a la cita de otro médico | 403 | `Solo el médico asignado puede adjuntar archivos a esta cita.` |
 | Subida a una cita inexistente | 404 | `La cita indicada no existe.` |
 | Horario en un centro no asignado al médico | 400 | `El médico no está asignado a ese centro médico.` |
+| Turno lleno al agendar o reprogramar | 400 | `El turno de las 08:00 ya está completo: admite 1 paciente(s) y tiene 1.` |
+| Bloque solapado con otro del médico | 400 | `El bloque Domingo 11:00–13:00 se solapa con otro bloque del médico (08:00–12:00).` |
 | `medico` hace `POST /doctors` | 403 | `No tienes permisos. Se requiere uno de: doctors.crear` |
 | Médico agenda a nombre de otro | 403 | `Un médico solo puede agendar citas a su nombre.` |
 | Médico escribe la receta (o la historia de la receta) de otro | 403 | `Solo el médico de la consulta puede modificar esta receta.` |
@@ -95,6 +103,8 @@ Ejemplos reales:
 - La respuesta de `POST /files/appointment-upload` no cambia de forma: es el mismo registro de `appointment_files`; `patientId` y `medicalHistoryId` ahora son los de la cita aunque el cuerpo no los traiga.
 - En la base había 0 archivos y 0 análisis con paciente distinto al de su cita, y 0 bloques de horario en centros no asignados. Las 7 citas `completed` sin historia (pruebas de feb–mar 2026) pasaron a `cancelled` con motivo `Cerrada sin consulta registrada (dato de prueba anterior a la regla de cierre).` (`docs/info/migrations/2026-10-04-citas-completadas-sin-historia.sql`); el listado las muestra como canceladas.
 - La respuesta de `POST /recipes` y de los endpoints de archivos no cambia de forma.
+- `availability` solo **agrega** `slots`; `occupiedSlots`, `schedule`, `currentCount` y `available` siguen. Los 14 bloques de prueba de `daniel` y `julio` que tenían 10 pacientes por turno quedaron en 1 (`docs/info/migrations/2026-10-04-horarios-cupo-por-turno.sql`).
+- El cupo diario sigue tomándose del primer bloque del día.
 - `scripts/seed-demo.js` sigue funcionando: el administrador crea y cancela; cada médico cierra y sube a sus propias citas `confirmed`.
 
 ## Checklist de migración
