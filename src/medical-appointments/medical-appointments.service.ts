@@ -899,6 +899,55 @@ export class MedicalAppointmentsService {
     return this.loadFullAppointment(id);
   }
 
+  /** Confirms the patient's arrival: only a pending appointment can be confirmed. */
+  async confirm(id: string, userId?: string): Promise<MedicalAppointment> {
+    return this.transition(
+      id,
+      AppointmentStatus.PENDING,
+      AppointmentStatus.CONFIRMED,
+      'Solo se puede confirmar una cita programada.',
+      userId,
+    );
+  }
+
+  /** Opens the consultation: only a confirmed appointment can start it. */
+  async startConsultation(id: string, userId?: string): Promise<MedicalAppointment> {
+    return this.transition(
+      id,
+      AppointmentStatus.CONFIRMED,
+      AppointmentStatus.IN_CONSULTATION,
+      'Solo se puede iniciar la consulta de una cita confirmada.',
+      userId,
+    );
+  }
+
+  private async transition(
+    id: string,
+    from: AppointmentStatus,
+    to: AppointmentStatus,
+    message: string,
+    userId?: string,
+  ): Promise<MedicalAppointment> {
+    const apt = await this.appointmentRepository.findOne({ where: { id, deletedAt: IsNull() } });
+
+    if (!apt) {
+      throw new NotFoundException(`Cita médica con ID ${id} no encontrada.`);
+    }
+
+    if (apt.status !== from) {
+      throw new BadRequestException(message);
+    }
+
+    apt.status = to;
+    apt.updatedBy = userId ?? null;
+
+    await this.appointmentRepository.save(apt);
+
+    await this.clearQueryCache();
+
+    return this.loadFullAppointment(id);
+  }
+
   /**
    * Finalizar consulta médica completa
    * 1. Crea el historial médico vinculado a la cita

@@ -204,6 +204,33 @@ export class MedicalAppointmentsController {
   }
 
   @ApiOperation({
+    summary: 'Confirmar llegada del paciente',
+    description: 'Pasa la cita de "pending" a "confirmed".',
+  })
+  @Patch(':id/confirm')
+  @Permission(
+    `${ModuleItemsMenu.MedicalAppointmentsModule}.${PermissionActionsMenu.UPDATE}`,
+  )
+  confirm(@Param('id', ParseUuid) id: string, @GetUser('id') userId: string) {
+    return this.appointmentsService.confirm(id, userId);
+  }
+
+  @ApiOperation({
+    summary: 'Iniciar consulta',
+    description: 'Pasa la cita de "confirmed" a "in_consultation".',
+  })
+  @Patch(':id/start-consultation')
+  @Permission(
+    `${ModuleItemsMenu.MedicalAppointmentsModule}.${PermissionActionsMenu.UPDATE}`,
+  )
+  startConsultation(
+    @Param('id', ParseUuid) id: string,
+    @GetUser('id') userId: string,
+  ) {
+    return this.appointmentsService.startConsultation(id, userId);
+  }
+
+  @ApiOperation({
     summary: 'Completar cita médica',
     description:
       'Marca la cita como "completed". Requisito previo para crear historial médico.',
