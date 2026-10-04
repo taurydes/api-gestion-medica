@@ -20,7 +20,7 @@ Todo se creó a través de la API real (validaciones, secuencias `APT`/`PAC`/`CO
 | Recetas | 151 | 170 ítems con cantidad; 83 dispensadas, el resto activas |
 | Análisis de mamografía | 63 | Sobre 53 citas (algunas con proyecciones CC y MLO). Ver §3 |
 
-Los 110 pacientes tienen al menos una cita. Los 3 pacientes sin cita que quedan en la base son fixtures de QA anteriores (`QA-M18-002`, `PAC-2026-00002`, `PAC-2026-00003`).
+Los 110 pacientes tienen al menos una cita. Los 3 pacientes de QA anteriores que no tenían citas se eliminaron con `--clean-junk` (§5): ya no queda ningún paciente activo sin cita.
 
 **Limitación del modelo de datos:** `persona_comun` no tiene fecha de nacimiento ni sexo. La edad (25–75 años) solo se refleja en el número de cédula, la ocupación y el estado civil, y el sexo en el nombre.
 
@@ -92,17 +92,19 @@ El script corre **dentro** del contenedor `medos-backend`, porque necesita las v
 docker cp scripts/seed-demo.js medos-backend:/tmp/seed-demo.js
 docker exec -w /app -e NODE_PATH=/app/node_modules medos-backend node /tmp/seed-demo.js           # completo
 docker exec -w /app -e NODE_PATH=/app/node_modules medos-backend node /tmp/seed-demo.js --today   # solo la agenda de hoy
+docker exec -w /app -e NODE_PATH=/app/node_modules medos-backend node /tmp/seed-demo.js --clean-junk   # limpia datos de prueba antiguos
 ```
 
 - **Idempotente:** centros, departamentos, médicos, personal y pacientes se buscan por nombre, usuario o documento antes de crearse. El historial de citas solo se genera para pacientes de la demo que no tienen ninguna cita. Una segunda ejecución no crea nada (verificado: 1 petición, 0 altas).
 - **Agenda de hoy:** si `cmendoza` y `lgutierrez` no tienen citas hoy y trabajan ese día (L–S), el script crea su agenda. Las horas ya pasadas quedan completadas con mamografías pendientes en la bandeja; las horas futuras quedan confirmadas o pendientes. **Ejecutarlo con `--today` la mañana de la presentación** (la bandeja y `stats/daily` muestran el día actual). Cada ejecución en un día nuevo agrega unos 11 análisis.
 - **Duración:** unos 10 minutos en una base vacía. El script respeta el limitador global de la API (100 peticiones/min por IP) y, si recibe un 429, espera y reintenta.
 - **Recuperación:** si una ejecución se corta entre la API y el SQL, la siguiente corrige las fechas de los registros dependientes (paso `repair`).
+- **Limpieza (`--clean-junk`, ya aplicada el 2026-10-03):** borrado lógico por la API de los usuarios `alasdoasd`, `asdasdasd`, `marco` y `royfran` y de sus médicos, del médico sin usuario "asdasda asdasdasdasd" (licencia 6546846) y de los pacientes de QA sin citas `PAC-2026-00002`, `PAC-2026-00003` y `QA-M18-002`. Solo se borra lo que no tiene citas. También renombra por la API las personas de `mario` y `ysleidy` (que tenían nombres de relleno), corrige el nombre, la dirección y el teléfono de los centros antiguos (p. ej. "santa ines" → "Centro Médico Santa Inés") y acentúa los nombres de los departamentos antiguos. Los usuarios de QA (`mario`, `julio`, `daniel`, `qa*`) se conservan. Re-ejecutarlo no cambia nada.
 - Variables opcionales: `SEED_API_URL` (por defecto `http://localhost:$PORT`) y `SEED_ADMIN` (usuario con el que se crean los datos; por defecto `qa_super_clean`).
 
 ## 6. Recorrido sugerido para la demo
 
-1. **Administración:** iniciar sesión con `admin.caracas`. Dashboard con 314 citas, 117 pacientes y 8 centros; centros con sus departamentos y médicos; lista de pacientes.
+1. **Administración:** iniciar sesión con `admin.caracas`. Dashboard con 314 citas, 114 pacientes y 8 centros; centros con sus departamentos y médicos; lista de pacientes.
 2. **Agenda de la mastóloga:** iniciar sesión con `cmendoza`. El dashboard muestra sus 45 citas, 33 completadas y la agenda del día.
 3. **Consulta → mamografía:** abrir una cita confirmada o pendiente de `cmendoza` (después de `--today`, una de las horas futuras de hoy; si no, una de las próximas confirmadas en Centro Clínico Ávila) → finalizar la consulta → pestaña de mamografía (departamento *Mastología*) → subir una imagen → ver la predicción.
 4. **Bandeja de revisión:** en *Análisis IA*, ver la bandeja del día. Hoy tiene 5 citas pendientes y un maligno al tope (Coromoto Bastidas, V-22888766, malignidad 99,5 %). Revisar un análisis con nota de acuerdo o desacuerdo.
@@ -111,6 +113,6 @@ docker exec -w /app -e NODE_PATH=/app/node_modules medos-backend node /tmp/seed-
 
 ## 7. Lo que no se hizo o hay que saber
 
-- **Defecto de la API (no corregido, fuera de alcance):** el primer turno de cada bloque horario no se puede reservar. `validateDoctorSchedule` (`medical-appointments.service.ts:330-334`) compara `'08:00' >= '08:00:00'` como texto, y eso da falso, así que responde 400 "La hora 08:00 no está dentro del horario del doctor". El seed evita esos turnos. En la demo, no reservar a la hora exacta de inicio de un bloque.
+- **Horarios (corregido en `4b9c21f`):** ahora se puede reservar el primer turno de cada bloque. La cita debe caber completa en el bloque: puede terminar justo a la hora de cierre, pero no empezar a esa hora. El seed sigue empezando en inicio + 30 min, lo que no afecta a los datos.
 - Las historias clínicas quedan con estado `in_progress`, igual que en el flujo real de `finish-consultation`.
-- En la base siguen centros, médicos y usuarios de prueba anteriores con nombres poco presentables (`asdasdasd`, `alasdoasd`, centro "santa ines" con dirección `asdasdasdad`). No se tocaron.
+- Se conservan los usuarios de prueba que los informes de QA usan (`mario`, `julio`, `daniel`, `gabriel`, `qa*`) y sus citas antiguas.
