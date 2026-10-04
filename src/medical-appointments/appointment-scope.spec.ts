@@ -1,0 +1,76 @@
+import { ForbiddenException } from '@nestjs/common';
+import { InMemoryDb } from '../../test/in-memory-db';
+import { authContextForUsers, SCOPE_USERS } from '../../test/auth-context-stub';
+import { MedicalAppointmentsService } from './medical-appointments.service';
+import {
+  AppointmentStatus,
+  MedicalAppointment,
+} from './entities/medical-appointment.entity';
+
+function setup(status = AppointmentStatus.PENDING) {
+  const db = new InMemoryDb().table(MedicalAppointment, [
+    { id: 'apt-b', patientId: 'pat-1', doctorId: 'doc-b', status, reason: 'control', deletedAt: null },
+  ]);
+  const cache = { get: jest.fn().mockResolvedValue([]), set: jest.fn(), del: jest.fn() };
+  const none = {} as any;
+  const service = new MedicalAppointmentsService(
+    db.repo(MedicalAppointment),
+    none, none, none, none, none, none, none, none, none,
+    cache as any,
+    none, none, none, none, none,
+    authContextForUsers(SCOPE_USERS),
+    db.dataSource,
+  );
+  jest
+    .spyOn(service as any, 'loadFullAppointment')
+    .mockImplementation(async (id: string) => db.rows(MedicalAppointment).find((a) => a.id === id));
+  const apt = () => db.rows(MedicalAppointment)[0];
+  return { service, apt };
+}
+
+type Write = (s: MedicalAppointmentsService, userId: string) => Promise<unknown>;
+
+// Each write with the status it needs to succeed, so "own → ok" proves the scope is the only gate.
+const WRITES: Array<[string, AppointmentStatus, Write]> = [
+  ['update', AppointmentStatus.PENDING, (s, u) => s.update('apt-b', { reason: 'otro motivo' } as any, u)],
+  ['confirm', AppointmentStatus.PENDING, (s, u) => s.confirm('apt-b', u)],
+  ['startConsultation', AppointmentStatus.CONFIRMED, (s, u) => s.startConsultation('apt-b', u)],
+  ['cancel', AppointmentStatus.PENDING, (s, u) => s.cancel('apt-b', 'motivo', u)],
+  ['remove', AppointmentStatus.PENDING, (s, u) => s.remove('apt-b', u)],
+];
+
+describe('MedicalAppointmentsService — writes limited to the appointment doctor (MJ-27)', () => {
+  it.each(WRITES)('%s by doctor A on doctor B appointment → 403 and nothing changes', async (_name, status, write) => {
+    const { service, apt } = setup(status);
+    const before = { ...apt() };
+
+    await expect(write(service, 'user-a')).rejects.toThrow(ForbiddenException);
+
+    expect(apt()).toEqual(before);
+  });
+
+  it.each(WRITES)('%s by doctor B on their own appointment → ok', async (_name, status, write) => {
+    const { service, apt } = setup(status);
+
+    await write(service, 'user-b');
+
+    expect(apt().updatedBy).toBe('user-b');
+  });
+
+  it.each(WRITES)('%s by an admin on any appointment → ok', async (_name, status, write) => {
+    const { service, apt } = setup(status);
+
+    await write(service, 'user-admin');
+
+    expect(apt().updatedBy).toBe('user-admin');
+  });
+
+  it('doctor B reassigning their appointment to doctor A → 403', async () => {
+    const { service, apt } = setup();
+
+    await expect(service.update('apt-b', { doctorId: 'doc-a' } as any, 'user-b')).rejects.toThrow(
+      ForbiddenException,
+    );
+    expect(apt().doctorId).toBe('doc-b');
+  });
+});

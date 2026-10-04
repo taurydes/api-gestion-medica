@@ -1,6 +1,7 @@
 import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import { InMemoryDb } from '../../test/in-memory-db';
 import { MedicalAppointmentsService } from './medical-appointments.service';
+import { authContextFor } from '../../test/auth-context-stub';
 import {
   AppointmentStatus,
   MedicalAppointment,
@@ -19,7 +20,8 @@ function setup(status: AppointmentStatus) {
     db.repo(MedicalAppointment),
     none, none, none, none, none, none, none, none, none,
     cache as any,
-    none, none, none, none, none, none,
+    none, none, none, none, none,
+    authContextFor({ isAdmin: true, doctorId: null }),
     db.dataSource,
   );
   jest

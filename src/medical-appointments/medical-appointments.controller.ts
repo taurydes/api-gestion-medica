@@ -171,8 +171,12 @@ export class MedicalAppointmentsController {
   @Permission(
     `${ModuleItemsMenu.MedicalAppointmentsModule}.${PermissionActionsMenu.UPDATE}`,
   )
-  update(@Param('id', ParseUuid) id: string, @Body() dto: UpdateMedicalAppointmentDto) {
-    return this.appointmentsService.update(id, dto);
+  update(
+    @Param('id', ParseUuid) id: string,
+    @Body() dto: UpdateMedicalAppointmentDto,
+    @GetUser('id') userId: string,
+  ) {
+    return this.appointmentsService.update(id, dto, userId);
   }
 
   @ApiOperation({
@@ -187,8 +191,9 @@ export class MedicalAppointmentsController {
   cancel(
     @Param('id', ParseUuid) id: string,
     @Body() dto: CancelMedicalAppointmentDto,
+    @GetUser('id') userId: string,
   ) {
-    return this.appointmentsService.cancel(id, dto.cancellationReason);
+    return this.appointmentsService.cancel(id, dto.cancellationReason, userId);
   }
 
   @ApiOperation({
@@ -219,19 +224,6 @@ export class MedicalAppointmentsController {
   }
 
   @ApiOperation({
-    summary: 'Completar cita médica',
-    description:
-      'Marca la cita como "completed". Requisito previo para crear historial médico.',
-  })
-  @Patch(':id/complete')
-  @Permission(
-    `${ModuleItemsMenu.MedicalAppointmentsModule}.${PermissionActionsMenu.UPDATE}`,
-  )
-  complete(@Param('id', ParseUuid) id: string) {
-    return this.appointmentsService.complete(id);
-  }
-
-  @ApiOperation({
     summary: 'Finalizar consulta médica completa',
     description:
       'Registra el historial médico, recetas y marca la cita como completada en un solo paso.',
@@ -256,7 +248,7 @@ export class MedicalAppointmentsController {
   @Permission(
     `${ModuleItemsMenu.MedicalAppointmentsModule}.${PermissionActionsMenu.DELETE}`,
   )
-  remove(@Param('id', ParseUuid) id: string) {
-    return this.appointmentsService.remove(id);
+  remove(@Param('id', ParseUuid) id: string, @GetUser('id') userId: string) {
+    return this.appointmentsService.remove(id, userId);
   }
 }

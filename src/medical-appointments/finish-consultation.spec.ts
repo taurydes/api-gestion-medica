@@ -1,6 +1,7 @@
-import { BadRequestException, NotFoundException, ValidationPipe } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException, ValidationPipe } from '@nestjs/common';
 import { InMemoryDb } from '../../test/in-memory-db';
 import { MedicalAppointmentsService } from './medical-appointments.service';
+import { authContextFor, authContextForUsers, SCOPE_USERS } from '../../test/auth-context-stub';
 import {
   AppointmentStatus,
   MedicalAppointment,
@@ -19,13 +20,13 @@ import { CompleteConsultationDto } from './dto/complete-consultation.dto';
 
 const MISSING_MEDICATION = '5b0f6a55-4a0e-4c1a-9f5e-000000000000';
 
-function setup() {
+function setup(authContext: any = authContextFor({ isAdmin: true, doctorId: null })) {
   const db = new InMemoryDb()
     .table(MedicalAppointment, [
       { id: 'apt-1', patientId: 'pat-1', doctorId: 'doc-1', status: AppointmentStatus.IN_CONSULTATION, deletedAt: null },
     ])
     .table(Patient, [{ id: 'pat-1', deletedAt: null }])
-    .table(Doctor, [{ id: 'doc-1', deletedAt: null }])
+    .table(Doctor, [{ id: 'doc-1', deletedAt: null }, { id: 'doc-a', deletedAt: null }])
     .table(MedicalCenter)
     .table(Specialty)
     .table(Medication, [{ id: 'med-1', deletedAt: null }])
@@ -75,7 +76,7 @@ function setup() {
     recipe,
     {} as any,
     {} as any,
-    {} as any,
+    authContext,
     db.dataSource,
   );
   // The final reload joins many relations; it is not what these tests are about.
@@ -189,5 +190,56 @@ describe('finishConsultation — contrato del frontend (M-35)', () => {
         BadRequestException,
       );
     }
+  });
+});
+
+describe('finishConsultation — only open, attended appointments of the caller (MJ-27)', () => {
+  it('a pending appointment → 400, stays pending and gets no history', async () => {
+    const { service, db } = setup();
+    db.rows(MedicalAppointment)[0].status = AppointmentStatus.PENDING;
+
+    await expect(service.finishConsultation('apt-1', dto(), 'u1')).rejects.toThrow(
+      'Solo se puede finalizar la consulta de una cita confirmada o en consulta.',
+    );
+    expect(status(db)).toBe(AppointmentStatus.PENDING);
+    expect(db.rows(MedicalHistory)).toHaveLength(0);
+  });
+
+  it('a confirmed appointment closes like one in consultation', async () => {
+    const { service, db } = setup();
+    db.rows(MedicalAppointment)[0].status = AppointmentStatus.CONFIRMED;
+
+    await service.finishConsultation('apt-1', dto(), 'u1');
+
+    expect(status(db)).toBe(AppointmentStatus.COMPLETED);
+  });
+
+  it('doctor A closing doctor B appointment → 403, no history and the status stays', async () => {
+    const { service, db } = setup(authContextForUsers(SCOPE_USERS));
+    db.rows(MedicalAppointment)[0].doctorId = 'doc-b';
+
+    await expect(service.finishConsultation('apt-1', dto(), 'user-a')).rejects.toThrow(ForbiddenException);
+    expect(status(db)).toBe(AppointmentStatus.IN_CONSULTATION);
+    expect(db.rows(MedicalHistory)).toHaveLength(0);
+  });
+
+  it('doctor A closes their own appointment', async () => {
+    const { service, db } = setup(authContextForUsers(SCOPE_USERS));
+    db.rows(MedicalAppointment)[0].doctorId = 'doc-a';
+
+    await service.finishConsultation('apt-1', dto(), 'user-a');
+
+    expect(status(db)).toBe(AppointmentStatus.COMPLETED);
+    expect(db.rows(MedicalHistory)[0]).toMatchObject({ doctorId: 'doc-a', patientId: 'pat-1' });
+  });
+
+  it('admin closes any doctor appointment', async () => {
+    const { service, db } = setup(authContextForUsers(SCOPE_USERS));
+    db.rows(MedicalAppointment)[0].doctorId = 'doc-b';
+    db.rows(Doctor).push({ id: 'doc-b', deletedAt: null });
+
+    await service.finishConsultation('apt-1', dto(), 'user-admin');
+
+    expect(status(db)).toBe(AppointmentStatus.COMPLETED);
   });
 });

@@ -151,6 +151,16 @@ export class MedicalAppointmentsService {
    * Verifica si el usuario tiene rol de administrador.
    * Los admins no están sujetos a restricciones IDOR aunque tengan perfil de doctor.
    */
+  /** Writes follow the read rule: a doctor acts only on their own appointments (MJ-27). */
+  private async assertWriteAccess(apt: { doctorId: string }, userId?: string): Promise<void> {
+    if (!userId) return;
+    await this.authContextService.assertDoctorScope(
+      userId,
+      apt.doctorId,
+      'Solo el médico asignado puede modificar esta cita.',
+    );
+  }
+
   private async isAdminUser(userId: string): Promise<boolean> {
     // Por permiso del rol, no por subcadena del nombre ("Administrativo" no queda exento)
     return this.authContextService.isAdmin(userId);
@@ -779,6 +789,11 @@ export class MedicalAppointmentsService {
       throw new NotFoundException(`Cita médica con ID ${id} no encontrada.`);
     }
 
+    await this.assertWriteAccess(apt, userId);
+    if (dto.doctorId && dto.doctorId !== apt.doctorId) {
+      await this.assertWriteAccess({ doctorId: dto.doctorId }, userId);
+    }
+
     if (apt.status === AppointmentStatus.COMPLETED) {
       throw new BadRequestException(
         'No se puede modificar una cita ya completada.',
@@ -848,6 +863,8 @@ export class MedicalAppointmentsService {
       throw new NotFoundException(`Cita médica con ID ${id} no encontrada.`);
     }
 
+    await this.assertWriteAccess(apt, userId);
+
     if (apt.status === AppointmentStatus.COMPLETED) {
       throw new BadRequestException(
         'No se puede cancelar una cita ya completada.',
@@ -860,36 +877,6 @@ export class MedicalAppointmentsService {
 
     apt.status = AppointmentStatus.CANCELLED;
     apt.cancellationReason = cancellationReason ?? null;
-    apt.updatedBy = userId ?? null;
-
-    await this.appointmentRepository.save(apt);
-
-    await this.clearQueryCache();
-
-    return this.loadFullAppointment(id);
-  }
-
-  /**
-   * Completar una cita
-   */
-  async complete(id: string, userId?: string): Promise<MedicalAppointment> {
-    const apt = await this.appointmentRepository.findOne({ where: { id, deletedAt: IsNull() } });
-
-    if (!apt) {
-      throw new NotFoundException(`Cita médica con ID ${id} no encontrada.`);
-    }
-
-    if (apt.status === AppointmentStatus.CANCELLED) {
-      throw new BadRequestException(
-        'No se puede completar una cita cancelada.',
-      );
-    }
-
-    if (apt.status === AppointmentStatus.COMPLETED) {
-      throw new BadRequestException('La cita ya está marcada como completada.');
-    }
-
-    apt.status = AppointmentStatus.COMPLETED;
     apt.updatedBy = userId ?? null;
 
     await this.appointmentRepository.save(apt);
@@ -934,6 +921,8 @@ export class MedicalAppointmentsService {
       throw new NotFoundException(`Cita médica con ID ${id} no encontrada.`);
     }
 
+    await this.assertWriteAccess(apt, userId);
+
     if (apt.status !== from) {
       throw new BadRequestException(message);
     }
@@ -976,12 +965,20 @@ export class MedicalAppointmentsService {
         throw new NotFoundException(`Cita médica con ID ${id} no encontrada.`);
       }
 
+      await this.assertWriteAccess(apt, userId);
+
       if (apt.status === AppointmentStatus.COMPLETED) {
         throw new BadRequestException('La cita ya está completada.');
       }
 
       if (apt.status === AppointmentStatus.CANCELLED) {
         throw new BadRequestException('No se puede finalizar una cita cancelada.');
+      }
+
+      if (apt.status === AppointmentStatus.PENDING) {
+        throw new BadRequestException(
+          'Solo se puede finalizar la consulta de una cita confirmada o en consulta.',
+        );
       }
 
       // 1️⃣ Crear Historial Médico
@@ -1035,6 +1032,8 @@ export class MedicalAppointmentsService {
     if (!apt) {
       throw new NotFoundException(`Cita médica con ID ${id} no encontrada.`);
     }
+
+    await this.assertWriteAccess(apt, userId);
 
     apt.deletedAt = new Date();
     apt.isActive = false;
