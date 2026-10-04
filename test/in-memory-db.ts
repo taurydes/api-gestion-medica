@@ -39,6 +39,10 @@ export class FakeRepo {
     return this.rows.filter((r) => this.matches(r, opts.where)).map((r) => ({ ...r }));
   }
 
+  async count(opts: { where?: Row } = {}) {
+    return this.rows.filter((r) => this.matches(r, opts.where)).length;
+  }
+
   async findBy(where: Row) {
     return this.find({ where });
   }

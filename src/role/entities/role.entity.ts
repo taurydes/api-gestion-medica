@@ -4,7 +4,8 @@ import { User } from '../../user/entities/user.entity';
 import { Entity, PrimaryGeneratedColumn, Column, Index, OneToMany } from 'typeorm';
 
 @Entity({ schema: 'seguridad', name: 'roles' })
-@Index('UQ_roles_nombre', ['name'], { unique: true })
+// Partial: a soft-deleted role frees its name (MJ-07).
+@Index('UQ_roles_nombre_active', ['name'], { unique: true, where: '"deleted_at" IS NULL' })
 export class Role {
   @PrimaryGeneratedColumn('uuid')
   id: string;

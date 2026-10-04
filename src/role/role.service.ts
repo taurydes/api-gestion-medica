@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Inject,
   NotFoundException,
@@ -13,7 +14,7 @@ import {
   setScoped,
 } from 'src/common/cache/cache-registry';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { Role } from './entities/role.entity';
 import { CreateRoleDto } from './dto/create-role.dto';
@@ -22,6 +23,8 @@ import { JwtUserPayload } from 'src/auth/auth.const';
 import { RoleQueryDto } from './dto/role-query.dto';
 import { toHttpException } from 'src/common/exceptions/to-http-exception';
 import { RoleEnum, SYSTEM_ROLE_NAMES } from './role.const';
+import { User } from 'src/user/entities/user.entity';
+import { UserSecurity } from 'src/user/entities/user.system.entity';
 
 @Injectable()
 export class RoleService {
@@ -117,7 +120,7 @@ export class RoleService {
    */
   /** Reads from the DB, never the cache: the system-role checks and the delete must see the current row. */
   private async findOneForWrite(id: string): Promise<Role> {
-    const role = await this.roleRepository.findOne({ where: { id } });
+    const role = await this.roleRepository.findOne({ where: { id, deletedAt: IsNull() } });
     if (!role) throw new NotFoundException(`Rol con ID ${id} no encontrado`);
     return role;
   }
@@ -130,7 +133,7 @@ export class RoleService {
       if (cached) return cached;
 
       const role = await this.roleRepository.findOne({
-        where: { id },
+        where: { id, deletedAt: IsNull() },
         relations: ['permissionMenus', 'permissionMenus.permission'],
       });
 
@@ -180,9 +183,7 @@ export class RoleService {
     }
   }
 
-  /**
-   * Eliminar rol
-   */
+  /** Soft delete (MJ-07): system roles and roles still assigned to live users are refused. */
   async remove(id: string): Promise<void> {
     try {
       const role = await this.findOneForWrite(id);
@@ -191,8 +192,23 @@ export class RoleService {
           `El rol '${RoleEnum.ADMIN}' no se puede eliminar: dejaría el sistema sin administradores.`,
         );
       }
+      if (SYSTEM_ROLE_NAMES.includes(role.name)) {
+        throw new BadRequestException(`El rol '${role.name}' es del sistema y no se puede eliminar.`);
+      }
 
-      await this.roleRepository.remove(role);
+      const manager = this.roleRepository.manager;
+      const liveUsers = { roleId: id, deletedAt: IsNull() };
+      const assigned =
+        (await manager.getRepository(User).count({ where: liveUsers })) +
+        (await manager.getRepository(UserSecurity).count({ where: liveUsers }));
+      if (assigned > 0) {
+        throw new ConflictException(
+          `El rol '${role.name}' tiene ${assigned} usuario(s) asignado(s); reasígnelos antes de eliminarlo.`,
+        );
+      }
+
+      const now = new Date();
+      await this.roleRepository.update(id, { deletedAt: now, isActive: false, updatedAt: now });
 
       await this.cacheManager.del(`role:${id}`);
       await this.cacheManager.del('roles:all');
