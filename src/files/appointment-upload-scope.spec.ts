@@ -40,7 +40,7 @@ function setup() {
     authContextForUsers(USERS),
     fileRepo as any,
   );
-  const controller = new FilesController(filesService, {} as any, target);
+  const controller = new FilesController(filesService, {} as any, target, {} as any);
 
   // A multer temp file, like the disk storage leaves it before the handler runs.
   const tempFile = () => {

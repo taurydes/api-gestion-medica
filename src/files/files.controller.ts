@@ -24,6 +24,7 @@ import { ParseUuid } from 'src/common/pipes/parse-uuid.pipe';
 import { FilesService } from './files.service';
 import { DicomConverterService } from './dicom-converter.service';
 import { AppointmentFileAccessService } from './appointment-file-access.service';
+import { PhotoAccessService } from './photo-access.service';
 import { UploadFileDto } from './dto/create-file.dto';
 import {
   CreateVideoBase64Dto,
@@ -48,6 +49,7 @@ export class FilesController {
     private readonly filesService: FilesService,
     private readonly dicomConverterService: DicomConverterService,
     private readonly fileAccess: AppointmentFileAccessService,
+    private readonly photoAccess: PhotoAccessService,
   ) {}
 
   /* ============================================================
@@ -246,12 +248,14 @@ export class FilesController {
       limits: { fileSize: 5 * 1024 * 1024 },
     }),
   )
-  @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.CREATE}`)
+  // Session only: every role can set its own photo (MJ-46); another owner needs an admin (MJ-43).
   async uploadProfilePhoto(
     @UploadedFile() file: Express.Multer.File,
     @Body('ownerId') ownerId: string,
+    @GetUser('id') userId: string,
   ): Promise<{ url: string }> {
-    return this.filesService.uploadProfilePhoto(file, ownerId);
+    await this.photoAccess.assertProfileOwner(userId, ownerId);
+    return this.filesService.uploadProfilePhoto(file, ownerId || userId);
   }
 
   /* ============================================================
@@ -262,12 +266,14 @@ export class FilesController {
     description: 'Devuelve la imagen de perfil almacenada como stream.',
   })
   @Get('profile-photos/:ownerId/:filename')
-  @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.VIEW}`)
   async serveProfilePhoto(
     @Param('ownerId') ownerId: string,
     @Param('filename') filename: string,
+    @GetUser('id') userId: string,
     @Res() res,
   ): Promise<void> {
+    // Own photo with a session; another user's with file.consultar (MJ-46)
+    await this.photoAccess.assertCanReadProfile(userId, ownerId);
     return this.filesService.serveProfilePhoto(ownerId, filename, res);
   }
 
@@ -396,7 +402,9 @@ export class FilesController {
   async uploadCommonPersonPhoto(
     @UploadedFile() file: Express.Multer.File,
     @Body('personId') personId: string,
+    @GetUser('id') userId: string,
   ): Promise<{ url: string }> {
+    await this.photoAccess.assertCanSetPersonPhoto(userId, personId);
     return this.filesService.uploadCommonPersonPhoto(file, personId);
   }
 
@@ -437,6 +445,7 @@ export class FilesController {
     @Body('doctorId') doctorId: string,
     @GetUser('id') userId: string,
   ): Promise<{ url: string }> {
+    await this.photoAccess.assertCanSetDoctorPhoto(userId, doctorId);
     return this.filesService.uploadDoctorPhoto(file, { doctorId, uploadedBy: userId });
   }
 
@@ -476,6 +485,7 @@ export class FilesController {
     @Body('commonPersonId') commonPersonId: string,
     @GetUser('id') userId: string,
   ): Promise<{ url: string }> {
+    await this.photoAccess.assertCanSetPersonPhoto(userId, commonPersonId);
     return this.filesService.uploadCommonPersonImage(file, {
       commonPersonId,
       uploadedBy: userId,
