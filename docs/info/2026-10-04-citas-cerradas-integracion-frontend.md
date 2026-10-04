@@ -31,7 +31,7 @@ Mapa de transiciones:
 | `pending` | `confirmed` | `PATCH /:id/confirm` | `appointments.actualizar` |
 | `confirmed` | `in_consultation` | `PATCH /:id/start-consultation` | `appointments.actualizar` |
 | `pending`, `confirmed`, `in_consultation` | `cancelled` | `PATCH /:id/cancel` | `appointments.actualizar` |
-| `confirmed`, `in_consultation` (también `pending`) | `completed` | `PATCH /:id/finish-consultation` | `appointments.crear` |
+| `confirmed`, `in_consultation` (`pending` → 400 desde `be94683`) | `completed` | `PATCH /:id/finish-consultation` | `medical-history.crear` (antes `appointments.crear`; cambiado en `84d7605`, MJ-50) |
 
 ## Errores
 
@@ -42,7 +42,8 @@ Mapa de transiciones:
 | Finalizar una cita ya completada | 400 | `La cita ya está completada.` |
 | Finalizar una cita cancelada | 400 | `No se puede finalizar una cita cancelada.` |
 | Cancelar una cita completada | 400 | `No se puede cancelar una cita ya completada.` |
-| Completar una cita cancelada | 400 | `No se puede completar una cita cancelada.` |
+| Finalizar una cita `pending` | 400 | `Solo se puede finalizar la consulta de una cita confirmada o en consulta.` |
+| `PATCH /:id/complete` (cualquier cita) | 404 | `Cannot PATCH /medical-appointments/<id>/complete` (endpoint retirado en `be94683`) |
 | `PATCH /:id` con `status` | 400 | `["El estado de la cita no se cambia por este endpoint. Use /confirm, /start-consultation, /cancel o /finish-consultation."]` |
 | `PATCH /:id` con `cancellationReason` | 400 | `["Para cancelar la cita use PATCH /medical-appointments/:id/cancel."]` |
 | Confirmar una cita que no está `pending` | 400 | `Solo se puede confirmar una cita programada.` |
@@ -70,8 +71,10 @@ Ejemplo real (`PATCH /medical-appointments/<id-pendiente>` con `{ "status": "com
 - `PATCH /medical-appointments/:id` sigue sirviendo para reprogramar y editar datos (fecha, médico,
   centro, duración, tipo, motivo, observaciones); "Guardar progreso" de la consulta envía solo
   `observations`.
-- `/complete` y `/finish-consultation` no cambian. `/complete` sigue completando sin historia; la
-  interfaz no lo usa.
+- `/finish-consultation` conserva su contrato de cuerpo (`medicalHistory`, `recipe`), pero desde
+  `be94683` solo acepta `confirmed` o `in_consultation`, y desde `84d7605` exige `medical-history.crear`
+  y crea la historia `completed`. `/complete`, que completaba sin historia, **se retiró** en `be94683`
+  (responde 404); ni la interfaz ni `scripts/seed-demo.js` lo usaban.
 - Las citas ya existentes no se tocan: el cambio es solo de contrato.
 
 ## Checklist de migración

@@ -104,7 +104,9 @@ Ejemplos reales:
 - En la base había 0 archivos y 0 análisis con paciente distinto al de su cita, y 0 bloques de horario en centros no asignados. Las 7 citas `completed` sin historia (pruebas de feb–mar 2026) pasaron a `cancelled` con motivo `Cerrada sin consulta registrada (dato de prueba anterior a la regla de cierre).` (`docs/info/migrations/2026-10-04-citas-completadas-sin-historia.sql`); el listado las muestra como canceladas.
 - La respuesta de `POST /recipes` y de los endpoints de archivos no cambia de forma.
 - `availability` solo **agrega** `slots`; `occupiedSlots`, `schedule`, `currentCount` y `available` siguen. Los 14 bloques de prueba de `daniel` y `julio` que tenían 10 pacientes por turno quedaron en 1 (`docs/info/migrations/2026-10-04-horarios-cupo-por-turno.sql`).
-- El cupo diario sigue tomándose del primer bloque del día.
+- El cupo diario ya **no** se toma del primer bloque del día: desde `a8f71e7` es la **suma** de
+  `maxDailyAppointments` de los bloques activos del día en el centro (`dailyCap` en
+  `src/doctors/schedule-time.util.ts`); ver la guía del bloque de mejoras.
 - `scripts/seed-demo.js` sigue funcionando: el administrador crea y cancela; cada médico cierra y sube a sus propias citas `confirmed`.
 
 ## Checklist de migración
