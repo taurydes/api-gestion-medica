@@ -2,7 +2,10 @@ import {
   Injectable,
   BadRequestException,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
+  OnModuleDestroy,
+  OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as dicomParser from 'dicom-parser';
@@ -57,11 +60,17 @@ export interface DicomConvertResult {
   images: DicomConvertedImage[];
 }
 
+/** Preview conversions older than this are deleted (MJ-42); the sweep runs at start-up and every hour. */
+export const DICOM_CONVERSION_TTL_MS = 24 * 60 * 60 * 1000;
+const DICOM_SWEEP_INTERVAL_MS = 60 * 60 * 1000;
+
 @Injectable()
-export class DicomConverterService {
+export class DicomConverterService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(DicomConverterService.name);
   private readonly uploadsDir: string;
   private readonly publicUrl: string;
   private readonly tmpFolder = 'dicom-conversions';
+  private sweepTimer?: NodeJS.Timeout;
 
   constructor(private readonly configService: ConfigService) {
     this.uploadsDir =
@@ -70,6 +79,38 @@ export class DicomConverterService {
     const port = this.configService.get<string>('PORT') || '8008';
     const baseHost = host.startsWith('http') ? host : `http://${host}`;
     this.publicUrl = `${baseHost}:${port}`;
+  }
+
+  onModuleInit(): void {
+    this.removeExpiredConversions();
+    this.sweepTimer = setInterval(() => this.removeExpiredConversions(), DICOM_SWEEP_INTERVAL_MS);
+    this.sweepTimer.unref();
+  }
+
+  onModuleDestroy(): void {
+    if (this.sweepTimer) clearInterval(this.sweepTimer);
+  }
+
+  /** Deletes conversion folders last written before `now - ttl`; returns how many were removed. */
+  removeExpiredConversions(now = Date.now(), ttlMs = DICOM_CONVERSION_TTL_MS): number {
+    const root = resolveUploadPath(this.uploadsDir, this.tmpFolder);
+    if (!fs.existsSync(root)) return 0;
+    let removed = 0;
+    for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const dir = path.join(root, entry.name);
+      try {
+        if (now - fs.statSync(dir).mtimeMs > ttlMs) {
+          fs.rmSync(dir, { recursive: true, force: true });
+          removed++;
+        }
+      } catch (error) {
+        // A folder another request is still writing or already removed is left for the next sweep.
+        this.logger.warn(`No se pudo limpiar ${entry.name}: ${(error as Error).message}`);
+      }
+    }
+    if (removed) this.logger.log(`Conversiones DICOM vencidas eliminadas: ${removed}`);
+    return removed;
   }
   /* ============================================================
    * 🧬 CONVERSIÓN DICOM → PNG (uno o varios frames)
