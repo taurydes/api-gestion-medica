@@ -56,6 +56,12 @@ const PREDICTIONS: Record<string, MammographyAnalysisPrediction> = {
 };
 
 /** HTTP client for the breast cancer detector; maps its failures to domain errors in Spanish. */
+/** Neutral class names, the same the UI shows: the model flags suspicion, it does not diagnose. */
+export const NEUTRAL_LABELS: Record<MammographyAnalysisPrediction, string> = {
+  [MammographyAnalysisPrediction.MALIGNANT]: 'Sospechoso de malignidad',
+  [MammographyAnalysisPrediction.BENIGN]: 'No sospechoso',
+};
+
 @Injectable()
 export class DetectorClient {
   private readonly logger = new Logger(DetectorClient.name);
@@ -151,7 +157,8 @@ export class DetectorClient {
     return {
       prediction,
       probability: b.probability as number,
-      label: typeof b.label === 'string' ? b.label : null,
+      // The detector's text claims BI-RADS categories the model does not assign; raw keeps it (MJ-36).
+      label: NEUTRAL_LABELS[prediction],
       status,
       rawScore: b.rawScore as number,
       malignancyProbability: b.malignancyProbability as number,

@@ -70,6 +70,17 @@ describe('DetectorClient (M-39)', () => {
   });
 
   it.each([
+    [okBody, 'Sospechoso de malignidad'],
+    [{ ...okBody, prediction: 'BENIGNO', status: 'success', label: 'Hallazgos Benignos (BI-RADS 1/2)' }, 'No sospechoso'],
+  ])('stores a neutral label instead of the detector BI-RADS text, keeping it in raw (MJ-36)', async (body, label) => {
+    mockFetch(async () => jsonResponse(200, body));
+    const result = await new DetectorClient(config as any).predict(image);
+    expect(result.label).toBe(label);
+    expect(result.label).not.toContain('BI-RADS');
+    expect(result.raw.label).toBe(body.label);
+  });
+
+  it.each([
     [400, BadRequestException, DETECTOR_MESSAGES.corrupt],
     [413, PayloadTooLargeException, DETECTOR_MESSAGES.tooLarge],
     [415, UnsupportedMediaTypeException, DETECTOR_MESSAGES.unsupported],
