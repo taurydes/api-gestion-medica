@@ -31,7 +31,7 @@ export class DashboardController {
 
   /**
    * Citas recientes: admin (permiso security.consultar) todas; doctor solo las suyas;
-   * otros ninguna, porque solo los doctores tienen centros asignados.
+   * otro personal, las de sus centros (users_medical_centers, MJ-38).
    */
   @Get('recent-appointments')
   @Permission(...DASHBOARD_PERMISSIONS)
