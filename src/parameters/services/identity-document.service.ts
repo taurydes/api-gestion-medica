@@ -64,7 +64,7 @@ export class IdentityDocumentService {
   async findOne(id: string): Promise<IdentityDocument> {
     const entity = await this.repo.findOne({ where: { id } });
 
-    if (!entity) throw new NotFoundException('Identity document not found');
+    if (!entity) throw new NotFoundException('Documento de identidad no encontrado');
 
     return entity;
   }

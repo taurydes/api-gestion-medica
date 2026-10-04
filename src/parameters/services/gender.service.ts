@@ -63,7 +63,7 @@ export class GenderService {
   async findOne(id: string): Promise<Gender> {
     const entity = await this.repo.findOne({ where: { id } });
 
-    if (!entity) throw new NotFoundException('Gender not found');
+    if (!entity) throw new NotFoundException('Género no encontrado');
 
     return entity;
   }

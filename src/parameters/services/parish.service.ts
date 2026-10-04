@@ -67,7 +67,7 @@ export class ParishService {
       relations: ['municipality'],
     });
 
-    if (!entity) throw new NotFoundException('Parish not found');
+    if (!entity) throw new NotFoundException('Parroquia no encontrada');
 
     return entity;
   }

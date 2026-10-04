@@ -2,6 +2,9 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
   IsBoolean,
+  IsIn,
+  IsISO8601,
+  ValidateBy,
   IsOptional,
   IsString,
   Length,
@@ -107,5 +110,22 @@ export class CreateCommonPersonDto {
   @IsOptional()
   @IsString({ message: 'photoUrl debe ser una cadena de texto' })
   photoUrl?: string | null;
+
+  @ApiPropertyOptional({ description: 'Fecha de nacimiento (YYYY-MM-DD), no futura', example: '1975-04-12' })
+  @IsOptional()
+  @IsISO8601({ strict: true }, { message: 'La fecha de nacimiento debe tener el formato YYYY-MM-DD' })
+  @ValidateBy({
+    name: 'isNotFutureDate',
+    validator: {
+      validate: (value: unknown) => typeof value === 'string' && new Date(value) <= new Date(),
+      defaultMessage: () => 'La fecha de nacimiento no puede ser futura',
+    },
+  })
+  birthDate?: string | null;
+
+  @ApiPropertyOptional({ description: 'Sexo biológico', enum: ['F', 'M'], example: 'F' })
+  @IsOptional()
+  @IsIn(['F', 'M'], { message: 'El sexo debe ser F o M' })
+  sex?: 'F' | 'M' | null;
 
 }

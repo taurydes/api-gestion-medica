@@ -68,7 +68,7 @@ export class MunicipalityService {
     });
 
     if (!entity) {
-      throw new NotFoundException('Municipality not found');
+      throw new NotFoundException('Municipio no encontrado');
     }
 
     return entity;

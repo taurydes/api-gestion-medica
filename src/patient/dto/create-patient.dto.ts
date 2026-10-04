@@ -8,9 +8,12 @@ import {
   IsString,
   IsArray,
   IsUUID,
+  IsIn,
 } from 'class-validator';
 import { CreateCommonPersonDto } from 'src/common-person/dto/create-common-person.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+export const MARITAL_STATUSES = ['soltero', 'casado', 'divorciado', 'viudo', 'union_libre'];
 
 /**
  * DTO para crear un nuevo paciente
@@ -35,9 +38,10 @@ export class CreatePatientDto {
   patientCode?: string;
 
   // Add other patient specific fields here as optional for now or required based on entity
-  @ApiPropertyOptional({ description: 'Estado civil', example: 'Soltero' })
+  // Closed set, the same values the patient form offers (MJ-48).
+  @ApiPropertyOptional({ description: 'Estado civil', enum: MARITAL_STATUSES, example: 'soltero' })
   @IsOptional()
-  @IsString()
+  @IsIn(MARITAL_STATUSES, { message: `El estado civil debe ser uno de: ${MARITAL_STATUSES.join(', ')}` })
   maritalStatus?: string;
 
   @ApiProperty({ description: 'Ocupación', example: 'Ingeniero' })

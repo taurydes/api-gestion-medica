@@ -45,7 +45,7 @@ export class StateService {
       where: { id },
     });
 
-    if (!entity) throw new NotFoundException('State not found');
+    if (!entity) throw new NotFoundException('Estado no encontrado');
 
     return entity;
   }
@@ -59,7 +59,7 @@ export class StateService {
       relations: ['municipalities'],
     });
 
-    if (!entity) throw new NotFoundException('State not found');
+    if (!entity) throw new NotFoundException('Estado no encontrado');
 
     return entity;
   }

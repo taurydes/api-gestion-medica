@@ -288,6 +288,9 @@ function buildPatients() {
           commonPerson: {
             letter: foreign ? 'E' : 'V', documentNumber: docNum, firstName: first, middleName: middle, lastName: last, secondLastName: last2,
             phoneNumber: phone,
+            // Derived from the document, not from rng, so the rest of the generated data does not shift.
+            birthDate: `${2026 - age}-${String((Number(docNum) % 12) + 1).padStart(2, '0')}-${String((Number(docNum) % 28) + 1).padStart(2, '0')}`,
+            sex: male ? 'M' : 'F',
           },
           email,
           maritalStatus: married,

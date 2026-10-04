@@ -1,5 +1,6 @@
 import { IdentityDocument } from 'src/parameters/entities/identity-document.entity';
 import {
+  Check,
   Column,
   Entity,
   Index,
@@ -21,6 +22,7 @@ import { User } from '../../user/entities/user.entity';
   unique: true,
   where: '"documento" IS NOT NULL AND "deleted_at" IS NULL',
 })
+@Check('CHK_persona_comun_sexo', `"sexo" IN ('F', 'M')`)
 export class CommonPerson {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -75,6 +77,14 @@ export class CommonPerson {
 
   @Column({ name: 'photo_url', nullable: true, type: 'varchar', length: 500 })
   photoUrl: string | null;
+
+  /** Needed to compute the age in a screening system (MJ-23). */
+  @Column({ name: 'fecha_nacimiento', type: 'date', nullable: true })
+  birthDate: string | null;
+
+  /** Biological sex, F or M (MJ-23); the empty `parametro.genero` catalog is not used. */
+  @Column({ name: 'sexo', type: 'varchar', length: 1, nullable: true })
+  sex: 'F' | 'M' | null;
 
   // RELATIONS
 

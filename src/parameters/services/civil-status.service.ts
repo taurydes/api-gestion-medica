@@ -67,7 +67,7 @@ export class CivilStatusService {
    */
   async findOne(id: string): Promise<CivilStatus> {
     const entity = await this.repo.findOne({ where: { id } });
-    if (!entity) throw new NotFoundException('Civil status not found');
+    if (!entity) throw new NotFoundException('Estado civil no encontrado');
     return entity;
   }
 
