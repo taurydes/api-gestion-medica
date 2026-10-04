@@ -26,7 +26,12 @@ import {
 } from './entities/medical-appointment.entity';
 import { Patient } from 'src/patient/entities/patient.entity';
 import { Doctor } from 'src/doctors/entities/doctor.entity';
-import { dateToMinutes, fitsInBlock } from 'src/doctors/schedule-time.util';
+import {
+  dateToMinutes,
+  fitsInBlock,
+  formatLocalDate,
+  parseLocalDate,
+} from 'src/doctors/schedule-time.util';
 import { CommonPerson } from 'src/common-person/entities/common-person.entity';
 import { personDocumentWhere } from 'src/common-person/person-document.util';
 import { Specialty } from 'src/parameters/entities/specialty.entity';
@@ -305,6 +310,37 @@ export class MedicalAppointmentsService {
     }
   }
 
+  /** Rejects a time that overlaps another active appointment of the same patient. */
+  private async checkPatientConflict(
+    patientId: string,
+    appointmentDate: Date,
+    durationMinutes: number,
+    excludeId?: string,
+  ): Promise<void> {
+    const qb = this.appointmentRepository
+      .createQueryBuilder('apt')
+      .where('apt.patientId = :patientId', { patientId })
+      .andWhere('apt.deletedAt IS NULL')
+      .andWhere('apt.status NOT IN (:...statuses)', {
+        statuses: [AppointmentStatus.CANCELLED],
+      })
+      .andWhere(
+        "apt.appointmentDate < :endTime AND (apt.appointmentDate + (apt.durationMinutes * interval '1 minute')) > :startTime",
+        {
+          startTime: appointmentDate,
+          endTime: new Date(appointmentDate.getTime() + durationMinutes * 60 * 1000),
+        },
+      );
+    if (excludeId) qb.andWhere('apt.id != :excludeId', { excludeId });
+
+    const conflict = await qb.getOne();
+    if (conflict) {
+      throw new BadRequestException(
+        `El paciente ya tiene una cita programada en ese horario (Cita #${conflict.appointmentNumber}).`,
+      );
+    }
+  }
+
   /**
    * Valida que el doctor tenga horario configurado el día de la cita
    * en el centro médico indicado.
@@ -453,30 +489,7 @@ export class MedicalAppointmentsService {
       const patient = await this.resolvePatient(dto, userId);
 
       // Validar que el paciente no tenga otra cita a la misma hora
-      const patientConflict = await this.appointmentRepository
-        .createQueryBuilder('apt')
-        .where('apt.patientId = :patientId', { patientId: patient.id })
-        .andWhere('apt.deletedAt IS NULL')
-        .andWhere('apt.status NOT IN (:...statuses)', {
-          statuses: [AppointmentStatus.CANCELLED],
-        })
-        .andWhere(
-          "apt.appointmentDate < :endTime AND (apt.appointmentDate + (apt.durationMinutes * interval '1 minute')) > :startTime",
-          {
-            startTime: appointmentDate,
-            endTime: new Date(
-              appointmentDate.getTime() +
-                (dto.durationMinutes ?? 30) * 60 * 1000,
-            ),
-          },
-        )
-        .getOne();
-
-      if (patientConflict) {
-        throw new BadRequestException(
-          `El paciente ya tiene una cita programada en ese horario (Cita #${patientConflict.appointmentNumber}).`,
-        );
-      }
+      await this.checkPatientConflict(patient.id, appointmentDate, dto.durationMinutes ?? 30);
 
       // Validar médico
       const doctor = await this.doctorRepository.findOne({
@@ -778,19 +791,28 @@ export class MedicalAppointmentsService {
       );
     }
 
-    if (dto.appointmentDate) {
-      const newDate = new Date(dto.appointmentDate);
-      if (newDate <= new Date()) {
+    // Any change to when, who or where re-runs the same checks as create, on the resulting values.
+    const reschedules =
+      dto.appointmentDate !== undefined ||
+      dto.doctorId !== undefined ||
+      dto.medicalCenterId !== undefined ||
+      dto.durationMinutes !== undefined;
+    if (reschedules) {
+      const newDate = dto.appointmentDate ? new Date(dto.appointmentDate) : apt.appointmentDate;
+      const doctorId = dto.doctorId ?? apt.doctorId;
+      const medicalCenterId = dto.medicalCenterId ?? apt.medicalCenterId;
+      const duration = dto.durationMinutes ?? apt.durationMinutes;
+      if (dto.appointmentDate && newDate <= new Date()) {
         throw new BadRequestException(
           'La fecha de la cita no puede ser en el pasado.',
         );
       }
-      await this.checkDoubleBooking(
-        dto.doctorId ?? apt.doctorId,
-        newDate,
-        dto.durationMinutes ?? apt.durationMinutes,
-        id,
-      );
+      await this.checkPatientConflict(apt.patientId, newDate, duration, id);
+      await this.checkDoubleBooking(doctorId, newDate, duration, id);
+      if (medicalCenterId) {
+        await this.validateDoctorSchedule(doctorId, medicalCenterId, newDate, duration);
+        await this.validateDailyAppointmentLimit(doctorId, medicalCenterId, newDate, id);
+      }
       apt.appointmentDate = newDate;
     }
 
@@ -1105,9 +1127,9 @@ export class MedicalAppointmentsService {
       throw new NotFoundException(`Médico con ID ${doctorId} no encontrado.`);
     }
 
-    const dayStart = new Date(date);
+    const dayStart = parseLocalDate(date);
     dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(date);
+    const dayEnd = parseLocalDate(date);
     dayEnd.setHours(23, 59, 59, 999);
 
     const dayOfWeek = dayStart.getDay();
@@ -1192,8 +1214,8 @@ export class MedicalAppointmentsService {
     }
 
     const result: { date: string; dayOfWeek: number; slotsAvailable: number }[] = [];
-    const current = new Date(startDate);
-    const end = new Date(endDate);
+    const current = parseLocalDate(startDate);
+    const end = parseLocalDate(endDate);
 
     while (current <= end) {
       const dayOfWeek = current.getDay();
@@ -1223,7 +1245,7 @@ export class MedicalAppointmentsService {
         const slotsAvailable = config.maxDailyAppointments - count;
         if (slotsAvailable > 0) {
           result.push({
-            date: current.toISOString().split('T')[0],
+            date: formatLocalDate(current),
             dayOfWeek,
             slotsAvailable,
           });

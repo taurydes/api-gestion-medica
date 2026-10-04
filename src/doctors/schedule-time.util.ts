@@ -20,3 +20,15 @@ export function fitsInBlock(
     startMinutes + durationMinutes <= timeToMinutes(block.endTime)
   );
 }
+
+/** Local midnight (server TZ) of a 'YYYY-MM-DD' date; new Date('YYYY-MM-DD') would be UTC midnight, the previous day in Caracas. */
+export function parseLocalDate(value: string): Date {
+  const [y, m, d] = value.slice(0, 10).split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+/** 'YYYY-MM-DD' of a Date in server local time, without the UTC shift of toISOString(). */
+export function formatLocalDate(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
