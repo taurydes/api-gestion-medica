@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
@@ -44,6 +44,25 @@ export class AuthContextService {
     if (!userId) return null;
     if (await this.isAdmin(userId)) return null;
     return this.getDoctorIdForUser(userId);
+  }
+
+  /** 403 when a non-admin doctor writes on a resource owned by another doctor; admins and non-doctors pass. */
+  async assertDoctorScope(
+    userId: string | undefined,
+    ownerDoctorId: string | null | undefined,
+    message = 'Solo el médico asignado puede realizar esta acción.',
+  ): Promise<void> {
+    const myDoctorId = await this.getScopedDoctorId(userId);
+    if (myDoctorId && myDoctorId !== ownerDoctorId) {
+      throw new ForbiddenException(message);
+    }
+  }
+
+  /** 403 unless the user has the admin-scope permission. */
+  async assertAdmin(userId: string | undefined, message: string): Promise<void> {
+    if (!userId || !(await this.isAdmin(userId))) {
+      throw new ForbiddenException(message);
+    }
   }
 
   async resolve(authUser: any): Promise<AuthContext> {

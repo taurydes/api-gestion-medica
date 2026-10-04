@@ -14,6 +14,7 @@ import { DoctorSchedule } from './entities/doctor-schedule.entity';
 import { Doctor } from './entities/doctor.entity';
 import { timeToMinutes } from './schedule-time.util';
 import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity';
+import { AuthContextService } from 'src/common/services/auth-context.service';
 import {
   CreateDoctorScheduleDto,
   UpdateDoctorScheduleBlockDto,
@@ -33,13 +34,25 @@ export class DoctorScheduleService {
 
     @Inject(CACHE_MANAGER)
     private readonly cacheManager: Cache,
+
+    private readonly authContextService: AuthContextService,
   ) {}
+
+  private static readonly FOREIGN_SCHEDULE = 'Solo puede gestionar su propio horario.';
+
+  /** A doctor manages only their own blocks (MJ-18); admins any. */
+  private async assertScheduleOwner(doctorId: string, userId?: string): Promise<void> {
+    if (!userId) return;
+    await this.authContextService.assertDoctorScope(userId, doctorId, DoctorScheduleService.FOREIGN_SCHEDULE);
+  }
 
   /**
    * Crea o reemplaza todos los horarios de un doctor en un centro médico.
    * Se hace soft-delete de los horarios anteriores y se crean los nuevos.
    */
-  async setSchedule(dto: CreateDoctorScheduleDto): Promise<DoctorSchedule[]> {
+  async setSchedule(dto: CreateDoctorScheduleDto, userId?: string): Promise<DoctorSchedule[]> {
+    await this.assertScheduleOwner(dto.doctorId, userId);
+
     // Validar que el doctor exista
     const doctor = await this.doctorRepo.findOne({
       where: { id: dto.doctorId, deletedAt: IsNull() },
@@ -153,6 +166,7 @@ export class DoctorScheduleService {
   async updateBlock(
     blockId: string,
     dto: UpdateDoctorScheduleBlockDto,
+    userId?: string,
   ): Promise<DoctorSchedule> {
     const block = await this.scheduleRepo.findOne({
       where: { id: blockId, deletedAt: IsNull() },
@@ -161,6 +175,7 @@ export class DoctorScheduleService {
     if (!block) {
       throw new NotFoundException(`Bloque horario con ID ${blockId} no encontrado`);
     }
+    await this.assertScheduleOwner(block.doctorId, userId);
 
     // Validar hora si se actualizan
     const startTime = dto.startTime || block.startTime;
@@ -182,7 +197,7 @@ export class DoctorScheduleService {
   /**
    * Elimina (soft delete) un bloque horario.
    */
-  async removeBlock(blockId: string): Promise<void> {
+  async removeBlock(blockId: string, userId?: string): Promise<void> {
     const block = await this.scheduleRepo.findOne({
       where: { id: blockId, deletedAt: IsNull() },
     });
@@ -190,6 +205,7 @@ export class DoctorScheduleService {
     if (!block) {
       throw new NotFoundException(`Bloque horario con ID ${blockId} no encontrado`);
     }
+    await this.assertScheduleOwner(block.doctorId, userId);
 
     block.deletedAt = new Date();
     await this.scheduleRepo.save(block);

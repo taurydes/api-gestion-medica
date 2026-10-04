@@ -328,6 +328,14 @@ export class DoctorsService {
         throw new NotFoundException(`Doctor con ID ${id} no encontrado.`);
       }
 
+      // Activating or deactivating a doctor is an admin action; the edit form round-trips the current value.
+      if (dto.isActive !== undefined && dto.isActive !== doctor.isActive) {
+        await this.authContextService.assertAdmin(
+          authUser?.id,
+          'Solo un administrador puede activar o desactivar un médico.',
+        );
+      }
+
       // 1. Sincronizar Centros Médicos y Especialidades
       if (dto.medicalCenterIds) {
         const centers = await this.medicalCenterRepository.findBy({
@@ -370,10 +378,12 @@ export class DoctorsService {
     }
   }
 
-  /**
-   * Eliminar doctor (soft delete)
-   */
-  async remove(id: string): Promise<void> {
+  /** Soft-deletes a doctor; only an admin can do it (MJ-16). */
+  async remove(id: string, authUser?: any): Promise<void> {
+    await this.authContextService.assertAdmin(
+      authUser?.id,
+      'Solo un administrador puede dar de baja a un médico.',
+    );
     try {
       const doctor = await this.doctorRepository.findOneBy({ id, deletedAt: IsNull() });
       if (!doctor) {

@@ -77,12 +77,12 @@ export class DoctorsController {
 
   @ApiOperation({
     summary: 'Eliminar doctor',
-    description: 'Elimina lógicamente un doctor por ID.',
+    description: 'Elimina lógicamente un doctor por ID. Solo administradores (403 para el resto).',
   })
   @Delete(':id')
   @Permission(`${ModuleItemsMenu.DoctorsModule}.${PermissionActionsMenu.DELETE}`)
-  remove(@Param('id', ParseUuid) id: string) {
-    return this.doctorsService.remove(id);
+  remove(@Param('id', ParseUuid) id: string, @GetUser() authUser: any) {
+    return this.doctorsService.remove(id, authUser);
   }
 
   // ======================================================
@@ -91,12 +91,13 @@ export class DoctorsController {
 
   @ApiOperation({
     summary: 'Configurar horarios de un doctor',
-    description: 'Crea o reemplaza todos los horarios de un doctor en un centro médico.',
+    description:
+      'Crea o reemplaza todos los horarios de un doctor en un centro médico. Un médico solo el suyo (403).',
   })
   @Post('schedules')
   @Permission(`${ModuleItemsMenu.DoctorsModule}.${PermissionActionsMenu.UPDATE}`)
-  setSchedule(@Body() dto: CreateDoctorScheduleDto) {
-    return this.scheduleService.setSchedule(dto);
+  setSchedule(@Body() dto: CreateDoctorScheduleDto, @GetUser('id') userId: string) {
+    return this.scheduleService.setSchedule(dto, userId);
   }
 
   @ApiOperation({
@@ -126,17 +127,19 @@ export class DoctorsController {
   updateScheduleBlock(
     @Param('blockId', ParseUuid) blockId: string,
     @Body() dto: UpdateDoctorScheduleBlockDto,
+    @GetUser('id') userId: string,
   ) {
-    return this.scheduleService.updateBlock(blockId, dto);
+    return this.scheduleService.updateBlock(blockId, dto, userId);
   }
 
   @ApiOperation({
     summary: 'Eliminar un bloque horario',
-    description: 'Elimina lógicamente un bloque horario.',
+    description: 'Elimina lógicamente un bloque horario. Un médico solo los suyos (403).',
   })
   @Delete('schedules/:blockId')
-  @Permission(`${ModuleItemsMenu.DoctorsModule}.${PermissionActionsMenu.DELETE}`)
-  removeScheduleBlock(@Param('blockId', ParseUuid) blockId: string) {
-    return this.scheduleService.removeBlock(blockId);
+  // actualizar, not eliminar: removing a block edits the doctor's schedule, and eliminar is reserved to doctor removal
+  @Permission(`${ModuleItemsMenu.DoctorsModule}.${PermissionActionsMenu.UPDATE}`)
+  removeScheduleBlock(@Param('blockId', ParseUuid) blockId: string, @GetUser('id') userId: string) {
+    return this.scheduleService.removeBlock(blockId, userId);
   }
 }
