@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InMemoryDb } from '../../test/in-memory-db';
 import { authContextForUsers, SCOPE_USERS } from '../../test/auth-context-stub';
 import { MedicalAppointmentsService } from './medical-appointments.service';
@@ -72,5 +72,29 @@ describe('MedicalAppointmentsService — writes limited to the appointment docto
       ForbiddenException,
     );
     expect(apt().doctorId).toBe('doc-b');
+  });
+});
+
+describe('MedicalAppointmentsService.create — a doctor books only in their own name (MJ-27)', () => {
+  const booking = (doctorId: string) =>
+    ({ doctorId, patientId: 'pat-1', appointmentDate: '2099-01-05T13:00:00Z', type: 'first_visit', reason: 'control' }) as any;
+
+  function withPatientStep() {
+    const { service } = setup();
+    // The patient step is the first write; reaching it means the scope check let the call through.
+    const resolvePatient = jest.spyOn(service as any, 'resolvePatient').mockRejectedValue(new BadRequestException('patient step reached'));
+    return { service, resolvePatient };
+  }
+
+  it('doctor A booking for doctor B → 403 before any patient is resolved or created', async () => {
+    const { service, resolvePatient } = withPatientStep();
+    await expect(service.create(booking('doc-b'), 'user-a')).rejects.toThrow(ForbiddenException);
+    expect(resolvePatient).not.toHaveBeenCalled();
+  });
+
+  it('doctor A booking for themselves and an admin booking for anyone pass the scope check', async () => {
+    const { service } = withPatientStep();
+    await expect(service.create(booking('doc-a'), 'user-a')).rejects.toThrow('patient step reached');
+    await expect(service.create(booking('doc-b'), 'user-admin')).rejects.toThrow('patient step reached');
   });
 });

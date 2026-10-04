@@ -486,6 +486,9 @@ export class MedicalAppointmentsService {
     userId?: string,
   ): Promise<MedicalAppointment> {
     try {
+      // A doctor books only in their own name; checked before the patient can be created (MJ-27).
+      await this.assertWriteAccess({ doctorId: dto.doctorId }, userId);
+
       const appointmentDate = new Date(dto.appointmentDate);
 
       // Validar que la fecha no sea en el pasado

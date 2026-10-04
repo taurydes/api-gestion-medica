@@ -132,8 +132,8 @@ export class MedicalAppointmentsController {
   @Permission(
     `${ModuleItemsMenu.MedicalAppointmentsModule}.${PermissionActionsMenu.CREATE}`,
   )
-  create(@Body() dto: CreateMedicalAppointmentDto) {
-    return this.appointmentsService.create(dto);
+  create(@Body() dto: CreateMedicalAppointmentDto, @GetUser('id') userId: string) {
+    return this.appointmentsService.create(dto, userId);
   }
 
   @ApiOperation({
