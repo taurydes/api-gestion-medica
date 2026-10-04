@@ -77,13 +77,13 @@ describe('MedicalAppointmentsService — writes limited to the appointment docto
 
 describe('MedicalAppointmentsService.create — a doctor books only in their own name (MJ-27)', () => {
   const booking = (doctorId: string) =>
-    ({ doctorId, patientId: 'pat-1', appointmentDate: '2099-01-05T13:00:00Z', type: 'first_visit', reason: 'control' }) as any;
+    ({ doctorId, medicalCenterId: 'mc-1', patientId: 'pat-1', appointmentDate: '2099-01-05T13:00:00Z', type: 'first_visit', reason: 'control' }) as any;
 
   function withDoctorStep() {
     const { service } = setup();
-    // The doctor lookup is the first step after the scope check; reaching it means the call got through.
+    // The center lookup is the first step after the scope check; reaching it means the call got through.
     const doctorLookup = jest.fn().mockRejectedValue(new BadRequestException('doctor step reached'));
-    (service as any).doctorRepository = { findOne: doctorLookup };
+    (service as any).medicalCenterRepository = { findOne: doctorLookup };
     return { service, doctorLookup };
   }
 

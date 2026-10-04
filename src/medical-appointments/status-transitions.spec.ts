@@ -86,6 +86,7 @@ describe('Appointment status contract through the global ValidationPipe (MJ-26)'
   const createBody = {
     patientId: 'a1b2c3d4-e5f6-4890-abcd-ef1234567890',
     doctorId: 'b1b2c3d4-e5f6-4890-abcd-ef1234567890',
+    medicalCenterId: 'c1b2c3d4-e5f6-4890-abcd-ef1234567890',
     appointmentDate: '2030-01-10T14:00:00.000Z',
     type: 'first_visit',
     reason: 'Control',

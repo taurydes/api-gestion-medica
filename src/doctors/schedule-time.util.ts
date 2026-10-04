@@ -61,3 +61,8 @@ export function minutesToTime(minutes: number): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
 }
+
+/** Daily cap of a doctor in a center: the sum of the caps of that day's blocks, whatever their order. */
+export function dailyCap(blocks: { maxDailyAppointments?: number | null }[]): number {
+  return blocks.reduce((sum, b) => sum + (b.maxDailyAppointments || 20), 0);
+}

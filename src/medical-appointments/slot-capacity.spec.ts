@@ -37,7 +37,7 @@ function build(block: { slotDurationMinutes: number; maxPatientsPerSlot: number 
   };
   const deps: any[] = Array(18).fill({});
   deps[0] = appointmentRepository;
-  deps[3] = { findOne: jest.fn().mockResolvedValue({ id: 'doc-1' }) };
+  deps[3] = { findOne: jest.fn().mockResolvedValue({ id: 'doc-1', medicalCenters: [{ id: 'mc-1' }] }) };
   deps[10] = { get: jest.fn(), set: jest.fn(), del: jest.fn() };
   deps[14] = scheduleService;
   deps[16] = authContextFor({ isAdmin: true, doctorId: null });

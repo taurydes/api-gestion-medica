@@ -28,6 +28,7 @@ import { Patient } from 'src/patient/entities/patient.entity';
 import { Doctor } from 'src/doctors/entities/doctor.entity';
 import {
   atMinutes,
+  dailyCap,
   dateToMinutes,
   fitsInBlock,
   minutesToTime,
@@ -283,44 +284,6 @@ export class MedicalAppointmentsService {
     return patient;
   }
 
-  /**
-   * Verifica que no haya citas solapadas para el mismo médico
-   */
-  private async checkDoubleBooking(
-    doctorId: string,
-    appointmentDate: Date,
-    durationMinutes: number,
-    excludeId?: string,
-  ): Promise<void> {
-    const endTime = new Date(
-      appointmentDate.getTime() + durationMinutes * 60 * 1000,
-    );
-
-    const qb = this.appointmentRepository
-      .createQueryBuilder('apt')
-      .where('apt.doctorId = :doctorId', { doctorId })
-      .andWhere('apt.deletedAt IS NULL')
-      .andWhere('apt.status NOT IN (:...statuses)', {
-        statuses: [AppointmentStatus.CANCELLED],
-      })
-      .andWhere(
-        // Rango se solapa si: inicio < fin_nueva AND fin > inicio_nueva
-        "apt.appointmentDate < :endTime AND (apt.appointmentDate + (apt.durationMinutes * interval '1 minute')) > :startTime",
-        { startTime: appointmentDate, endTime },
-      );
-
-    if (excludeId) {
-      qb.andWhere('apt.id != :excludeId', { excludeId });
-    }
-
-    const conflict = await qb.getOne();
-    if (conflict) {
-      throw new BadRequestException(
-        `El médico ya tiene una cita programada que se solapa con el horario solicitado (Cita #${conflict.appointmentNumber}).`,
-      );
-    }
-  }
-
   /** Rejects a time that overlaps another active appointment of the same patient. */
   private async checkPatientConflict(
     patientId: string,
@@ -350,6 +313,34 @@ export class MedicalAppointmentsService {
         `El paciente ya tiene una cita programada en ese horario (Cita #${conflict.appointmentNumber}).`,
       );
     }
+  }
+
+  /** 404 for a missing doctor, 400 when the doctor is not assigned to the center (MJ-24). */
+  private async assertDoctorInCenter(doctorId: string, medicalCenterId: string): Promise<void> {
+    const doctor = await this.doctorRepository.findOne({
+      where: { id: doctorId, deletedAt: IsNull() },
+      relations: ['medicalCenters'],
+    });
+    if (!doctor) {
+      throw new NotFoundException(`Médico con ID ${doctorId} no encontrado.`);
+    }
+    if (!doctor.medicalCenters?.some((mc) => mc.id === medicalCenterId && !mc.deletedAt)) {
+      throw new BadRequestException('El médico no está asignado a este centro médico.');
+    }
+  }
+
+  /** Every booking rule that depends on doctor, center and time; shared by create and reschedule. */
+  private async validateBooking(
+    doctorId: string,
+    medicalCenterId: string,
+    appointmentDate: Date,
+    durationMinutes: number,
+    excludeId?: string,
+  ): Promise<void> {
+    await this.assertDoctorInCenter(doctorId, medicalCenterId);
+    await this.validateDoctorSchedule(doctorId, medicalCenterId, appointmentDate, durationMinutes);
+    await this.validateSlotCapacity(doctorId, medicalCenterId, appointmentDate, durationMinutes, excludeId);
+    await this.validateDailyAppointmentLimit(doctorId, medicalCenterId, appointmentDate, excludeId);
   }
 
   /**
@@ -495,8 +486,7 @@ export class MedicalAppointmentsService {
 
     if (!schedules.length) return; // Sin horario = sin límite (ya se validó antes)
 
-    // Tomar el máximo diario del primer bloque (se aplica a nivel día)
-    const maxDaily = schedules[0].maxDailyAppointments || 20;
+    const maxDaily = dailyCap(schedules);
 
     // Contar citas activas del doctor ese día en ese centro
     const dayStart = new Date(appointmentDate);
@@ -591,22 +581,18 @@ export class MedicalAppointmentsService {
       const duration = dto.durationMinutes ?? 30;
 
       // Every check that does not need the patient runs before anything is written (MJ-25).
-      const doctor = await this.doctorRepository.findOne({
-        where: { id: dto.doctorId, deletedAt: IsNull() },
+      if (!dto.medicalCenterId) {
+        throw new BadRequestException('Indique el centro médico de la cita.');
+      }
+      const center = await this.medicalCenterRepository.findOne({
+        where: { id: dto.medicalCenterId, deletedAt: IsNull() },
       });
-      if (!doctor) {
+      if (!center) {
         throw new NotFoundException(
-          `Médico con ID ${dto.doctorId} no encontrado.`,
+          `Centro médico con ID ${dto.medicalCenterId} no encontrado.`,
         );
       }
-
-      if (dto.medicalCenterId) {
-        await this.validateDoctorSchedule(dto.doctorId, dto.medicalCenterId, appointmentDate, duration);
-        await this.validateSlotCapacity(dto.doctorId, dto.medicalCenterId, appointmentDate, duration);
-        await this.validateDailyAppointmentLimit(dto.doctorId, dto.medicalCenterId, appointmentDate);
-      } else {
-        await this.checkDoubleBooking(dto.doctorId, appointmentDate, duration);
-      }
+      await this.validateBooking(dto.doctorId, dto.medicalCenterId, appointmentDate, duration);
 
       if (dto.specialtyId) {
         const specialty = await this.specialtyRepository.findOne({
@@ -615,17 +601,6 @@ export class MedicalAppointmentsService {
         if (!specialty) {
           throw new NotFoundException(
             `Especialidad con ID ${dto.specialtyId} no encontrada.`,
-          );
-        }
-      }
-
-      if (dto.medicalCenterId) {
-        const center = await this.medicalCenterRepository.findOne({
-          where: { id: dto.medicalCenterId, deletedAt: IsNull() },
-        });
-        if (!center) {
-          throw new NotFoundException(
-            `Centro médico con ID ${dto.medicalCenterId} no encontrado.`,
           );
         }
       }
@@ -660,7 +635,7 @@ export class MedicalAppointmentsService {
             patientId: patient.id,
             doctorId: dto.doctorId,
             specialtyId: dto.specialtyId ?? null,
-            medicalCenterId: dto.medicalCenterId ?? null,
+            medicalCenterId: dto.medicalCenterId,
             departmentId: dto.departmentId ?? null,
             createdBy: userId ?? null,
           }),
@@ -902,14 +877,11 @@ export class MedicalAppointmentsService {
           'La fecha de la cita no puede ser en el pasado.',
         );
       }
-      await this.checkPatientConflict(apt.patientId, newDate, duration, id);
-      if (medicalCenterId) {
-        await this.validateDoctorSchedule(doctorId, medicalCenterId, newDate, duration);
-        await this.validateSlotCapacity(doctorId, medicalCenterId, newDate, duration, id);
-        await this.validateDailyAppointmentLimit(doctorId, medicalCenterId, newDate, id);
-      } else {
-        await this.checkDoubleBooking(doctorId, newDate, duration, id);
+      if (!medicalCenterId) {
+        throw new BadRequestException('Indique el centro médico de la cita para reprogramarla.');
       }
+      await this.checkPatientConflict(apt.patientId, newDate, duration, id);
+      await this.validateBooking(doctorId, medicalCenterId, newDate, duration, id);
       apt.appointmentDate = newDate;
     }
 
@@ -1312,9 +1284,12 @@ export class MedicalAppointmentsService {
     }));
 
     const currentCount = appointments.length;
-    const maxDaily = schedule.length > 0 ? schedule[0].maxDailyAppointments : 20;
-    const slots = this.slotGrid(dayStart, blocks, appointments);
-    const available = schedule.length > 0 && currentCount < maxDaily && slots.some((s) => s.available);
+    const dayFull = currentCount >= dailyCap(blocks);
+    // A full day closes every slot, so a turn picker never offers a time the daily cap rejects.
+    const slots = this.slotGrid(dayStart, blocks, appointments).map((s) =>
+      dayFull ? { ...s, available: false } : s,
+    );
+    const available = schedule.length > 0 && !dayFull && slots.some((s) => s.available);
 
     return { occupiedSlots, schedule, slots, currentCount, available };
   }
@@ -1382,7 +1357,7 @@ export class MedicalAppointmentsService {
           (sum, s) => sum + Math.max(0, s.capacity - s.booked),
           0,
         );
-        const slotsAvailable = Math.min(blocks[0].maxDailyAppointments - dayAppointments.length, freeInSlots);
+        const slotsAvailable = Math.min(dailyCap(blocks) - dayAppointments.length, freeInSlots);
         if (slotsAvailable > 0) {
           result.push({
             date: formatLocalDate(current),

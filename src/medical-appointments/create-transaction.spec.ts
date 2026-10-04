@@ -6,13 +6,15 @@ import { MedicalAppointment } from './entities/medical-appointment.entity';
 import { Patient } from 'src/patient/entities/patient.entity';
 import { CommonPerson } from 'src/common-person/entities/common-person.entity';
 import { Doctor } from 'src/doctors/entities/doctor.entity';
+import { MedicalCenter } from 'src/medical-center/entities/medical-center.entity';
 
 function setup() {
   const db = new InMemoryDb()
     .table(CommonPerson)
     .table(Patient)
     .table(MedicalAppointment)
-    .table(Doctor, [{ id: 'doc-1', deletedAt: null }]);
+    .table(MedicalCenter, [{ id: 'mc-1', deletedAt: null }])
+    .table(Doctor, [{ id: 'doc-1', deletedAt: null, medicalCenters: [{ id: 'mc-1' }] }]);
   const cache = { get: jest.fn(), set: jest.fn(), del: jest.fn() };
   const none = {} as any;
   const service = new MedicalAppointmentsService(
@@ -20,12 +22,16 @@ function setup() {
     db.repo(Patient),
     db.repo(CommonPerson),
     db.repo(Doctor),
-    none, none, none, none, none, none,
+    none, db.repo(MedicalCenter), none, none, none, none,
     cache as any,
     none, none, none, none, none,
     authContextFor({ isAdmin: true, doctorId: null }),
     db.dataSource,
   );
+  // Schedule, slot and daily-cap rules have their own specs; here only the write path matters.
+  for (const rule of ['validateDoctorSchedule', 'validateSlotCapacity', 'validateDailyAppointmentLimit']) {
+    jest.spyOn(service as any, rule).mockResolvedValue(undefined);
+  }
   jest
     .spyOn(service as any, 'loadFullAppointment')
     .mockImplementation(async (id: string) => db.rows(MedicalAppointment).find((a) => a.id === id));
@@ -36,6 +42,7 @@ function setup() {
 const newPersonBooking = (doctorId = 'doc-1') =>
   ({
     doctorId,
+    medicalCenterId: 'mc-1',
     documentLetter: 'V',
     documentNumber: '30111222',
     newPatientData: { commonPerson: { firstName: 'Ana', lastName: 'Rivas' } },

@@ -81,13 +81,14 @@ export class CreateMedicalAppointmentDto {
   @IsUUID()
   specialtyId?: string;
 
-  @ApiPropertyOptional({
-    description: 'ID del centro médico (UUID)',
+  // Required: schedule, slots and daily cap are configured per center (MJ-24).
+  @ApiProperty({
+    description: 'ID del centro médico (UUID). El médico debe estar asignado al centro.',
     example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
   })
-  @IsOptional()
+  @IsNotEmpty({ message: 'Indique el centro médico de la cita.' })
   @IsUUID()
-  medicalCenterId?: string;
+  medicalCenterId: string;
 
   @ApiPropertyOptional({
     description: 'ID del departamento médico (UUID)',
