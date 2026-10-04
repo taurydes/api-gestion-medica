@@ -273,6 +273,20 @@ export class UserService {
         ...(savedDoctor ? { doctor: { id: savedDoctor.id } } : {}),
       };
 
+      // The form uploads the photo before the account exists, into the creator's folder: move it to the new user.
+      // Already committed: a failed move keeps the original URL instead of failing the creation.
+      try {
+        const movedPhoto = actorId
+          ? this.filesService.relocateProfilePhoto(commonPerson?.photoUrl, actorId, user.id)
+          : null;
+        if (movedPhoto && commonPerson) {
+          await this.commonPersonrepo.update(commonPerson.id, { photoUrl: movedPhoto });
+          commonPerson.photoUrl = movedPhoto;
+        }
+      } catch {
+        // photo stays where it was uploaded
+      }
+
       await this.cacheManager.del('user:all');
       await this.clearQueryCache();
 

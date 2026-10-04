@@ -466,6 +466,23 @@ export class FilesService {
   }
 
   /**
+   * Moves a profile photo uploaded by `fromOwner` into `toOwner`'s folder and returns its new URL, or null
+   * when the URL is not a profile photo of `fromOwner` (the user form uploads before the account exists).
+   */
+  relocateProfilePhoto(url: string | null | undefined, fromOwner: string, toOwner: string): string | null {
+    const match = /\/files\/profile-photos\/([^/]+)\/([^/?#]+)$/.exec(url ?? '');
+    if (!match || match[1] !== fromOwner || fromOwner === toOwner) return null;
+    const fileName = assertSafeFileName(match[2]);
+    assertFolderId(toOwner, 'ownerId');
+    const source = resolveUploadPath(this.uploadsDir, 'users', fromOwner, 'profile', fileName);
+    if (!fs.existsSync(source)) return null;
+    const targetDir = resolveUploadPath(this.uploadsDir, 'users', toOwner, 'profile');
+    fs.mkdirSync(targetDir, { recursive: true });
+    fs.renameSync(source, resolveUploadPath(this.uploadsDir, 'users', toOwner, 'profile', fileName));
+    return this.buildFilesEndpointUrl(`profile-photos/${toOwner}/${fileName}`);
+  }
+
+  /**
    * @summary Servir foto de perfil por ownerId y nombre de archivo
    * @description Devuelve un stream de la imagen con las cabeceras MIME correctas.
    */
