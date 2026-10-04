@@ -65,6 +65,22 @@ export class RedisSessionService {
     this.logger.debug(`Sesión eliminada para el usuario ${userId}`);
   }
 
+  /** Failed logins of a credential (MJ-01): INCR; the window starts on the first failure and restarts on reaching `max`. */
+  async registerLoginFailure(key: string, max: number, windowSeconds: number): Promise<number> {
+    const redisKey = `login-fail:${key}`;
+    const failures = await this.redisClient.incr(redisKey);
+    if (failures === 1 || failures >= max) await this.redisClient.expire(redisKey, windowSeconds);
+    return failures;
+  }
+
+  async getLoginFailures(key: string): Promise<number> {
+    return Number((await this.redisClient.get(`login-fail:${key}`)) ?? 0);
+  }
+
+  async clearLoginFailures(key: string): Promise<void> {
+    await this.redisClient.del(`login-fail:${key}`);
+  }
+
   /**
    * @summary Verifica si el usuario tiene una sesión activa.
    * @param userId ID del usuario

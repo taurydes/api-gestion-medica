@@ -2,7 +2,7 @@ import { UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { FindOperator } from 'typeorm';
-import { AuthService } from './auth.service';
+import { AuthService, LOGIN_LOCKED, LOGIN_MAX_FAILURES } from './auth.service';
 
 /** Repositorio en memoria que evalúa `where` (objeto u OR en arreglo) incluido IsNull(). */
 function memoryRepo(rows: any[]) {
@@ -35,7 +35,15 @@ async function setup(userOverrides: Record<string, any> = {}) {
     ...userOverrides,
   };
   const sessions = new Map<string, any>();
+  const failures = new Map<string, number>();
   const redis = {
+    // Same contract as RedisSessionService's counters, without the TTL.
+    registerLoginFailure: jest.fn(async (key: string) => {
+      failures.set(key, (failures.get(key) ?? 0) + 1);
+      return failures.get(key)!;
+    }),
+    getLoginFailures: jest.fn(async (key: string) => failures.get(key) ?? 0),
+    clearLoginFailures: jest.fn(async (key: string) => void failures.delete(key)),
     setSession: jest.fn(async (id: string, data: any, _ttl?: number) => sessions.set(String(id), data)),
     getSession: jest.fn(async (id: string) => sessions.get(String(id)) ?? null),
     deleteSession: jest.fn(async (id: string) => sessions.delete(String(id))),
@@ -158,5 +166,54 @@ describe('AuthService — JWT mínimo y sesión alineada con el refresh (M-63)',
     expect(redis.setSession.mock.calls[1][2]).toBeGreaterThan(3600);
     const { iat: _i, exp: _e, ...claims } = new JwtService({}).decode(renewed.access_token);
     expect(claims).toEqual({ id: 'u1', roleId: 'r1', name: 'marta' });
+  });
+});
+
+describe('AuthService — bloqueo por credencial tras intentos fallidos (MJ-01)', () => {
+  const login = (service: AuthService, credential: string, password: string) =>
+    service.login({ credential, password, isSystemUser: false });
+
+  it('5 fallos seguidos bloquean la credencial: el 6.º intento responde 429 aunque la clave sea correcta', async () => {
+    const { service, redis } = await setup();
+    for (let i = 0; i < LOGIN_MAX_FAILURES; i++) {
+      await expect(login(service, 'marta', 'mala')).rejects.toThrow(UnauthorizedException);
+    }
+
+    await expect(login(service, 'marta', 'clave123')).rejects.toMatchObject({ status: 429, message: LOGIN_LOCKED });
+    expect(redis.setSession).not.toHaveBeenCalled();
+  });
+
+  it('la credencial se normaliza: mayúsculas y espacios cuentan como la misma', async () => {
+    const { service } = await setup();
+    for (let i = 0; i < LOGIN_MAX_FAILURES; i++) {
+      await expect(login(service, i % 2 ? ' MARTA ' : 'marta', 'mala')).rejects.toThrow(UnauthorizedException);
+    }
+    await expect(login(service, 'Marta', 'clave123')).rejects.toMatchObject({ status: 429 });
+  });
+
+  it('un login correcto antes del límite reinicia el contador', async () => {
+    const { service, redis } = await setup();
+    for (let i = 0; i < LOGIN_MAX_FAILURES - 1; i++) {
+      await expect(login(service, 'marta', 'mala')).rejects.toThrow(UnauthorizedException);
+    }
+    await expect(login(service, 'marta', 'clave123')).resolves.toHaveProperty('access_token');
+
+    expect(await redis.getLoginFailures('usr:marta')).toBe(0);
+  });
+
+  it('una credencial inexistente también se bloquea: el 429 no revela qué cuentas existen', async () => {
+    const { service } = await setup();
+    for (let i = 0; i < LOGIN_MAX_FAILURES; i++) {
+      await expect(login(service, 'nadie', 'x')).rejects.toThrow(UnauthorizedException);
+    }
+    await expect(login(service, 'nadie', 'x')).rejects.toMatchObject({ status: 429 });
+  });
+
+  it('el bloqueo de una credencial no afecta a otra', async () => {
+    const { service } = await setup();
+    for (let i = 0; i < LOGIN_MAX_FAILURES; i++) {
+      await expect(login(service, 'nadie', 'x')).rejects.toThrow(UnauthorizedException);
+    }
+    await expect(login(service, 'marta', 'clave123')).resolves.toHaveProperty('access_token');
   });
 });

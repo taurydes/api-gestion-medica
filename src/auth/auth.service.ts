@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
@@ -31,6 +31,10 @@ const isRoleActive = (role?: { isActive?: boolean; deletedAt?: Date | null } | n
 
 /** One message for unknown user, inactive account and wrong password: the login does not reveal which accounts exist. */
 export const INVALID_CREDENTIALS = 'Credenciales inválidas';
+/** Per-credential lockout (MJ-01): 5 failures in 15 min lock that credential for 15 min, whether it exists or not. */
+export const LOGIN_MAX_FAILURES = 5;
+export const LOGIN_LOCK_SECONDS = 15 * 60;
+export const LOGIN_LOCKED = 'Demasiados intentos fallidos. La cuenta quedó bloqueada 15 minutos.';
 // Compared when the user does not exist, so both paths pay the same bcrypt cost
 const DUMMY_HASH = bcrypt.hashSync('dummy-password-for-timing', 10);
 
@@ -120,16 +124,24 @@ export class AuthService {
    * @returns Token JWT de acceso.
    */
   async login(loginDto: LoginUserDto): Promise<JwtPayload> {
-    let user: AuthUser;
-
-    if (loginDto.isSystemUser) {
-      user = await this.validateSystemUser(
-        loginDto.credential,
-        loginDto.password,
-      );
-    } else {
-      user = await this.validateUser(loginDto.credential, loginDto.password);
+    // Keyed by the credential typed, so the lock does not reveal whether the account exists.
+    const attemptKey = `${loginDto.isSystemUser ? 'sys' : 'usr'}:${String(loginDto.credential ?? '').trim().toLowerCase()}`;
+    if ((await this.redisSession.getLoginFailures(attemptKey)) >= LOGIN_MAX_FAILURES) {
+      throw new HttpException(LOGIN_LOCKED, HttpStatus.TOO_MANY_REQUESTS);
     }
+
+    let user: AuthUser;
+    try {
+      user = loginDto.isSystemUser
+        ? await this.validateSystemUser(loginDto.credential, loginDto.password)
+        : await this.validateUser(loginDto.credential, loginDto.password);
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        await this.redisSession.registerLoginFailure(attemptKey, LOGIN_MAX_FAILURES, LOGIN_LOCK_SECONDS);
+      }
+      throw error;
+    }
+    await this.redisSession.clearLoginFailures(attemptKey);
     const tokens = this.signTokens(toJwtUserPayload(user.id, user.user));
     await this.redisSession.setSession(
       user.id,
@@ -316,6 +328,10 @@ export class AuthService {
       name: user.name,
       email: user.email,
       doctorId,
+      // Computed by the API so the UI and the API agree on who is an admin (MJ-06).
+      isAdmin: await this.authContextService.isAdmin(userId),
+      // Set by an admin password reset (MJ-05); the UI must send the user to change it.
+      mustChangePassword: user.firstLogin === true,
     };
 
     const modulesPayload = { ...modules, medicalCenters };
