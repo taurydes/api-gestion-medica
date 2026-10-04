@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   NotFoundException,
   PayloadTooLargeException,
@@ -28,7 +29,9 @@ const detectorResult = {
   raw: { prediction: 'MALIGNO' },
 };
 
-function setup(opts: { scopedDoctorId?: string | null; appointmentDoctorId?: string; fileBytes?: Buffer } = {}) {
+function setup(
+  opts: { scopedDoctorId?: string | null; appointmentDoctorId?: string; appointmentPatientId?: string; fileBytes?: Buffer } = {},
+) {
   const uploads = fs.mkdtempSync(path.join(os.tmpdir(), 'mammo-'));
   const relative = 'u/c/a/img.jpg';
   fs.mkdirSync(path.join(uploads, 'u/c/a'), { recursive: true });
@@ -48,7 +51,11 @@ function setup(opts: { scopedDoctorId?: string | null; appointmentDoctorId?: str
   };
   const appointmentFileRepo = { findOne: jest.fn().mockResolvedValue(apptFile) };
   const appointmentRepo = {
-    findOne: jest.fn().mockResolvedValue({ id: APPT_ID, doctorId: opts.appointmentDoctorId ?? 'doc-A' }),
+    findOne: jest.fn().mockResolvedValue({
+      id: APPT_ID,
+      doctorId: opts.appointmentDoctorId ?? 'doc-A',
+      patientId: opts.appointmentPatientId ?? PATIENT_ID,
+    }),
   };
   const userRepo = { exists: jest.fn().mockResolvedValue(true) };
   const config = { get: (k: string) => (k === 'UPLOADS_PATH' ? uploads : undefined) };
@@ -136,6 +143,16 @@ describe('MammographyAnalysisService.create — predicción en el servidor (M-39
     const { service, detector, analysisRepo } = setup({ scopedDoctorId: 'doc-A', appointmentDoctorId: 'doc-B' });
     await expect(service.create({ appointmentFileId: FILE_ID }, { id: 'user-A' })).rejects.toThrow(
       ForbiddenException,
+    );
+    expect(detector.predict).not.toHaveBeenCalled();
+    expect(analysisRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('archivo con un paciente distinto al de la cita → 409 sin llamar al detector (MJ-32)', async () => {
+    const OTHER = '44444444-4444-4444-8444-444444444444';
+    const { service, detector, analysisRepo } = setup({ appointmentPatientId: OTHER });
+    await expect(service.create({ appointmentFileId: FILE_ID }, { id: 'user-A' })).rejects.toThrow(
+      ConflictException,
     );
     expect(detector.predict).not.toHaveBeenCalled();
     expect(analysisRepo.save).not.toHaveBeenCalled();

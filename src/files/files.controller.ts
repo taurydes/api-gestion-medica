@@ -23,6 +23,7 @@ import {
 import { ParseUuid } from 'src/common/pipes/parse-uuid.pipe';
 import { FilesService } from './files.service';
 import { DicomConverterService } from './dicom-converter.service';
+import { AppointmentUploadTargetService } from './appointment-upload-target.service';
 import { UploadFileDto } from './dto/create-file.dto';
 import {
   CreateVideoBase64Dto,
@@ -30,6 +31,7 @@ import {
 } from './dto/create-video-publict.dto';
 
 import { FileInterceptor } from '@nestjs/platform-express';
+import * as fs from 'fs';
 import * as multer from 'multer';
 import { VideoValidationInterceptor } from 'src/common/interceptors/video.interceptor';
 import { ModuleItemsMenu } from 'src/menu/menu.const';
@@ -45,6 +47,7 @@ export class FilesController {
   constructor(
     private readonly filesService: FilesService,
     private readonly dicomConverterService: DicomConverterService,
+    private readonly uploadTargetService: AppointmentUploadTargetService,
   ) {}
 
   /* ============================================================
@@ -137,7 +140,9 @@ export class FilesController {
     summary: 'Subir archivo de cita médica (mamografía u otro estudio)',
     description:
       'Recibe una imagen en formato binario (multipart), la almacena en ' +
-      'UPLOADS_PATH/userId/medicalCenterId/appointmentId/ y registra la referencia en BD.',
+      'UPLOADS_PATH/userId/medicalCenterId/appointmentId/ y registra la referencia en BD. ' +
+      'Paciente, centro e historia se toman de la cita: si el cuerpo los envía distintos → 400; ' +
+      'solo el médico de la cita (o un administrador) puede subir → 403.',
   })
   @ApiConsumes('multipart/form-data')
   @Post('appointment-upload')
@@ -154,11 +159,24 @@ export class FilesController {
     @Body('description') description: string,
     @GetUser('id') userId: string,
   ) {
+    let target;
+    try {
+      target = await this.uploadTargetService.resolve(
+        {
+          appointmentId,
+          patientId: patientId || undefined,
+          medicalCenterId: medicalCenterId || undefined,
+          medicalHistoryId: medicalHistoryId || undefined,
+        },
+        userId,
+      );
+    } catch (error) {
+      // uploadAppointmentFile cleans multer's temp file; a rejected target never reaches it
+      if (file?.path) fs.rmSync(file.path, { force: true });
+      throw error;
+    }
     return this.filesService.uploadAppointmentFile(file, {
-      appointmentId,
-      medicalHistoryId: medicalHistoryId || undefined,
-      patientId,
-      medicalCenterId,
+      ...target,
       uploadedBy: userId,
       fileType: fileType || 'mammography',
       description: description || undefined,

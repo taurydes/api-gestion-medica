@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -93,13 +94,18 @@ export class MammographyAnalysisService {
     if (dto.appointmentId && dto.appointmentId !== apptFile.appointmentId) {
       throw new BadRequestException('appointmentId no corresponde al archivo indicado.');
     }
-    if (dto.patientId && dto.patientId !== apptFile.patientId) {
+    const appointment = await this.appointmentRepo.findOne({
+      where: { id: apptFile.appointmentId },
+      select: ['id', 'doctorId', 'patientId'],
+    });
+    this.assertAppointmentAccess(appointment, await this.resolveDoctorScope(authUser));
+    // The appointment is the source of truth for the patient (MJ-32); a file that disagrees is not analyzed.
+    if (!appointment || apptFile.patientId !== appointment.patientId) {
+      throw new ConflictException('El archivo no corresponde al paciente de la cita; no se puede analizar.');
+    }
+    if (dto.patientId && dto.patientId !== appointment.patientId) {
       throw new BadRequestException('patientId no corresponde al archivo indicado.');
     }
-    await this.assertAppointmentAccess(
-      apptFile.appointmentId,
-      await this.resolveDoctorScope(authUser),
-    );
 
     const stored = await this.readStoredFile(apptFile);
     const image = await this.prepareForDetector(stored);
@@ -116,7 +122,7 @@ export class MammographyAnalysisService {
     const record = this.analysisRepo.create({
       appointmentId: apptFile.appointmentId,
       appointmentFileId: apptFile.id,
-      patientId: apptFile.patientId,
+      patientId: appointment.patientId,
       analyzedBy: await this.resolveAnalyzedBy(authUser?.id ?? null),
       prediction: result.prediction,
       // numeric(5,2): se redondea aquí para que la respuesta del POST coincida con lo que devuelve un GET.
@@ -201,12 +207,8 @@ export class MammographyAnalysisService {
   }
 
   /** Un médico solo analiza archivos de sus propias citas. */
-  private async assertAppointmentAccess(appointmentId: string, scope: DoctorScope): Promise<void> {
+  private assertAppointmentAccess(appointment: { doctorId: string } | null, scope: DoctorScope): void {
     if (!scope) return;
-    const appointment = await this.appointmentRepo.findOne({
-      where: { id: appointmentId },
-      select: ['id', 'doctorId'],
-    });
     if (appointment?.doctorId !== scope.doctorId) {
       throw new ForbiddenException('No tiene acceso a este archivo.');
     }

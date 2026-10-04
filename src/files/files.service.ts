@@ -310,7 +310,7 @@ export class FilesService {
 
       // Estructura: UPLOADS_PATH/userId/medicalCenterId/appointmentId/
       assertFolderId(data.uploadedBy, 'uploadedBy');
-      assertFolderId(data.medicalCenterId, 'medicalCenterId');
+      assertFolderId(data.medicalCenterId, 'medicalCenterId', true);
       assertFolderId(data.appointmentId, 'appointmentId');
       const relativePath = path.join(
         data.uploadedBy,
