@@ -137,6 +137,17 @@ describe('MedicalAppointmentsService.finishConsultation — atomic close (M-14)'
     expect(db.rows(MedicalHistory)).toHaveLength(1);
   });
 
+  it('a cancelled appointment → 400, stays cancelled and gets no history', async () => {
+    const { service, db } = setup();
+    db.rows(MedicalAppointment)[0].status = AppointmentStatus.CANCELLED;
+
+    await expect(service.finishConsultation('apt-1', dto(), 'u1')).rejects.toThrow(
+      'No se puede finalizar una cita cancelada.',
+    );
+    expect(status(db)).toBe(AppointmentStatus.CANCELLED);
+    expect(db.rows(MedicalHistory)).toHaveLength(0);
+  });
+
   it('a soft-deleted medication counts as missing', async () => {
     const { service, db } = setup();
     db.rows(Medication)[0].deletedAt = new Date();

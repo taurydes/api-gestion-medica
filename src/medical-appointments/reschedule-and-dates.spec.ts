@@ -82,6 +82,28 @@ describe('MedicalAppointmentsService.update — rescheduling re-validates the sc
   });
 });
 
+describe('MedicalAppointmentsService.update — completed and cancelled appointments are closed', () => {
+  it.each([
+    [AppointmentStatus.COMPLETED, 'No se puede modificar una cita ya completada.'],
+    [AppointmentStatus.CANCELLED, 'No se puede modificar una cita cancelada.'],
+  ])('%s → 400 and nothing is saved, neither an edit nor a reschedule', async (status, message) => {
+    const { service, apt, appointmentRepository } = build(MONDAY_8_TO_12);
+    apt.status = status;
+
+    await expect(service.update('apt-1', { reason: 'otro' } as any, 'u1')).rejects.toThrow(message);
+    await expect(service.update('apt-1', { appointmentDate: local(9) } as any, 'u1')).rejects.toThrow(BadRequestException);
+    expect(appointmentRepository.save).not.toHaveBeenCalled();
+  });
+
+  it.each([AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED])('%s → the edit is saved', async (status) => {
+    const { service, apt, appointmentRepository } = build(MONDAY_8_TO_12);
+    apt.status = status;
+
+    await expect(service.update('apt-1', { reason: 'otro' } as any, 'u1')).resolves.toBeDefined();
+    expect(appointmentRepository.save).toHaveBeenCalled();
+  });
+});
+
 describe('MedicalAppointmentsService.getAvailableDates — dates in the app timezone', () => {
   it('returns the doctor weekdays with their own calendar date', async () => {
     const { service } = build([{ dayOfWeek: 1, startTime: '08:00:00', endTime: '12:00:00' }, { dayOfWeek: 3, startTime: '08:00:00', endTime: '12:00:00' }]);

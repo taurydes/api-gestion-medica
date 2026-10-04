@@ -931,6 +931,10 @@ export class MedicalAppointmentsService {
         throw new BadRequestException('La cita ya está completada.');
       }
 
+      if (apt.status === AppointmentStatus.CANCELLED) {
+        throw new BadRequestException('No se puede finalizar una cita cancelada.');
+      }
+
       // 1️⃣ Crear Historial Médico
       const historyDto = {
         ...dto.medicalHistory,
