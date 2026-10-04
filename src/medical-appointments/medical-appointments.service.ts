@@ -152,13 +152,13 @@ export class MedicalAppointmentsService {
    * Los admins no están sujetos a restricciones IDOR aunque tengan perfil de doctor.
    */
   /** Writes follow the read rule: a doctor acts only on their own appointments (MJ-27). */
-  private async assertWriteAccess(apt: { doctorId: string }, userId?: string): Promise<void> {
+  private async assertWriteAccess(
+    apt: { doctorId: string },
+    userId?: string,
+    message = 'Solo el médico asignado puede modificar esta cita.',
+  ): Promise<void> {
     if (!userId) return;
-    await this.authContextService.assertDoctorScope(
-      userId,
-      apt.doctorId,
-      'Solo el médico asignado puede modificar esta cita.',
-    );
+    await this.authContextService.assertDoctorScope(userId, apt.doctorId, message);
   }
 
   private async isAdminUser(userId: string): Promise<boolean> {
@@ -487,7 +487,7 @@ export class MedicalAppointmentsService {
   ): Promise<MedicalAppointment> {
     try {
       // A doctor books only in their own name; checked before the patient can be created (MJ-27).
-      await this.assertWriteAccess({ doctorId: dto.doctorId }, userId);
+      await this.assertWriteAccess({ doctorId: dto.doctorId }, userId, 'Un médico solo puede agendar citas a su nombre.');
 
       const appointmentDate = new Date(dto.appointmentDate);
 
