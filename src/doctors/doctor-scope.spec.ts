@@ -4,6 +4,9 @@ import { authContextForUsers, SCOPE_USERS } from '../../test/auth-context-stub';
 import { DoctorsService } from './doctors.service';
 import { DoctorScheduleService } from './doctor-schedule.service';
 
+/** Stand-in DataSource whose transaction works directly on one repository (atomicity is tested elsewhere). */
+const txOver = (repo: FakeRepo) => ({ transaction: (work: any) => work({ getRepository: () => repo }) }) as any;
+
 const A = { id: 'user-a' };
 const B = { id: 'user-b' };
 const ADMIN = { id: 'user-admin' };
@@ -85,12 +88,14 @@ describe('DoctorScheduleService — a doctor manages only their own blocks (MJ-1
     ];
     const centers = [{ id: 'c1', deletedAt: null }, { id: 'c2', deletedAt: null }];
     const cache = { del: jest.fn() };
+    const scheduleRepo = new FakeRepo(blocks);
     const service = new DoctorScheduleService(
-      new FakeRepo(blocks) as any,
+      scheduleRepo as any,
       new FakeRepo(doctors) as any,
       new FakeRepo(centers) as any,
       cache as any,
       authContextForUsers(SCOPE_USERS),
+      txOver(scheduleRepo),
     );
     const block = (id: string) => blocks.find((b) => b.id === id)!;
     const live = (doctorId: string) => blocks.filter((b) => b.doctorId === doctorId && !b.deletedAt);
@@ -158,6 +163,7 @@ describe('DoctorScheduleService — a schedule only in an assigned center (MJ-19
       new FakeRepo([{ id: 'c1', deletedAt: null }, { id: 'c2', deletedAt: null }]) as any,
       { del: jest.fn() } as any,
       authContextForUsers(SCOPE_USERS),
+      txOver(new FakeRepo(blocks)),
     );
     const dto = { doctorId: 'doc-a', medicalCenterId: 'c2', blocks: [{ dayOfWeek: 1, startTime: '08:00:00', endTime: '12:00:00' }] };
 

@@ -102,7 +102,7 @@ describe('Horarios del médico (M-37)', () => {
   it('reenviar el horario leído (08:00:00) actualiza el bloque; inicio igual a fin sigue siendo 400', async () => {
     const rows = [{ id: 'b1', doctorId: 'd1', medicalCenterId: 'c1', startTime: '08:00:00', endTime: '12:00:00', deletedAt: null }];
     const cache = { del: jest.fn() } as any;
-    const service = new DoctorScheduleService(new FakeRepo(rows) as any, {} as any, {} as any, cache, {} as any);
+    const service = new DoctorScheduleService(new FakeRepo(rows) as any, {} as any, {} as any, cache, {} as any, {} as any);
 
     const dto = await validate(UpdateDoctorScheduleBlockDto, { startTime: '08:00:00', endTime: '13:00' });
     await service.updateBlock('b1', dto);

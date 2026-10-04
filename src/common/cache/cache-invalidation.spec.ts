@@ -57,7 +57,7 @@ describe('Cache invalidation keys (M-56)', () => {
       findOne: jest.fn().mockResolvedValue(block),
       save: jest.fn(async (x) => x),
     };
-    const service = new DoctorScheduleService(scheduleRepo as any, {} as any, {} as any, cache as any, {} as any);
+    const service = new DoctorScheduleService(scheduleRepo as any, {} as any, {} as any, cache as any, {} as any, {} as any);
 
     await service.getSchedulesByDoctor('doc-1');
     await service.getSchedulesByDoctor('doc-1', 'mc-1', true);

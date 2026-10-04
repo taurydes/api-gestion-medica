@@ -4,11 +4,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { CACHE_TTL } from 'src/common/cache/cache-registry';
-import { IsNull, Repository } from 'typeorm';
+import { DataSource, IsNull, Repository } from 'typeorm';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { DoctorSchedule } from './entities/doctor-schedule.entity';
 import { Doctor } from './entities/doctor.entity';
@@ -36,7 +36,29 @@ export class DoctorScheduleService {
     private readonly cacheManager: Cache,
 
     private readonly authContextService: AuthContextService,
+
+    @InjectDataSource(DatabaseConnectionName.DB_MAIN)
+    private readonly dataSource: DataSource,
   ) {}
+
+  /** A doctor cannot be in two places: blocks of the same weekday may not overlap, in any center (MJ-19). */
+  private assertNoOverlap(
+    candidate: { dayOfWeek: number; startTime: string; endTime: string },
+    others: Array<{ dayOfWeek: number; startTime: string; endTime: string; medicalCenterId?: string }>,
+  ): void {
+    const clash = others.find(
+      (o) =>
+        o.dayOfWeek === candidate.dayOfWeek &&
+        timeToMinutes(o.startTime) < timeToMinutes(candidate.endTime) &&
+        timeToMinutes(candidate.startTime) < timeToMinutes(o.endTime),
+    );
+    if (clash) {
+      const day = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][candidate.dayOfWeek];
+      throw new BadRequestException(
+        `El bloque ${day} ${candidate.startTime.slice(0, 5)}–${candidate.endTime.slice(0, 5)} se solapa con otro bloque del médico (${clash.startTime.slice(0, 5)}–${clash.endTime.slice(0, 5)}).`,
+      );
+    }
+  }
 
   private static readonly FOREIGN_SCHEDULE = 'Solo puede gestionar su propio horario.';
 
@@ -86,19 +108,31 @@ export class DoctorScheduleService {
       }
     }
 
-    // Soft-delete de horarios anteriores del doctor en este centro
-    await this.scheduleRepo.update(
-      {
-        doctorId: dto.doctorId,
-        medicalCenterId: dto.medicalCenterId,
-        deletedAt: IsNull(),
-      },
-      { deletedAt: new Date() },
-    );
+    // The new blocks replace this center's; they must not overlap each other nor the other centers' blocks.
+    const otherCenters = (
+      await this.scheduleRepo.find({ where: { doctorId: dto.doctorId, deletedAt: IsNull() } })
+    ).filter((b) => b.medicalCenterId !== dto.medicalCenterId);
+    dto.blocks.forEach((block, i) => this.assertNoOverlap(block, [...otherCenters, ...dto.blocks.slice(0, i)]));
 
-    // Crear nuevos horarios
-    const schedules = dto.blocks.map((block) =>
-      this.scheduleRepo.create({
+    // Replace in one transaction: a failed insert keeps the previous schedule (MJ-19)
+    const saved = await this.dataSource.transaction(async (manager) => {
+      const repo = manager.getRepository(DoctorSchedule);
+      await repo.update(
+        { doctorId: dto.doctorId, medicalCenterId: dto.medicalCenterId, deletedAt: IsNull() },
+        { deletedAt: new Date() },
+      );
+      return repo.save(this.buildBlocks(dto, repo));
+    });
+
+    // Limpiar caché
+    await this.invalidateCache(dto.doctorId, dto.medicalCenterId);
+
+    return saved;
+  }
+
+  private buildBlocks(dto: CreateDoctorScheduleDto, repo: Repository<DoctorSchedule>): DoctorSchedule[] {
+    return dto.blocks.map((block) =>
+      repo.create({
         doctorId: dto.doctorId,
         medicalCenterId: dto.medicalCenterId,
         dayOfWeek: block.dayOfWeek,
@@ -110,13 +144,6 @@ export class DoctorScheduleService {
         isActive: true,
       }),
     );
-
-    const saved = await this.scheduleRepo.save(schedules);
-
-    // Limpiar caché
-    await this.invalidateCache(dto.doctorId, dto.medicalCenterId);
-
-    return saved;
   }
 
   /**
@@ -191,6 +218,10 @@ export class DoctorScheduleService {
         'La hora de inicio debe ser anterior a la hora de fin',
       );
     }
+    const others = (
+      await this.scheduleRepo.find({ where: { doctorId: block.doctorId, deletedAt: IsNull() } })
+    ).filter((b) => b.id !== block.id);
+    this.assertNoOverlap({ dayOfWeek: dto.dayOfWeek ?? block.dayOfWeek, startTime, endTime }, others);
 
     Object.assign(block, dto);
     block.updatedAt = new Date();
