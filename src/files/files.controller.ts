@@ -23,7 +23,7 @@ import {
 import { ParseUuid } from 'src/common/pipes/parse-uuid.pipe';
 import { FilesService } from './files.service';
 import { DicomConverterService } from './dicom-converter.service';
-import { AppointmentUploadTargetService } from './appointment-upload-target.service';
+import { AppointmentFileAccessService } from './appointment-file-access.service';
 import { UploadFileDto } from './dto/create-file.dto';
 import {
   CreateVideoBase64Dto,
@@ -47,7 +47,7 @@ export class FilesController {
   constructor(
     private readonly filesService: FilesService,
     private readonly dicomConverterService: DicomConverterService,
-    private readonly uploadTargetService: AppointmentUploadTargetService,
+    private readonly fileAccess: AppointmentFileAccessService,
   ) {}
 
   /* ============================================================
@@ -161,7 +161,7 @@ export class FilesController {
   ) {
     let target;
     try {
-      target = await this.uploadTargetService.resolve(
+      target = await this.fileAccess.resolve(
         {
           appointmentId,
           patientId: patientId || undefined,
@@ -188,14 +188,16 @@ export class FilesController {
    * ============================================================ */
   @ApiOperation({
     summary: 'Servir archivo de cita médica',
-    description: 'Devuelve el archivo como stream con las cabeceras MIME correctas.',
+    description: 'Devuelve el archivo como stream con las cabeceras MIME correctas. Solo el médico de la cita o un administrador (403).',
   })
   @Get('appointment-files/:fileId')
   @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.VIEW}`)
   async serveAppointmentFile(
     @Param('fileId', ParseUuid) fileId: string,
     @Res() res,
+    @GetUser('id') userId: string,
   ) {
+    await this.fileAccess.assertFileReadable(fileId, userId);
     return this.filesService.serveAppointmentFile(fileId, res);
   }
 
@@ -204,13 +206,15 @@ export class FilesController {
    * ============================================================ */
   @ApiOperation({
     summary: 'Listar archivos de una cita médica',
-    description: 'Retorna todos los archivos asociados a una cita específica.',
+    description: 'Retorna todos los archivos asociados a una cita específica. Solo el médico de la cita o un administrador (403).',
   })
   @Get('appointment-files')
   @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.VIEW}`)
   async getFilesByAppointment(
     @Query('appointmentId', ParseUuid) appointmentId: string,
+    @GetUser('id') userId: string,
   ) {
+    await this.fileAccess.assertAppointmentReadable(appointmentId, userId);
     return this.filesService.getFilesByAppointment(appointmentId);
   }
 

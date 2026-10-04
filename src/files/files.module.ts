@@ -12,7 +12,7 @@ import { CommonPersonImage } from 'src/common-person/entities/common-person-imag
 import { MedicalAppointment } from 'src/medical-appointments/entities/medical-appointment.entity';
 import { MedicalHistory } from 'src/medical-history/entities/medical-history.entity';
 import { CommonModule } from 'src/common/common.module';
-import { AppointmentUploadTargetService } from './appointment-upload-target.service';
+import { AppointmentFileAccessService } from './appointment-file-access.service';
 
 @Module({
   imports: [
@@ -23,7 +23,7 @@ import { AppointmentUploadTargetService } from './appointment-upload-target.serv
     ),
   ],
   controllers: [FilesController],
-  providers: [FilesService, DicomConverterService, AppointmentUploadTargetService],
+  providers: [FilesService, DicomConverterService, AppointmentFileAccessService],
   exports: [FilesService, DicomConverterService],
 })
 export class FilesModule {}

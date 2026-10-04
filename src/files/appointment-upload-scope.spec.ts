@@ -6,7 +6,7 @@ import { FakeRepo } from '../../test/in-memory-db';
 import { authContextForUsers } from '../../test/auth-context-stub';
 import { FilesController } from './files.controller';
 import { FilesService } from './files.service';
-import { AppointmentUploadTargetService } from './appointment-upload-target.service';
+import { AppointmentFileAccessService } from './appointment-file-access.service';
 
 const APT_B = '0b0b0b0b-0000-4000-8000-00000000000b';
 const APT_NO_CENTER = '0c0c0c0c-0000-4000-8000-00000000000c';
@@ -29,14 +29,16 @@ function setup() {
   const uploadsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'upload-scope-'));
   const config = { get: (key: string) => ({ UPLOADS_PATH: uploadsDir })[key] };
   const files: any[] = [];
-  const filesService = new FilesService({} as any, new FakeRepo(files) as any, {} as any, {} as any, {} as any, config as any);
-  const target = new AppointmentUploadTargetService(
+  const fileRepo = new FakeRepo(files);
+  const filesService = new FilesService({} as any, fileRepo as any, {} as any, {} as any, {} as any, config as any);
+  const target = new AppointmentFileAccessService(
     new FakeRepo([
       { id: APT_B, doctorId: 'doc-b', patientId: PATIENT, medicalCenterId: CENTER, deletedAt: null },
       { id: APT_NO_CENTER, doctorId: 'doc-b', patientId: PATIENT, medicalCenterId: null, deletedAt: null },
     ]) as any,
     new FakeRepo([{ id: HISTORY, medicalAppointmentId: APT_B, deletedAt: null }]) as any,
     authContextForUsers(USERS),
+    fileRepo as any,
   );
   const controller = new FilesController(filesService, {} as any, target);
 
@@ -57,7 +59,7 @@ function setup() {
       undefined as any,
       userId,
     );
-  return { upload, tempFile, files };
+  return { upload, tempFile, files, controller, uploadsDir };
 }
 
 describe('POST /files/appointment-upload — patient from the appointment (MJ-32)', () => {
@@ -110,5 +112,41 @@ describe('POST /files/appointment-upload — patient from the appointment (MJ-32
 
     expect(files[0]).toMatchObject({ appointmentId: APT_NO_CENTER, patientId: PATIENT, medicalHistoryId: null });
     expect(files[0].filePath).toContain(`${ADMIN}/general/${APT_NO_CENTER}/`);
+  });
+});
+
+describe('GET /files/appointment-files — listing and download scoped (MJ-32)', () => {
+  async function withFile() {
+    const ctx = setup();
+    await ctx.upload(ctx.tempFile(), USER_B);
+    return { ...ctx, fileId: ctx.files[0].id };
+  }
+  const download = async (ctx: any, fileId: string, userId: string) => {
+    const out = path.join(ctx.uploadsDir, `out-${Math.random().toString(36).slice(2)}`);
+    const res: any = fs.createWriteStream(out);
+    res.setHeader = jest.fn();
+    await ctx.controller.serveAppointmentFile(fileId, res, userId);
+    await new Promise((r) => res.on('close', r));
+    return fs.readFileSync(out);
+  };
+
+  it('doctor A listing or downloading doctor B appointment files → 403', async () => {
+    const ctx = await withFile();
+    await expect(ctx.controller.getFilesByAppointment(APT_B, USER_A)).rejects.toThrow(ForbiddenException);
+    await expect(ctx.controller.serveAppointmentFile(ctx.fileId, { setHeader: jest.fn() }, USER_A)).rejects.toThrow(
+      ForbiddenException,
+    );
+  });
+
+  it('doctor B lists and downloads their own appointment files', async () => {
+    const ctx = await withFile();
+    await expect(ctx.controller.getFilesByAppointment(APT_B, USER_B)).resolves.toHaveLength(1);
+    expect(await download(ctx, ctx.fileId, USER_B)).toEqual(PNG);
+  });
+
+  it('admin lists and downloads any appointment files', async () => {
+    const ctx = await withFile();
+    await expect(ctx.controller.getFilesByAppointment(APT_B, ADMIN)).resolves.toHaveLength(1);
+    expect(await download(ctx, ctx.fileId, ADMIN)).toEqual(PNG);
   });
 });

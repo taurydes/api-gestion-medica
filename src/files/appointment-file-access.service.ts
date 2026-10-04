@@ -6,7 +6,10 @@ import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { AuthContextService } from 'src/common/services/auth-context.service';
 import { MedicalAppointment } from 'src/medical-appointments/entities/medical-appointment.entity';
 import { MedicalHistory } from 'src/medical-history/entities/medical-history.entity';
+import { AppointmentFile } from './entities/appointment-file.entity';
 import { GENERAL_FOLDER } from './upload-path.util';
+
+const FOREIGN_FILES = 'No tiene acceso a los archivos de esta cita.';
 
 export interface AppointmentUploadRequest {
   appointmentId: string;
@@ -23,9 +26,9 @@ export interface AppointmentUploadTarget {
   medicalHistoryId?: string;
 }
 
-/** Derives patient, center and history of an appointment upload from the appointment itself (MJ-32). */
+/** Appointment files belong to their appointment: upload target derived from it, access limited to its doctor (MJ-32). */
 @Injectable()
-export class AppointmentUploadTargetService {
+export class AppointmentFileAccessService {
   constructor(
     @InjectRepository(MedicalAppointment, DatabaseConnectionName.DB_MAIN)
     private readonly appointmentRepo: Repository<MedicalAppointment>,
@@ -34,7 +37,25 @@ export class AppointmentUploadTargetService {
     private readonly historyRepo: Repository<MedicalHistory>,
 
     private readonly authContextService: AuthContextService,
+
+    @InjectRepository(AppointmentFile, DatabaseConnectionName.DB_MAIN)
+    private readonly fileRepo: Repository<AppointmentFile>,
   ) {}
+
+  /** Listing an appointment's files: its doctor or an admin (403); unknown appointment → 404. */
+  async assertAppointmentReadable(appointmentId: string, userId: string): Promise<void> {
+    const apt = await this.appointmentRepo.findOne({ where: { id: appointmentId, deletedAt: IsNull() } });
+    if (!apt) throw new NotFoundException('La cita indicada no existe.');
+    await this.authContextService.assertDoctorScope(userId, apt.doctorId, FOREIGN_FILES);
+  }
+
+  /** Downloading one file: same rule, through the file's appointment. */
+  async assertFileReadable(fileId: string, userId: string): Promise<void> {
+    const file = await this.fileRepo.findOne({ where: { id: fileId, deletedAt: IsNull() } });
+    if (!file) throw new NotFoundException('Archivo no encontrado.');
+    const apt = await this.appointmentRepo.findOne({ where: { id: file.appointmentId } });
+    await this.authContextService.assertDoctorScope(userId, apt?.doctorId, FOREIGN_FILES);
+  }
 
   async resolve(request: AppointmentUploadRequest, userId: string): Promise<AppointmentUploadTarget> {
     if (!isUUID(request.appointmentId ?? '')) {
