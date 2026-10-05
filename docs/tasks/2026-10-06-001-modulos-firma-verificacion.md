@@ -21,6 +21,7 @@ Contrato fijado por el agente de frontend; guía: `docs/info/2026-10-06-modulos-
 | `9461258` | Migración `DoctorSignatureStamp1790521200000`, `DoctorCredentialsService/Controller`, `GET /doctors/me`, spec `doctor-credentials` |
 | `31fc470` | Migración `RecipeVerificationCode1790521300000` (columna, backfill, NOT NULL, índice único), código en el alta, `RecipeVerificationService/Controller`, acción `recipe_verify` en la bitácora, spec `recipe-verification` |
 | `28642ea` | PDF: firma, sello, QR (nodo `qr` nativo de pdfmake), código, URL y leyenda; `FRONTEND_URL` en Joi; hash incluye imágenes y URL; spec `recipe-pdf-credentials` |
+| `7377de8` | Segunda vuelta (pedido del coordinador): se borran `setPermissionActionStatus` y `SetPermissionStatusDto`. `rg` en `src` y `test`: sin llamadores ni rutas; el DTO solo se reexportaba |
 
 ## Matriz `<slug>.module`
 
@@ -61,7 +62,7 @@ el resto de módulos técnicos ocultos. Los permisos CRUD no se tocaron.
 
 | Qué | Resultado |
 |---|---|
-| `npx jest --ci` | **722/722** (baseline anterior 694; +28) |
+| `npx jest --ci` | **722/722** (baseline anterior 694; +28). Tras borrar `setPermissionActionStatus`: 722/722. Una corrida intermedia dio timeout de 5 s en `documents.spec` ("an item dose"): ese test tarda 168 ms aislado; la siguiente corrida completa pasó. Es contención de CPU, no del cambio |
 | `npm run build` / `tsc -p tsconfig.build.json --noEmit` | 0 errores |
 | Migraciones: `run` → `revert` → `run` de cada una | OK |
 | `migration:generate --dryrun --check` tras cada migración | "No changes in database schema were found" (3 veces) |
@@ -82,7 +83,6 @@ el resto de módulos técnicos ocultos. Los permisos CRUD no se tocaron.
 ## Fuera de alcance / pendiente
 
 - Menús creados después por `/menu` no reciben `module` automáticamente: hay que otorgarlo en la matriz.
-- `setPermissionActionStatus` (sin llamadores) no aplica la protección de acciones de sistema; preexistente, no se tocó.
 - Sin receta `cancelled` en la base: ese caso se cubre por test, no por la API real.
 - `cmendoza` quedó con firma y sello sintéticos (rectángulos) de la verificación; reemplazables desde "Mi perfil".
 - El front decide qué hacer con rutas a las que el usuario tiene CRUD pero no `module` (p. ej. `/roles` para medico).
