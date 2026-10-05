@@ -1,5 +1,6 @@
 import { CacheModule } from '@nestjs/cache-manager';
-import { Module, ValidationPipe } from '@nestjs/common';
+import { Module } from '@nestjs/common';
+import { createAppValidationPipe } from './common/validation/spanish-validation';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD, APP_PIPE } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
@@ -109,11 +110,7 @@ import { MammographyAnalysisModule } from './mammography-analysis/mammography-an
     },
     {
       provide: APP_PIPE,
-      useFactory: () =>
-        new ValidationPipe({
-          transform: true,
-          whitelist: true,
-        }),
+      useFactory: createAppValidationPipe,
     },
   ],
 })
