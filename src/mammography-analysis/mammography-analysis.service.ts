@@ -34,6 +34,9 @@ import { CreateMammographyAnalysisDto } from './dto/create-mammography-analysis.
 import { QueryMammographyAnalysisDto } from './dto/query-mammography-analysis.dto';
 import { ReviewMammographyAnalysisDto } from './dto/review-mammography-analysis.dto';
 
+/** Bandeja, ranking e indicadores se acotan por la fecha del análisis, no por la de la cita (H-04). */
+const ANALYSIS_DATE_RANGE_SQL = 'analysis.createdAt BETWEEN :start AND :end';
+
 interface SourceImage {
   buffer: Buffer;
   mimeType: string;
@@ -300,15 +303,7 @@ export class MammographyAnalysisService {
       .leftJoinAndSelect('patient.commonPerson', 'patientPerson')
       .leftJoinAndSelect('analysis.appointmentFile', 'appointmentFile')
       .where('analysis.deletedAt IS NULL')
-      // Filtramos por la fecha CLÍNICA de la cita; los análisis sin cita
-      // usan su propio createdAt como referencia.
-      .andWhere(
-        `(
-          (appointment.appointmentDate IS NOT NULL AND appointment.appointmentDate BETWEEN :start AND :end)
-          OR (appointment.appointmentDate IS NULL AND analysis.createdAt BETWEEN :start AND :end)
-        )`,
-        { start, end },
-      );
+      .andWhere(ANALYSIS_DATE_RANGE_SQL, { start, end });
 
     if (query.appointmentId) {
       qb.andWhere('analysis.appointmentId = :appointmentId', {
@@ -410,13 +405,7 @@ export class MammographyAnalysisService {
       .leftJoinAndSelect('appointment.doctor', 'apptDoctor')
       .leftJoinAndSelect('apptDoctor.commonPerson', 'apptDoctorPerson')
       .where('analysis.deletedAt IS NULL')
-      .andWhere(
-        `(
-          (appointment.appointmentDate IS NOT NULL AND appointment.appointmentDate BETWEEN :start AND :end)
-          OR (appointment.appointmentDate IS NULL AND analysis.createdAt BETWEEN :start AND :end)
-        )`,
-        { start, end },
-      );
+      .andWhere(ANALYSIS_DATE_RANGE_SQL, { start, end });
 
     if (query.onlyUnreviewed) {
       qb.andWhere('analysis.isReviewed = false');
@@ -565,19 +554,12 @@ export class MammographyAnalysisService {
     const { start, end } = this.resolveDateRange(query as QueryMammographyAnalysisDto);
     const scope = await this.resolveDoctorScope(authUser);
 
-    // Mismo criterio que la bandeja: fecha de la cita o, en su defecto,
-    // fecha de creación del análisis (para análisis standalone).
+    // Mismo criterio que la bandeja y el ranking: el día del análisis.
     const statsQb = this.analysisRepo
       .createQueryBuilder('analysis')
       .leftJoin('analysis.appointment', 'appointment')
       .where('analysis.deletedAt IS NULL')
-      .andWhere(
-        `(
-          (appointment.appointmentDate IS NOT NULL AND appointment.appointmentDate BETWEEN :start AND :end)
-          OR (appointment.appointmentDate IS NULL AND analysis.createdAt BETWEEN :start AND :end)
-        )`,
-        { start, end },
-      )
+      .andWhere(ANALYSIS_DATE_RANGE_SQL, { start, end })
       .select([
         'analysis.id',
         'analysis.status',
