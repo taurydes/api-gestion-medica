@@ -952,12 +952,13 @@ export class PermissionService {
 
     const roleId = roleRawId ?? user.roleId;
 
-    // 1. Obtener IDs de menús permitidos para este rol
-    const permissionMenus = await this.permissionMenuRepo.find({
-      where: { roleId: String(roleId), isActive: true },
-      select: ['menuId'],
-    });
-    const allowedMenuIds = new Set(permissionMenus.map((pm) => pm.menuId));
+    // 1. Only `<slug>.module` grants show a menu: a CRUD grant (e.g. role.consultar) no longer does.
+    const grants = await this.getRolePermissions(roleId);
+    const allowedMenuIds = new Set(
+      grants
+        .filter((g) => g.action === PermissionActionsMenu.MODULE)
+        .map((g) => String(g.menuId)),
+    );
 
     // 2. Cargar TODOS los menús activos y visibles para construir la estructura completa
     const allMenus = await this.menuRepo.find({

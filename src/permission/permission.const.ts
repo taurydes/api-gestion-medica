@@ -7,6 +7,8 @@ export enum PermissionActionsMenu {
   VIEW = 'consultar',
   UPDATE = 'actualizar',
   DELETE = 'eliminar',
+  /** Sidebar visibility of the menu; independent of the CRUD actions the guards check. */
+  MODULE = 'module',
 }
 
 // =============================================================================
