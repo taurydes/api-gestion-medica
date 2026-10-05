@@ -46,8 +46,10 @@ export class DocumentsProcessor
       );
     }
     try {
-      const { cached } = await this.recipePdf.ensurePdf(job.data.recipeId);
-      return { recipeId: job.data.recipeId, cached };
+      const { cached, recipeNumber } = await this.recipePdf.ensurePdf(
+        job.data.recipeId,
+      );
+      return { recipeId: job.data.recipeId, cached, recipeNumber };
     } catch (error) {
       // A deleted recipe will not come back on retry; failedReason reaches the client, so no internals.
       if (error instanceof NotFoundException)

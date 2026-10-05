@@ -17,6 +17,7 @@ export interface RecipePdfJobData {
 export interface RecipePdfJobResult {
   recipeId: string;
   cached: boolean;
+  recipeNumber: string;
 }
 
 /** Retries with backoff; finished jobs are pruned so Redis does not grow without bound. */

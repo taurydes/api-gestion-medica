@@ -16,6 +16,9 @@ escrituras normalizadas), `cdd2931` (PDF con pdfmake), `774ef30` (cola `document
 > Actualización 2026-10-05 (2), commits `c210333` y `c8ff1f7`: `finish-consultation` con `notifyPatient: true` ahora
 > **devuelve `notification`** (fila marcada **(2)** y sección "`notifyPatient`"); el PDF en caché se regenera cuando
 > cambia cualquier dato impreso (antes solo con `updatedAt` de la receta), sin cambio de contrato.
+>
+> Actualización 2026-10-05 (3): `GET /medical-appointments/:id` suma **`patient.email`** (filas **(3)**) y la
+> descarga del PDF se llama `receta-<recipeNumber>.pdf`, igual que el adjunto del correo.
 
 | Endpoint | Antes | Ahora | Acción del front |
 | --- | --- | --- | --- |
@@ -29,6 +32,8 @@ escrituras normalizadas), `cdd2931` (PDF con pdfmake), `774ef30` (cola `document
 | `GET /documents/jobs/:jobId/file` | No existía | El PDF (`application/pdf`) cuando `status = done` | Descargar con `HttpClient` (`responseType: 'blob'`) |
 | `POST /recipes/:id/email` | No existía | **202** `{ jobId }` | Botón "Enviar por correo" en la receta |
 | `POST /medical-appointments/:id/email-summary` | No existía | **202** `{ jobId }` (solo citas `completed`) | Botón en el detalle de cita completada |
+| **(3)** `GET /medical-appointments/:id` | `patient` sin correo; el front lo pedía aparte a `GET /patients/:id` | `patient.email: string \| null` (de `patients.email`; `null` si el paciente no tiene). Aditivo: el listado `GET /medical-appointments` **no** lo trae | Usar `appointment.patient.email` para el destinatario por defecto y quitar la petición extra |
+| **(3)** `GET /documents/jobs/:jobId/file` | `filename="receta-<recipeId>.pdf"` | `filename="receta-<recipeNumber>.pdf"` (p. ej. `receta-REC-2026-00153.pdf`). Un trabajo terminado antes del despliegue conserva el nombre con el id | Ninguna si el front ya pone su propio nombre al blob; si lee `Content-Disposition`, recibe el número |
 | **(2)** `PATCH /medical-appointments/:id/finish-consultation` | Sin aviso al paciente | Acepta **`notifyPatient?: boolean`**; con `true` encola el resumen **después** de guardar y la respuesta suma **`notification`**: `{ "jobId": "…" }` o `{ "error": "…" }`. Sin `notifyPatient` (o `false`) la respuesta no trae `notification` | Casilla "Enviar resumen al paciente"; con `jobId`, sondear `GET /documents/jobs/:jobId`; con `error`, mostrarlo como aviso (la consulta **sí** quedó cerrada) |
 
 **Lo que NO cambió:** la forma de `POST /auth/login` (sigue sin envelope: `{ access_token, refresh_token }`), los
@@ -67,7 +72,7 @@ Con `status: "failed"` llega también `error`:
 
 ```http
 GET /documents/jobs/ab38311d-cf80-43d7-98e2-7f413877c890/file
-→ 200, Content-Type: application/pdf, Content-Disposition: attachment; filename="receta-<recipeId>.pdf"
+→ 200, Content-Type: application/pdf, Content-Disposition: attachment; filename="receta-<recipeNumber>.pdf"
 ```
 
 | `status` | Significado |
@@ -198,3 +203,5 @@ solo trabajo queda holgado.
 - [ ] Casilla `notifyPatient` al finalizar la consulta; leer `notification` de la respuesta (`jobId` → sondear,
       `error` → aviso sin revertir nada).
 - [ ] Ocultar o deshabilitar los botones de correo si la API responde 503.
+- [ ] Detalle de cita: tomar el correo del paciente de `appointment.patient.email` (puede ser `null`) en vez de pedir
+      `GET /patients/:id`.

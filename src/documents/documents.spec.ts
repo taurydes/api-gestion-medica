@@ -105,6 +105,18 @@ describe('Documents queue — recipe PDF', () => {
       path.resolve(uploadsDir, 'documents', `${RECIPE_ID}.pdf`),
     );
     expect(fs.readFileSync(file.path).subarray(0, 5).toString()).toBe('%PDF-');
+    expect(file.fileName).toBe(`receta-${RECIPE_FIXTURE.recipeNumber}.pdf`);
+  });
+
+  it('a job finished without recipeNumber in its result still downloads, named by the recipe id', async () => {
+    const { service, processor, documentsQueue } = setup();
+    const { jobId } = await service.enqueueRecipePdf(RECIPE_ID, 'user-b');
+    const job = await documentsQueue.getJob(jobId);
+    await work(processor, job);
+    (job as any).returnvalue = { recipeId: RECIPE_ID, cached: false };
+
+    const file = await service.getFile(jobId, 'user-b');
+    expect(file.fileName).toBe(`receta-${RECIPE_ID}.pdf`);
   });
 
   it('reuses the file while nothing printed changes; updatedAt alone does not matter', async () => {

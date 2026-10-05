@@ -16,6 +16,7 @@ import {
   RECIPE_PDF_JOB,
   publicFailedReason,
   RecipePdfJobData,
+  RecipePdfJobResult,
   toJobStatus,
 } from './documents.const';
 import { RecipePdfService } from './recipe-pdf.service';
@@ -80,7 +81,9 @@ export class DocumentsService {
         'El archivo ya no está disponible; solicítelo de nuevo.',
       );
     }
-    return { path, fileName: `receta-${recipeId}.pdf` };
+    // Same name as the email attachment; jobs finished before recipeNumber was returned fall back to the id.
+    const result = job.returnvalue as RecipePdfJobResult | undefined;
+    return { path, fileName: `receta-${result?.recipeNumber ?? recipeId}.pdf` };
   }
 
   private async findOwnedJob(jobId: string, userId: string): Promise<Job> {
