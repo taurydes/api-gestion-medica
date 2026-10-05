@@ -83,4 +83,7 @@ export class Department {
 
   @ManyToMany(() => Doctor, (doctor) => doctor.departments)
   doctors: Doctor[];
+
+  /** Active doctors in the department, mapped by the list/detail queries; not a column. */
+  doctorsCount?: number;
 }

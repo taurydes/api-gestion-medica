@@ -56,6 +56,17 @@ export class DepartmentsService {
     await invalidateScope(this.cacheManager, 'medicalCenter');
   }
 
+  /** Department with center, specialties and its live doctor count (soft-deleted doctors excluded). */
+  private baseQuery() {
+    return this.departmentRepository
+      .createQueryBuilder('department')
+      .leftJoinAndSelect('department.medicalCenter', 'medicalCenter')
+      .leftJoinAndSelect('department.specialties', 'specialties')
+      .loadRelationCountAndMap('department.doctorsCount', 'department.doctors', 'doctor', (q) =>
+        q.andWhere('doctor.deletedAt IS NULL'),
+      );
+  }
+
   // ─── CRUD ──────────────────────────────────────────────────────────────────
 
   /**
@@ -109,11 +120,7 @@ export class DepartmentsService {
     const cached = await getScoped(this.cacheManager, 'department', cacheKey);
     if (cached) return cached;
 
-    const qb = this.departmentRepository
-      .createQueryBuilder('department')
-      .leftJoinAndSelect('department.medicalCenter', 'medicalCenter')
-      .leftJoinAndSelect('department.specialties', 'specialties')
-      .where('department.deletedAt IS NULL');
+    const qb = this.baseQuery().where('department.deletedAt IS NULL');
 
     if (search) {
       qb.andWhere('department.name ILIKE :search', {
@@ -150,19 +157,20 @@ export class DepartmentsService {
     const cacheKey = `department:${id}`;
 
     try {
-      const cached = await this.cacheManager.get<Department>(cacheKey);
+      // Scoped: doctor changes move doctorsCount and drop the 'department' scope
+      const cached = await getScoped<Department>(this.cacheManager, 'department', cacheKey);
       if (cached) return cached;
 
-      const department = await this.departmentRepository.findOne({
-        where: { id, deletedAt: IsNull() },
-        relations: ['medicalCenter', 'specialties'],
-      });
+      const department = await this.baseQuery()
+        .where('department.id = :id', { id })
+        .andWhere('department.deletedAt IS NULL')
+        .getOne();
 
       if (!department) {
         throw new NotFoundException(`Departamento con ID ${id} no encontrado.`);
       }
 
-      await this.cacheManager.set(cacheKey, department, CACHE_TTL.DETAIL);
+      await setScoped(this.cacheManager, 'department', cacheKey, department, CACHE_TTL.DETAIL);
       return department;
     } catch (error) {
       if (error instanceof NotFoundException) throw error;

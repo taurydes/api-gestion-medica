@@ -97,6 +97,8 @@ export class MedicalCenterService {
     // Doctor and history details embed the center
     await invalidateScope(this.cacheManager, 'doctor');
     await invalidateScope(this.cacheManager, 'medical-history');
+    // Departments embed the center; detaching a doctor moves their doctorsCount
+    await invalidateScope(this.cacheManager, 'department');
     // Appointment (and patient) views embed this catalog
     await invalidateScope(this.cacheManager, APPOINTMENT_CACHE_SCOPE);
   }

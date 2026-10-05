@@ -108,6 +108,21 @@ describe('Cache invalidation keys (M-56)', () => {
     expect(await getScoped(cache, 'medical-history', 'medical-history:patient:pat-1')).toBeUndefined();
   });
 
+  it.each([
+    ['doctor', DoctorsService],
+    ['center', MedicalCenterService],
+  ])('a %s write drops the cached department list and detail (doctorsCount)', async (_name, Service: any) => {
+    const cache = newCache();
+    const service = Object.assign(Object.create(Service.prototype), { cacheManager: cache });
+    await setScoped(cache, 'department', 'department:dep-1', { doctorsCount: 1 }, CACHE_TTL.DETAIL);
+    await setScoped(cache, 'department', 'department:query:{}', { data: [] }, CACHE_TTL.LIST);
+
+    await service.clearQueryCache();
+
+    expect(await getScoped(cache, 'department', 'department:dep-1')).toBeUndefined();
+    expect(await getScoped(cache, 'department', 'department:query:{}')).toBeUndefined();
+  });
+
   it('a department write drops the center list (counts) and center details (embedded departments)', async () => {
     const cache = newCache();
     const service = Object.assign(Object.create(DepartmentsService.prototype), { cacheManager: cache });
