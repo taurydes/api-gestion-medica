@@ -5,6 +5,7 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   OneToMany,
@@ -22,6 +23,7 @@ import { RecipeItem } from './recipe-item.entity';
  * durante una consulta médica
  */
 @Entity({ schema: 'public', name: 'recipes' })
+@Index('UQ_recipes_verification_code', ['verificationCode'], { unique: true })
 export class Recipe {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -53,6 +55,10 @@ export class Recipe {
 
   @Column({ name: 'recipe_number', type: 'varchar', length: 50, unique: true })
   recipeNumber: string; // Número único de receta (ej: REC-2026-00001)
+
+  /** Unguessable code printed as QR on the PDF; the public verify endpoint looks the recipe up by it. */
+  @Column({ name: 'verification_code', type: 'varchar', length: 64 })
+  verificationCode: string;
 
   @Column({ name: 'issue_date', type: 'timestamp' })
   issueDate: Date; // Fecha de emisión de la receta

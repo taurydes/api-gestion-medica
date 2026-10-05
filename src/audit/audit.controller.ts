@@ -14,7 +14,7 @@ export class AccessLogQueryDto {
   @IsOptional() @IsUUID() userId?: string;
   @IsOptional() @IsString() resource?: string;
   @IsOptional() @IsString() resourceId?: string;
-  @IsOptional() @IsIn(['read', 'write', 'login_failed', 'email_sent']) action?: AccessLogAction;
+  @IsOptional() @IsIn(['read', 'write', 'login_failed', 'email_sent', 'recipe_verify']) action?: AccessLogAction;
   @IsOptional() @IsISO8601() from?: string;
   @IsOptional() @IsISO8601() to?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) page = 1;

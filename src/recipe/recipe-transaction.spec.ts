@@ -75,6 +75,8 @@ describe('RecipeService — atomic create and update (M-15)', () => {
 
     expect(db.rows(Recipe)).toHaveLength(2);
     expect(db.rows(RecipeItem)).toHaveLength(2);
+    // The anti-forgery code is set on create, not left to a later backfill
+    expect(db.rows(Recipe)[1].verificationCode).toMatch(/^[0-9a-f]{32}$/);
   });
 
   it('create against a soft-deleted history → 404 (M-22)', async () => {

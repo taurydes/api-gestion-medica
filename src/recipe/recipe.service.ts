@@ -10,6 +10,7 @@ import {
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
 import { nextCode } from 'src/common/sequence/next-code';
+import { newVerificationCode } from './recipe-verification.util';
 import {
   APPOINTMENT_CACHE_SCOPE,
   CACHE_TTL,
@@ -202,6 +203,7 @@ export class RecipeService {
     const newRecipe = recipeRepo.create({
       ...recipeData,
       recipeNumber,
+      verificationCode: newVerificationCode(),
       issueDate: new Date(),
       expiryDate: dto.expiryDate ? new Date(dto.expiryDate) : null,
       status: 'active',

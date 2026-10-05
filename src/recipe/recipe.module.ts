@@ -13,20 +13,23 @@ import { User } from 'src/user/entities/user.entity';
 import { FilesModule } from 'src/files/files.module';
 import { DocumentsModule } from 'src/documents/documents.module';
 import { EmailModule } from 'src/email/email.module';
+import { AccessLog } from 'src/audit/entities/access-log.entity';
+import { RecipeVerificationController } from './recipe-verification.controller';
+import { RecipeVerificationService } from './recipe-verification.service';
 
 @Module({
   imports: [
     CommonModule,
     TypeOrmModule.forFeature(
-      [Recipe, RecipeItem, Patient, Doctor, MedicalHistory, User],
+      [Recipe, RecipeItem, Patient, Doctor, MedicalHistory, User, AccessLog],
       DatabaseConnectionName.DB_MAIN,
     ),
     FilesModule,
     DocumentsModule,
     EmailModule,
   ],
-  controllers: [RecipeController],
-  providers: [RecipeService],
+  controllers: [RecipeController, RecipeVerificationController],
+  providers: [RecipeService, RecipeVerificationService],
   exports: [RecipeService],
 })
 export class RecipeModule {}
