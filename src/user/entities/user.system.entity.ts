@@ -1,15 +1,18 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Index, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { Role } from 'src/role/entities/role.entity';
 
 @Entity({ schema: 'seguridad', name: 'users' })
+// Unique on lower(btrim(...)) (migration NormalizeUserIdentities); declared so migration:generate keeps them.
+@Index('UQ_seguridad_users_name_normalized', { synchronize: false })
+@Index('UQ_seguridad_users_email_normalized', { synchronize: false })
 export class UserSecurity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'varchar', length: 255, unique: true })
+  @Column({ type: 'varchar', length: 255 })
   name: string;
 
-  @Column({ type: 'varchar', length: 255, unique: true })
+  @Column({ type: 'varchar', length: 255 })
   email: string;
 
   @Column({
