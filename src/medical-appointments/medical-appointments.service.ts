@@ -2,6 +2,7 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import {
   BadRequestException,
   ForbiddenException,
+  HttpException,
   Inject,
   Injectable,
   Logger,
@@ -65,6 +66,10 @@ import { DoctorScheduleService } from 'src/doctors/doctor-schedule.service';
 import { FilesService } from 'src/files/files.service';
 import { toHttpException } from 'src/common/exceptions/to-http-exception';
 import { EmailService } from 'src/email/email.service';
+
+/** Outcome of `notifyPatient` in the finish-consultation response. */
+export type ConsultationNotification = { jobId: string } | { error: string };
+export const NOTIFICATION_FAILED = 'No se pudo encolar el correo al paciente.';
 
 @Injectable()
 export class MedicalAppointmentsService {
@@ -1044,7 +1049,7 @@ export class MedicalAppointmentsService {
     id: string,
     dto: CompleteConsultationDto,
     userId?: string,
-  ): Promise<MedicalAppointment> {
+  ): Promise<MedicalAppointment & { notification?: ConsultationNotification }> {
     // Validate catalog references before opening the transaction, so a bad medicationId writes nothing.
     if (dto.recipe) {
       await this.recipeService.assertMedicationsExist(dto.recipe.items);
@@ -1119,18 +1124,23 @@ export class MedicalAppointmentsService {
     await this.clearQueryCache();
 
     // After the commit and never fatal: the consultation is closed whether or not the email can be queued.
-    if (dto.notifyPatient && userId) await this.notifyPatient(id, userId);
+    const notification = dto.notifyPatient ? await this.notifyPatient(id, userId) : undefined;
 
-    return this.loadFullAppointment(id);
+    const appointment = await this.loadFullAppointment(id);
+    return notification ? { ...appointment, notification } : appointment;
   }
 
-  private async notifyPatient(appointmentId: string, userId: string): Promise<void> {
+  /** Never throws: the consultation is already committed, so a failure becomes `{ error }` in the response. */
+  private async notifyPatient(appointmentId: string, userId?: string): Promise<ConsultationNotification> {
     try {
-      if (!this.emailService) return;
+      if (!this.emailService || !userId) return { error: NOTIFICATION_FAILED };
       const { jobId } = await this.emailService.enqueueAppointmentSummary(appointmentId, undefined, userId);
       this.logger.log(`Resumen de la cita ${appointmentId} encolado (${jobId}).`);
+      return { jobId };
     } catch (error) {
       this.logger.warn(`No se encoló el resumen de la cita ${appointmentId}: ${(error as Error)?.message}`);
+      // Domain messages (no email, mail off, 403) are safe to show; anything else stays in the log.
+      return { error: error instanceof HttpException ? error.message : NOTIFICATION_FAILED };
     }
   }
 

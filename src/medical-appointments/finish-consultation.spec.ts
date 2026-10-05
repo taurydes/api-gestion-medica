@@ -316,8 +316,9 @@ describe('finishConsultation — notifyPatient enqueues the summary after the co
     const { service, db } = setup(undefined, email);
     ref = db;
 
-    await service.finishConsultation('apt-1', { ...dto(), notifyPatient: true }, 'u1');
+    const result = await service.finishConsultation('apt-1', { ...dto(), notifyPatient: true }, 'u1');
 
+    expect(result.notification).toEqual({ jobId: 'mail-1' });
     expect(email.enqueueAppointmentSummary).toHaveBeenCalledWith('apt-1', undefined, 'u1');
     expect(email.seen).toEqual([AppointmentStatus.COMPLETED]);
   });
@@ -328,8 +329,9 @@ describe('finishConsultation — notifyPatient enqueues the summary after the co
     const { service, db } = setup(undefined, email);
     ref = db;
 
-    await service.finishConsultation('apt-1', dto(), 'u1');
+    const result = await service.finishConsultation('apt-1', dto(), 'u1');
     expect(email.enqueueAppointmentSummary).not.toHaveBeenCalled();
+    expect(result).not.toHaveProperty('notification');
   });
 
   it('a rolled-back consultation never enqueues', async () => {
@@ -347,7 +349,17 @@ describe('finishConsultation — notifyPatient enqueues the summary after the co
     const email = { enqueueAppointmentSummary: jest.fn().mockRejectedValue(new BadRequestException('El paciente no tiene correo registrado.')) };
     const { service, db } = setup(undefined, email);
 
-    await expect(service.finishConsultation('apt-1', { ...dto(), notifyPatient: true }, 'u1')).resolves.toBeDefined();
+    const result = await service.finishConsultation('apt-1', { ...dto(), notifyPatient: true }, 'u1');
+    expect(result.notification).toEqual({ error: 'El paciente no tiene correo registrado.' });
+    expect(status(db)).toBe(AppointmentStatus.COMPLETED);
+  });
+
+  it('an unexpected enqueue failure (Redis down) reports a generic error, not the detail', async () => {
+    const email = { enqueueAppointmentSummary: jest.fn().mockRejectedValue(new Error('connect ECONNREFUSED 10.0.0.9:6379')) };
+    const { service, db } = setup(undefined, email);
+
+    const result = await service.finishConsultation('apt-1', { ...dto(), notifyPatient: true }, 'u1');
+    expect(result.notification).toEqual({ error: 'No se pudo encolar el correo al paciente.' });
     expect(status(db)).toBe(AppointmentStatus.COMPLETED);
   });
 });
