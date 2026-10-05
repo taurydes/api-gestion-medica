@@ -8,8 +8,10 @@ import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { resolveUploadPath } from 'src/files/upload-path.util';
 import { Recipe } from 'src/recipe/entities/recipe.entity';
 import { IsNull, Repository } from 'typeorm';
+import { DoctorCredentialsService } from 'src/doctors/doctor-credentials.service';
 import { DOCUMENTS_FOLDER } from './documents.const';
 import {
+  RecipePdfExtras,
   buildRecipePdfDefinition,
   recipePdfFingerprint,
   renderPdf,
@@ -19,13 +21,29 @@ import {
 @Injectable()
 export class RecipePdfService {
   private readonly uploadsDir: string;
+  private readonly frontendUrl: string;
 
   constructor(
     @InjectRepository(Recipe, DatabaseConnectionName.DB_MAIN)
     private readonly recipeRepository: Repository<Recipe>,
     config: ConfigService,
+    private readonly credentials: DoctorCredentialsService,
   ) {
     this.uploadsDir = config.get<string>('UPLOADS_PATH') || 'uploads';
+    this.frontendUrl = (config.get<string>('FRONTEND_URL') || 'http://localhost:8007').replace(/\/+$/, '');
+  }
+
+  /** Public page the QR opens; the frontend calls GET /public/recipes/verify/:code from it. */
+  verificationUrl(code: string): string {
+    return `${this.frontendUrl}/verificar/${code}`;
+  }
+
+  async extrasFor(recipe: Recipe): Promise<RecipePdfExtras> {
+    const images = await this.credentials.dataUrls(recipe.doctorId);
+    return {
+      ...images,
+      verificationUrl: recipe.verificationCode ? this.verificationUrl(recipe.verificationCode) : null,
+    };
   }
 
   filePath(recipeId: string): string {
@@ -58,7 +76,8 @@ export class RecipePdfService {
     const recipe = await this.loadRecipe(recipeId);
     const target = this.filePath(recipe.id);
     // Hash of what the PDF prints, so a renamed doctor or patient also invalidates it (updatedAt would not).
-    const hash = recipePdfFingerprint(recipe);
+    const extras = await this.extrasFor(recipe);
+    const hash = recipePdfFingerprint(recipe, extras);
     const hashFile = `${target}.sha256`;
     const [stored, stat] = await Promise.all([
       fs.readFile(hashFile, 'utf8').catch(() => null),
@@ -68,7 +87,7 @@ export class RecipePdfService {
       return { path: target, cached: true, recipeNumber: recipe.recipeNumber };
     }
 
-    const pdf = await renderPdf(buildRecipePdfDefinition(recipe));
+    const pdf = await renderPdf(buildRecipePdfDefinition(recipe, new Date(), extras));
     await fs.mkdir(path.dirname(target), { recursive: true });
     // Write then rename: two workers on the same recipe never leave a half-written file behind.
     const tmp = `${target}.${randomUUID()}.tmp`;

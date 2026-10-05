@@ -25,6 +25,9 @@ import {
 } from './documents.service';
 import { RecipePdfService } from './recipe-pdf.service';
 
+// The doctor has no signature or stamp: these specs cover the queues, not the images.
+const NO_CREDENTIALS = { dataUrls: async () => ({ signature: null, stamp: null }) } as any;
+
 const RECIPE_ID = RECIPE_FIXTURE.id;
 
 function setup() {
@@ -42,7 +45,7 @@ function setup() {
   const config = {
     get: (key: string) => (key === 'UPLOADS_PATH' ? uploadsDir : undefined),
   };
-  const recipePdf = new RecipePdfService(recipeRepo as any, config as any);
+  const recipePdf = new RecipePdfService(recipeRepo as any, config as any, NO_CREDENTIALS);
   const documentsQueue = new FakeQueue('documents');
   const emailQueue = new FakeQueue('email');
   const service = new DocumentsService(

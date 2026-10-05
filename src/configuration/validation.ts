@@ -92,6 +92,9 @@ export const validationSchema = Joi.object({
   // PDFs rendered at once by the worker; the rest wait in the queue.
   PDF_CONCURRENCY: Joi.number().integer().min(1).max(16).default(2),
 
+  // Public frontend origin printed in the recipe QR (`<FRONTEND_URL>/verificar/<code>`).
+  FRONTEND_URL: Joi.string().uri({ scheme: ['http', 'https'] }).default('http://localhost:8007'),
+
   // ---------------------------
   // 🔹 Correo (cola `email`, SMTP)
   // ---------------------------

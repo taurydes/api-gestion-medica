@@ -28,6 +28,9 @@ import { EmailProcessor } from './email.processor';
 import { EmailService } from './email.service';
 import { appointmentSummaryMail } from './mail-content';
 
+// The doctor has no signature or stamp: these specs cover the queues, not the images.
+const NO_CREDENTIALS = { dataUrls: async () => ({ signature: null, stamp: null }) } as any;
+
 const RECIPE_ID = RECIPE_FIXTURE.id;
 const APT_ID = '4d7f1b2c-5e6a-4b8c-9d0e-1f2a3b4c5d6e';
 
@@ -112,7 +115,7 @@ function setup(
     }),
     transport as any,
   );
-  const recipePdf = new RecipePdfService(recipeRepo as any, config as any);
+  const recipePdf = new RecipePdfService(recipeRepo as any, config as any, NO_CREDENTIALS);
   const accessLog = { insert: jest.fn().mockResolvedValue(undefined) };
   const processor = new EmailProcessor(
     transport as any,

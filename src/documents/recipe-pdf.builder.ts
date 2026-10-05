@@ -1,11 +1,12 @@
 import { createHash } from 'crypto';
 import * as pdfmake from 'pdfmake';
-import type { Content, TDocumentDefinitions } from 'pdfmake/interfaces';
+import type { Column, Content, TDocumentDefinitions } from 'pdfmake/interfaces';
 
 /** The subset of a loaded recipe the PDF prints; every relation may be missing on old rows. */
 export interface RecipePdfData {
   id: string;
   recipeNumber: string;
+  verificationCode?: string | null;
   issueDate: Date | string;
   diagnosis?: string | null;
   generalInstructions?: string | null;
@@ -32,6 +33,15 @@ export interface RecipePdfData {
     orderNumber?: number | null;
   }> | null;
 }
+
+/** What the PDF prints besides the recipe row: the doctor's images (data URLs) and the public verify link. */
+export interface RecipePdfExtras {
+  signature?: string | null;
+  stamp?: string | null;
+  verificationUrl?: string | null;
+}
+
+export const VERIFY_LEGEND = 'Verifique la autenticidad de esta receta escaneando el código';
 
 export interface PersonName {
   firstName?: string | null;
@@ -138,7 +148,8 @@ const section = (title: string, body: string, color: string): Content[] => [
 
 /** pdfmake definition of the recipe: header, patient/doctor boxes, diagnosis, prescription table and signature. */
 /** sha256 of every value the PDF prints (print date aside): the cache key of the generated file. */
-export function recipePdfFingerprint(recipe: RecipePdfData): string {
+export function recipePdfFingerprint(recipe: RecipePdfData, extras: RecipePdfExtras = {}): string {
+  const digest = (value?: string | null) => (value ? createHash('sha256').update(value).digest('hex') : null);
   const person = (p?: PersonName | null) => [
     p?.firstName ?? null,
     p?.middleName ?? null,
@@ -175,6 +186,11 @@ export function recipePdfFingerprint(recipe: RecipePdfData): string {
         i.unit ?? null,
         i.instructions ?? null,
       ]),
+    // A new signature, stamp or FRONTEND_URL changes the file, so the cached PDF must regenerate.
+    signature: digest(extras.signature),
+    stamp: digest(extras.stamp),
+    verificationCode: recipe.verificationCode ?? null,
+    verificationUrl: extras.verificationUrl ?? null,
   };
   return createHash('sha256').update(JSON.stringify(printed)).digest('hex');
 }
@@ -182,6 +198,7 @@ export function recipePdfFingerprint(recipe: RecipePdfData): string {
 export function buildRecipePdfDefinition(
   recipe: RecipePdfData,
   printedAt: Date = new Date(),
+  extras: RecipePdfExtras = {},
 ): TDocumentDefinitions {
   const patientPerson = recipe.patient?.commonPerson;
   const doctorPerson = recipe.doctor?.commonPerson;
@@ -231,6 +248,13 @@ export function buildRecipePdfDefinition(
         : '—',
     ];
   });
+
+  const signatureImage: Content[] = extras.signature
+    ? [{ image: extras.signature, fit: [200, 60], margin: [0, 0, 0, 2] }]
+    : [];
+  const stampColumn: Column[] = extras.stamp
+    ? [{ width: 'auto', stack: [{ image: extras.stamp, fit: [90, 90] }], margin: [16, 0, 0, 0] }]
+    : [];
 
   const content: Content[] = [
     {
@@ -351,11 +375,12 @@ export function buildRecipePdfDefinition(
       : []),
     ...(recipe.notes ? section('NOTAS', recipe.notes, '#475569') : []),
     {
-      margin: [0, 50, 0, 0],
+      margin: [0, extras.signature ? 24 : 50, 0, 0],
       columns: [
         {
           width: 'auto',
           stack: [
+            ...signatureImage,
             {
               canvas: [
                 {
@@ -378,6 +403,7 @@ export function buildRecipePdfDefinition(
             { text: 'FIRMA Y SELLO MÉDICO', fontSize: 7, color: '#94a3b8' },
           ],
         },
+        ...stampColumn,
         {
           width: '*',
           alignment: 'right',
@@ -390,6 +416,9 @@ export function buildRecipePdfDefinition(
         },
       ],
     },
+    ...(extras.verificationUrl && recipe.verificationCode
+      ? [verificationBlock(extras.verificationUrl, recipe.verificationCode)]
+      : []),
   ];
 
   return {
@@ -401,6 +430,28 @@ export function buildRecipePdfDefinition(
     },
     defaultStyle: { font: 'Helvetica', fontSize: 10, color: '#1e293b' },
     content,
+  };
+}
+
+/** QR to the public verify page, with the code and URL in text for whoever cannot scan it. */
+function verificationBlock(url: string, code: string): Content {
+  return {
+    margin: [0, 18, 0, 0],
+    columnGap: 12,
+    columns: [
+      { width: 'auto', qr: url, fit: 80 },
+      {
+        width: '*',
+        fontSize: 8,
+        color: MUTED,
+        margin: [0, 10, 0, 0],
+        stack: [
+          { text: VERIFY_LEGEND, bold: true, color: '#1e293b' },
+          { text: `Código de verificación: ${code}`, margin: [0, 3, 0, 0] },
+          { text: url, color: ACCENT, link: url, margin: [0, 2, 0, 0] },
+        ],
+      },
+    ],
   };
 }
 
