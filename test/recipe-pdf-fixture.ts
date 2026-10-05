@@ -8,11 +8,47 @@ export const RECIPE_FIXTURE: RecipePdfData = {
   diagnosis: 'Faringitis aguda',
   generalInstructions: 'Reposo e hidratación',
   notes: 'Control en 7 días',
-  patient: { commonPerson: { firstName: 'Ana', middleName: 'María', lastName: 'Pérez', secondLastName: 'Gómez', letter: 'V', documentNumber: '12345678' } },
-  doctor: { commonPerson: { firstName: 'Carlos', lastName: 'Mendoza' }, specialties: [{ name: 'Medicina Interna' }] },
-  medicalHistory: { medicalCenter: { name: 'Clínica Central', address: 'Av. Principal, Caracas' }, specialty: { name: 'Otorrinolaringología' } },
+  patient: {
+    commonPerson: {
+      firstName: 'Ana',
+      middleName: 'María',
+      lastName: 'Pérez',
+      secondLastName: 'Gómez',
+      letter: 'V',
+      documentNumber: '12345678',
+    },
+  },
+  doctor: {
+    commonPerson: { firstName: 'Carlos', lastName: 'Mendoza' },
+    specialties: [{ name: 'Medicina Interna' }],
+  },
+  medicalHistory: {
+    medicalCenter: {
+      name: 'Clínica Central',
+      address: 'Av. Principal, Caracas',
+    },
+    specialty: { name: 'Otorrinolaringología' },
+  },
   items: [
-    { medicationName: 'Amoxicilina', presentation: 'Cápsulas', concentration: '500mg', dosage: '1 cápsula', frequency: 'cada 8 horas', duration: '7 días', quantity: 21, unit: 'cápsulas', instructions: 'Con alimentos', orderNumber: 1 },
-    { medicationName: 'Ibuprofeno', dosage: '400mg', frequency: 'cada 12 horas', duration: null, quantity: 10, orderNumber: 2 },
+    {
+      medicationName: 'Amoxicilina',
+      presentation: 'Cápsulas',
+      concentration: '500mg',
+      dosage: '1 cápsula',
+      frequency: 'cada 8 horas',
+      duration: '7 días',
+      quantity: 21,
+      unit: 'cápsulas',
+      instructions: 'Con alimentos',
+      orderNumber: 1,
+    },
+    {
+      medicationName: 'Ibuprofeno',
+      dosage: '400mg',
+      frequency: 'cada 12 horas',
+      duration: null,
+      quantity: 10,
+      orderNumber: 2,
+    },
   ],
 };

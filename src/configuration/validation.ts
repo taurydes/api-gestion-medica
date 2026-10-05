@@ -91,4 +91,16 @@ export const validationSchema = Joi.object({
   // ---------------------------
   // PDFs rendered at once by the worker; the rest wait in the queue.
   PDF_CONCURRENCY: Joi.number().integer().min(1).max(16).default(2),
+
+  // ---------------------------
+  // 🔹 Correo (cola `email`, SMTP)
+  // ---------------------------
+  // Off by default: the send endpoints answer 503 until SMTP is configured.
+  MAIL_ENABLED: Joi.boolean().default(false),
+  SMTP_HOST: Joi.string().when('MAIL_ENABLED', { is: true, then: Joi.required(), otherwise: Joi.optional() }),
+  SMTP_PORT: Joi.number().integer().default(587),
+  SMTP_SECURE: Joi.boolean().default(false),
+  SMTP_USER: Joi.string().allow('').optional(),
+  SMTP_PASS: Joi.string().allow('').optional(),
+  MAIL_FROM: Joi.string().default('MedOS <no-reply@medos.local>'),
 });

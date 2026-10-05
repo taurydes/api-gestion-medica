@@ -1,7 +1,7 @@
 import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
 /** 'login_failed' rows have no user; resourceId carries the credential typed (never the password). */
-export type AccessLogAction = 'read' | 'write' | 'login_failed';
+export type AccessLogAction = 'read' | 'write' | 'login_failed' | 'email_sent';
 
 /** Insert-only trail of successful writes, clinical reads and failed logins (MJ-39); request bodies are never stored. */
 @Entity({ name: 'access_log', schema: 'auditoria' })

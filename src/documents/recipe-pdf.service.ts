@@ -25,7 +25,11 @@ export class RecipePdfService {
   }
 
   filePath(recipeId: string): string {
-    return resolveUploadPath(this.uploadsDir, DOCUMENTS_FOLDER, `${recipeId}.pdf`);
+    return resolveUploadPath(
+      this.uploadsDir,
+      DOCUMENTS_FOLDER,
+      `${recipeId}.pdf`,
+    );
   }
 
   async loadRecipe(recipeId: string): Promise<Recipe> {
@@ -38,19 +42,22 @@ export class RecipePdfService {
         items: true,
       },
     });
-    if (!recipe) throw new NotFoundException(`Receta con ID ${recipeId} no encontrada.`);
+    if (!recipe)
+      throw new NotFoundException(`Receta con ID ${recipeId} no encontrada.`);
     return recipe;
   }
 
   /** Path of the recipe's PDF, regenerated only when the recipe's updatedAt differs from the file's stamp. */
-  async ensurePdf(recipeId: string): Promise<{ path: string; cached: boolean }> {
+  async ensurePdf(
+    recipeId: string,
+  ): Promise<{ path: string; cached: boolean; recipeNumber: string }> {
     const recipe = await this.loadRecipe(recipeId);
     const target = this.filePath(recipe.id);
     const version = new Date(recipe.updatedAt).getTime();
     const stat = await fs.stat(target).catch(() => null);
     // The file's mtime is set to the recipe's updatedAt: an equality check, immune to clock or TZ skew.
     if (stat && Math.round(stat.mtimeMs) === version) {
-      return { path: target, cached: true };
+      return { path: target, cached: true, recipeNumber: recipe.recipeNumber };
     }
 
     const pdf = await renderPdf(buildRecipePdfDefinition(recipe));
@@ -60,6 +67,6 @@ export class RecipePdfService {
     await fs.writeFile(tmp, pdf);
     await fs.utimes(tmp, new Date(), new Date(version));
     await fs.rename(tmp, target);
-    return { path: target, cached: false };
+    return { path: target, cached: false, recipeNumber: recipe.recipeNumber };
   }
 }

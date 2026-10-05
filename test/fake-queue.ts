@@ -61,7 +61,11 @@ export class FakeFlowProducer {
 
   private async createJobs(flow: FakeFlow): Promise<FakeJob> {
     for (const child of flow.children ?? []) await this.createJobs(child);
-    const job = await this.queues[flow.queueName].add(flow.name, flow.data, flow.opts);
+    const job = await this.queues[flow.queueName].add(
+      flow.name,
+      flow.data,
+      flow.opts,
+    );
     if (flow.children?.length) job.state = 'waiting-children';
     return job;
   }

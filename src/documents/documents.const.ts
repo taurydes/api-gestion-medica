@@ -35,10 +35,20 @@ export function toJobStatus(state: string): JobStatus {
   return 'queued';
 }
 
+/** failedReason as the client sees it: BullMQ's "child ... failed" names internal keys. */
+export function publicFailedReason(reason: string | undefined): string {
+  if (!reason) return 'El trabajo falló.';
+  return /^child .* failed/i.test(reason)
+    ? 'No se pudo generar el PDF adjunto.'
+    : reason;
+}
+
 export const DEFAULT_PDF_CONCURRENCY = 2;
 
 /** Worker concurrency from PDF_CONCURRENCY; anything unparsable falls back to the default. */
 export function pdfConcurrency(raw: unknown): number {
   const value = Number(raw);
-  return Number.isInteger(value) && value >= 1 ? value : DEFAULT_PDF_CONCURRENCY;
+  return Number.isInteger(value) && value >= 1
+    ? value
+    : DEFAULT_PDF_CONCURRENCY;
 }
