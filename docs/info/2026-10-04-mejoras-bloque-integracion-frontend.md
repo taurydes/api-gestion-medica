@@ -175,6 +175,16 @@ Un login correcto no se registra. Nunca el cuerpo ni la query string.
 | 429 | Bloqueo por intentos | `Demasiados intentos fallidos. La cuenta quedó bloqueada 15 minutos.` |
 | 503 | `/health` con un indicador caído | `Servicio no disponible: <indicadores>` + `details` |
 
+### Mensajes de validación en español (2026-10-05)
+
+Todo 400 del `ValidationPipe` global llega en español (`src/common/validation/spanish-validation.ts`). Antes, los decoradores sin mensaje propio devolvían el texto en inglés de class-validator (`specialtyId must be a UUID`).
+
+- **Forma sin cambios:** `{ "data": null, "error": [ ...mensajes ], "statusCode": 400 }`; `error` sigue siendo un arreglo de textos.
+- Los mensajes propios de los DTO que ya estaban en español no cambian (p. ej. `Indique el centro médico de la cita.`).
+- Los demás nombran el campo y, si está anidado, su ruta: `specialtyId debe ser un UUID válido.` · `durationMinutes no debe ser menor que 5.` · `blocks.0.slotDurationMinutes no debe ser menor que 10.` · `reason no debe superar 500 caracteres.` · `type debe ser uno de los siguientes valores: …`.
+- Verificado contra el contenedor: `POST /medical-appointments` con `medicalCenterId: ""`, `specialtyId: "x"` y `durationMinutes: 2` responde `["specialtyId debe ser un UUID válido.","Indique el centro médico de la cita.","durationMinutes no debe ser menor que 5."]`.
+- **Acción del front:** ninguna obligatoria. Si algún código comparaba el texto en inglés de un 400, ya no coincide (en `app-gestion-medica` no hay ninguno).
+
 ## Datos en la base
 
 - `first_login` pasó a `false` en las 18 cuentas que lo tenían sin efecto: `mustChangePassword` solo es `true` tras un restablecimiento o un alta con `firstLogin: true`.
