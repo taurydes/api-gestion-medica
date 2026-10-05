@@ -62,7 +62,7 @@ el resto de módulos técnicos ocultos. Los permisos CRUD no se tocaron.
 
 | Qué | Resultado |
 |---|---|
-| `npx jest --ci` | **722/722** (baseline anterior 694; +28). Tras borrar `setPermissionActionStatus`: 722/722. Una corrida intermedia dio timeout de 5 s en `documents.spec` ("an item dose"): ese test tarda 168 ms aislado; la siguiente corrida completa pasó. Es contención de CPU, no del cambio |
+| `npx jest --ci` | **722/722** (baseline anterior 694; +28). Tras borrar `setPermissionActionStatus`: 722/722. Una corrida intermedia dio timeout de 5 s en `documents.spec` ("an item dose"): ese test tarda 168 ms aislado; la siguiente corrida completa pasó. Es contención de CPU, no del cambio. Estabilizado en `48dd2e7`: los tests de caché por hash usan un `renderPdf` falso (de ~170 ms a ~45 ms cada uno); el render real sigue cubierto por el worker y el builder. Tres corridas seguidas: 722/722 ×3 |
 | `npm run build` / `tsc -p tsconfig.build.json --noEmit` | 0 errores |
 | Migraciones: `run` → `revert` → `run` de cada una | OK |
 | `migration:generate --dryrun --check` tras cada migración | "No changes in database schema were found" (3 veces) |
