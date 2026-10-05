@@ -15,6 +15,8 @@ import { DoctorScheduleService } from './doctor-schedule.service';
 import { DoctorImage } from './entities/doctor-image.entity';
 import { User } from 'src/user/entities/user.entity';
 import { FilesModule } from 'src/files/files.module';
+import { DoctorCredentialsController } from './doctor-credentials.controller';
+import { DoctorCredentialsService } from './doctor-credentials.service';
 
 @Module({
   imports: [
@@ -26,8 +28,9 @@ import { FilesModule } from 'src/files/files.module';
     CommonPersonModule,
     FilesModule,
   ],
-  controllers: [DoctorsController],
-  providers: [DoctorsService, DoctorScheduleService],
-  exports: [DoctorsService, DoctorScheduleService, TypeOrmModule],
+  // Credentials first: its literal `me` routes must be matched before DoctorsController's `:id`.
+  controllers: [DoctorCredentialsController, DoctorsController],
+  providers: [DoctorsService, DoctorScheduleService, DoctorCredentialsService],
+  exports: [DoctorsService, DoctorScheduleService, DoctorCredentialsService, TypeOrmModule],
 })
 export class DoctorsModule {}

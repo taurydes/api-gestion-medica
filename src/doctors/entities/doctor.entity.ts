@@ -59,6 +59,13 @@ export class Doctor {
   @Column({ name: 'deleted_at', type: 'timestamp', nullable: true })
   deletedAt: Date | null;
 
+  // select: false keeps the private file paths out of every doctor payload; DoctorCredentialsService reads them.
+  @Column({ name: 'signature_path', type: 'varchar', length: 255, nullable: true, select: false })
+  signaturePath?: string | null;
+
+  @Column({ name: 'stamp_path', type: 'varchar', length: 255, nullable: true, select: false })
+  stampPath?: string | null;
+
   // ========== RELACIONES ==========
 
   // Relación con CommonPerson (datos personales del doctor)
