@@ -117,3 +117,45 @@ Limpieza: citas, historias, archivos (filas y físicos), análisis, pacientes, p
 - **Front (MJ-04)**: el layout pide la foto con `GET /users/:id`, que ahora da 403 a médico y enfermero; debe usar `GET /auth/profile` (`imageUrl`).
 - Opcional: pantalla para `GET /audit/access-log`.
 - Guía: `docs/info/2026-10-04-mejoras-bloque-integracion-frontend.md`. Scripts de datos (corridos dos veces; la segunda, 0 filas): `docs/info/migrations/2026-10-04-usuarios-first-login.sql`, `…-historias-cerradas-completed.sql`, `…-analisis-duplicados-y-acuerdo.sql`, `…-analisis-etiquetas-neutras.sql`.
+
+## Correcciones tras el QA (2026-10-04)
+
+Pedido: cerrar los hallazgos H-01..H-07 de `docs/QA/2026-10-04-bloque-mejoras-qa.md` y re-probar en vivo cada caso FAIL.
+
+### Bitácora
+
+| Hallazgo | Qué se hizo | Commit |
+|---|---|---|
+| H-01 (ALTA) carrera de capacidad | `validateBooking` corre **dentro** de la transacción de `create` y de `update`, después de `SELECT pg_advisory_xact_lock(hashtext('<doctorId>:<YYYY-MM-DD local>'))`; los conteos de turno y cupo diario usan el repositorio del `manager` (la conexión que tiene el bloqueo). `update` pasó a transacción (antes guardaba con el repositorio suelto). | `8ac4d94` |
+| H-02 (MEDIA) 500 en `availability`/`available-dates` | DTOs `AvailabilityQueryDto` / `AvailableDatesQueryDto` (`@IsUUID`, `@Matches(YYYY-MM-DD)` + `@IsDateString({ strict: true })`) con `@Query()`; `22-12-2026`, `basura` y un ISO con hora dan 400. | `fbdaab1` |
+| H-03 (MEDIA) PATCH con centro inexistente | En `update`, si viene `medicalCenterId`, se busca el centro (404) antes de `assertDoctorInCenter` (400), como en `create`. | `fbdaab1` |
+| H-06 (BAJA) textos sin tope | Columnas `text` → el tope vive en los DTOs: `reason` 500, `observations` 2000 (también en `CompleteConsultationDto`), `cancellationReason` 500. | `fbdaab1` |
+| H-04 (MEDIA) BI-RADS en `rawResponse` | El script anterior reescribió `raw_response->label` pero no el anidado `raw_response->raw->label`. Nuevo script `2026-10-04-raw-response-etiquetas-neutras.sql` (24 filas; 2.ª corrida 0) y `neutralizeLabels()` en `findOne` (único camino que expone `rawResponse`). | `f111ecf` |
+| H-05 (BAJA) HU-07.2 desfasada | RN-08 y CA-07 describen ahora el 400 de MJ-28; fecha de corrección en el encabezado. | `app` `d8a15e2` |
+| H-07 (BAJA) cobertura | Sin cambio de código: ver Decisiones. | — |
+
+### Decisiones
+
+- **Bloqueo consultivo, no índice único ni SERIALIZABLE.** La regla es "N pacientes por turno con duraciones que se solapan" más un cupo diario por centro: no se expresa como restricción única. `SERIALIZABLE` obliga a reintentar ante 40001 en todos los clientes. `pg_advisory_xact_lock` por médico y día serializa solo las reservas que compiten (otro médico u otro día no esperan), se libera con la transacción y no deja estado si el proceso muere. La clave lleva el día local porque el cupo diario se cuenta por día local; el solape con otro centro cae en la misma clave (mismo médico y día).
+- **La validación completa se movió dentro de la transacción** (antes de `resolvePatient`): la cita rechazada por turno lleno se decide con el bloqueo tomado y antes de escribir el paciente; si fallara después, el rollback deja 0 personas (MJ-25 sigue: caso ABU-04e). Se descartó mantener además la validación previa fuera de la transacción: duplicaba 4 consultas por reserva sin aportar garantía.
+- **Prueba unitaria de la serialización.** `InMemoryDb` modela el bloqueo como un mutex por clave que, al concederse, refresca la vista de la transacción con lo confirmado (READ COMMITTED); rechaza un bloqueo pedido después de escribir; `getMany`/`getCount` devuelven toda la tabla (los filtros no se interpretan: un médico/día por tabla). `booking-concurrency.spec.ts` lanza 6 `create` concurrentes contra los validadores reales (turno y cupo), 2 `update` al mismo turno, verifica el orden bloqueo → conteo → inserción y un control sin bloqueo (6 aceptadas). **La prueba real es el re-test contra la API** (§9 del QA).
+- **`finishConsultation` no toma el bloqueo**: cierra una cita existente, no crea ni mueve citas.
+- **H-04 en lectura solo en `findOne`**: `serialize()` (listados) no expone `rawResponse`. Las 8 menciones de "BI-RADS" que quedan en `GET /mammography-analyses/recent` de junio 2026 están en `reviewNotes` (texto libre de la médica: "BI-RADS 4C", "BI-RADS 3"); son datos de usuario y no se tocan, como ya decía el QA.
+- **H-07**: el alcance de escritura de personal no médico sobre pacientes sigue sin ejercitarse porque ningún rol del ambiente tiene `patient.actualizar`/`patient.eliminar` sin ser médico ni administrador; el 403 que ve el enfermero es por permiso, no por alcance. Queda como observación de cobertura, no como defecto.
+
+### Verificación
+
+| Qué | Resultado |
+|---|---|
+| `npx tsc -p tsconfig.build.json --noEmit` antes de cada commit | 0 errores |
+| `npx jest --ci` | **620/620** (79 suites; baseline 592, +28: `booking-concurrency` 5, `request-validation` 18, `booking-center-and-daily-cap` +1, `neutral-labels` 4). `cache-invalidation.spec` necesitó el `dataSource` falso porque `update` ahora abre transacción; los specs con repositorios simulados usan `test/fake-data-source.ts`. |
+| `migration:generate --dryrun --check` | "No changes in database schema were found" |
+| Script de datos | `2026-10-04-raw-response-etiquetas-neutras.sql`: 24 filas (19 BENIGN, 5 MALIGNANT); verificaciones 0 / 0 / 0; 2.ª corrida 0 |
+| Contenedor | `medos-backend` reconstruido con el árbol de `f111ecf`, `healthy`; `/app/dist` contiene `pg_advisory_xact_lock` y `neutralizeLabels` |
+| Re-test en vivo | 12 ráfagas de 6 `POST` paralelos (6 al mismo turno de capacidad 1 y 6 a turnos distintos de un día con cupo 1): **12/12 con exactamente 1 cita en BD y 5 × 400**; H-02 5/5 → 400 (caso válido 200); H-03 → 404; H-06 3/3 → 400 y 0 personas huérfanas; H-04 0 etiquetas con BI-RADS en API y SQL. Detalle en `docs/QA/2026-10-04-bloque-mejoras-qa.md` §9. |
+| Limpieza | `cleanup.sql`: 321 citas (= inicio), 0 personas/pacientes/médicos `QA%`, 0 horarios huérfanos; 0 `appointment_number` duplicados |
+
+### Fuera / pendiente
+
+- Front: `maxlength` 500 / 2000 / 500 en el formulario de cita (guía actualizada).
+- El re-test usó un médico de prueba insertado por SQL (persona `QA9000001`), no los médicos demo; `cmendoza` no se tocó.

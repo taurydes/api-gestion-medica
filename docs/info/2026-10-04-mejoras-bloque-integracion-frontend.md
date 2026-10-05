@@ -14,6 +14,8 @@ Commits de `api-gestion-medica` (rama `dt/modules`): `a8f71e7` (MJ-24 + cupo dia
 
 ## Qué cambió en esta versión
 
+> Actualización 2026-10-04 tras el QA (`docs/QA/2026-10-04-bloque-mejoras-qa.md`, H-01..H-06): las filas marcadas **(QA)** son nuevas.
+
 | Endpoint | Antes | Ahora | Acción del front |
 | --- | --- | --- | --- |
 | `POST /medical-appointments` sin `medicalCenterId` | 201 sin validar horario, turno ni cupo | **400** `["Indique el centro médico de la cita."]` (un solo mensaje) | Centro obligatorio en el formulario (hecho: `app` `8ca255d`) |
@@ -21,6 +23,10 @@ Commits de `api-gestion-medica` (rama `dt/modules`): `a8f71e7` (MJ-24 + cupo dia
 | `PATCH /medical-appointments/:id` que reprograma una cita **sin** centro | Se aceptaba | **400** `Indique el centro médico de la cita para reprogramarla.` (hoy hay 0 citas sin centro) | Enviar `medicalCenterId` al reprogramar |
 | Cupo diario | `maxDailyAppointments` del **primer** bloque del día | **Suma** de los bloques activos del día en el centro | Igual que el selector (`app` `8ca255d`) |
 | `GET /medical-appointments/availability` | Misma forma | **Misma forma**. Nuevo: con el día lleno (cupo diario), **todos** los `slots` vienen `available: false` y `available: false` | El selector ya deshabilita todo con el aviso |
+| **(QA)** `GET /medical-appointments/availability` y `available-dates` con `doctorId`/`medicalCenterId` que no son UUID, o fechas que no son `YYYY-MM-DD` (`basura`, `22-12-2026`, `2026-12-22T10:00:00Z`) | **500** `Error interno del servidor.`; `22-12-2026` → 200 con grilla vacía | **400** `["doctorId debe ser un UUID."]` · `["medicalCenterId debe ser un UUID."]` · `["date debe tener el formato YYYY-MM-DD."]` (ídem `startDate`, `endDate`) | Enviar UUIDs y `YYYY-MM-DD` (el selector ya lo hace); tratar 400 como parámetros inválidos |
+| **(QA)** `PATCH /medical-appointments/:id` con `medicalCenterId` inexistente o borrado | 400 `El médico no está asignado a este centro médico.` | **404** `Centro médico con ID <uuid> no encontrado.`, igual que `POST`; el 400 queda solo para un centro real del que el médico no es parte | Ya cubierto por "tratar 404 como centro inválido" |
+| **(QA)** `POST`/`PATCH /medical-appointments` con `reason` > 500 u `observations` > 2000 caracteres; `PATCH :id/cancel` con `cancellationReason` > 500 | Sin tope (201 con 20 000 caracteres) | **400** `El motivo de la cita no puede superar 500 caracteres.` · `Las observaciones no pueden superar 2000 caracteres.` · `El motivo de cancelación no puede superar 500 caracteres.` | `maxlength` 500 / 2000 / 500 en esos campos |
+| **(QA)** Reservas simultáneas al mismo turno o día de un médico (doble clic, dos recepciones) | Podían superar la capacidad del turno y el cupo diario | Se serializan en el servidor (bloqueo por médico y día dentro de la transacción): solo entra la capacidad disponible; las demás reciben el 400 de turno lleno / cupo diario ya conocido | Nada nuevo: el 400 ya se muestra; refrescar `availability` tras un 400 |
 | `GET /auth/me` | `id, name, email, doctorId, modules` | + **`isAdmin`** (permiso `security.consultar`) y **`mustChangePassword`** | Usar `isAdmin` (hecho: `app` `418da1e`); llevar a cambiar contraseña si `mustChangePassword` |
 | `PATCH /users/:id/reset-password` | No existía | Nuevo, ver abajo | Botón en la edición de usuario (hecho: `app` `418da1e`) |
 | `PATCH /auth/change-password` | Mínimo 6 | Mínimo **8**; deja `mustChangePassword` en `false` | — |
@@ -154,6 +160,8 @@ Un login correcto no se registra. Nunca el cuerpo ni la query string.
 | 400 | Campos fijos de la receta en `PATCH` | `medicalAppointmentId no se puede cambiar en una receta emitida.` (ídem `patientId`, `doctorId`, `medicalHistoryId`) |
 | 400 | Médico fuera del centro | `El médico no está asignado a este centro médico.` |
 | 400 | Cupo diario (suma de bloques) | `El doctor ya alcanzó el máximo de N citas para este día en este centro médico.` |
+| 400 | **(QA)** Parámetros de `availability`/`available-dates` | `doctorId debe ser un UUID.` · `medicalCenterId debe ser un UUID.` · `date debe tener el formato YYYY-MM-DD.` (ídem `startDate`, `endDate`) |
+| 400 | **(QA)** Textos largos de la cita | `El motivo de la cita no puede superar 500 caracteres.` · `Las observaciones no pueden superar 2000 caracteres.` · `El motivo de cancelación no puede superar 500 caracteres.` |
 | 400 | Contraseña nueva corta | `… debe tener al menos 8 caracteres` |
 | 400 | Ids inexistentes | `Especialidades inexistentes: …` / `Centros médicos inexistentes: …` |
 | 400 | `sex`, `birthDate`, `maritalStatus` | `El sexo debe ser F o M` · `La fecha de nacimiento no puede ser futura` · `El estado civil debe ser uno de: …` |
@@ -174,6 +182,7 @@ Un login correcto no se registra. Nunca el cuerpo ni la query string.
 - `doctorAgreement`: rellenado en 20 análisis desde el texto de `notes`; `reviewAgreement`: **null** en los anteriores (la nota de revisión era libre).
 - Historias de consultas cerradas: las 224 pasaron a `completed`.
 - Etiquetas: 94 análisis pasaron a `Sospechoso de malignidad` / `No sospechoso`, también en la respuesta cruda.
+- **(QA)** La respuesta cruda anidada (`rawResponse.raw.label`) de 24 análisis (22 vivos, junio 2026) conservaba el texto BI-RADS; corregida con `docs/info/migrations/2026-10-04-raw-response-etiquetas-neutras.sql` (0 restantes) y `GET /mammography-analyses/:id` la mapea al leer como red de seguridad. `reviewNotes` es texto libre del médico y puede mencionar BI-RADS: no se toca.
 
 ## Checklist de migración del front
 
@@ -184,4 +193,5 @@ Un login correcto no se registra. Nunca el cuerpo ni la query string.
 - [x] Panel del personal con `patient.consultar`.
 - [x] Foto del paciente después de crearlo.
 - [x] Layout: foto del usuario por `GET /auth/profile` (`imageUrl`) en vez de `GET /users/:id` (`app` `28da880`); `imageUrl` ya devuelve la foto subida con `POST /files/profile-photo`.
+- [ ] **(QA)** `maxlength` 500 / 2000 / 500 en motivo, observaciones y motivo de cancelación de la cita; mostrar el 400 de parámetros de `availability` si llegara a ocurrir.
 - [x] Pantalla para `GET /audit/access-log` (`app` `22e13d6`); el menú `logs` apunta a `/audit/access-log` con el nombre "Bitácora de accesos".

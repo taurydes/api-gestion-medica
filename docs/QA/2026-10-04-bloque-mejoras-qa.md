@@ -11,8 +11,8 @@
 | Métrica | Valor |
 |---|---|
 | Casos en la matriz | **404** |
-| PASS | **385** |
-| FAIL | **9** |
+| PASS | **385** → **394** tras el re-test (§9) |
+| FAIL | **9** → **0** tras el re-test (§9) |
 | BLOQUEADO | **10** |
 | Hallazgos | 1 ALTA · 3 MEDIA · 3 BAJA (ver §5) |
 | Suites | backend `jest --ci` **592/592** (76 suites) · front `ng test` **153/153** · detector `pytest` **30/30** · `ng build` bundle inicial **455,18 kB** (< 500 kB) |
@@ -705,3 +705,60 @@ COMMIT;
 ```
 
 Archivos en disco: `docker exec medos-backend sh -c "cd /app/uploads; rm -rf profile-photos/<id usuario qa> common-persons/<id persona qa> doctors/<id médico demo>/<archivo QA>"` y las carpetas de las citas QA bajo `uploads/<usuario>/<centro>/<cita>`.
+
+## 9. Re-test (2026-10-04)
+
+Tras los commits `8ac4d94` (H-01), `fbdaab1` (H-02, H-03, H-06), `f111ecf` (H-04) de `api-gestion-medica` y `d8a15e2` de `app-gestion-medica` (H-05). Los 9 FAIL de la matriz se repitieron con peticiones reales contra el backend reconstruido.
+
+**Ambiente.** `docker compose -f tesis/docker-compose.yml up -d --build backend` (`medos-backend` `healthy`; `/app/dist` contiene `pg_advisory_xact_lock` y `neutralizeLabels`). `npx jest --ci` **620/620** (79 suites; antes 592). `migration:generate --dryrun --check`: "No changes in database schema were found". Script de datos `docs/info/migrations/2026-10-04-raw-response-etiquetas-neutras.sql` corrido (24 filas: 19 BENIGN, 5 MALIGNANT; verificaciones 0/0/0) y repetido (0 filas). Un solo login de `admin.caracas` (`isSystemUser:false`) por corrida; peticiones espaciadas 0,8 s y 11,5 s entre ráfagas (throttler 20 req/10 s). **Fixture** (insertada por SQL, sin tocar médicos demo): médico `QA9000001` en Centro Clínico Ávila con bloque lunes 08:00–12:00 (30 min, **1 paciente por turno**, cupo 20) y martes 08:00–12:00 (30 min, 5 por turno, **cupo diario 1**). Cada hilo crea su propio paciente (`newPatientData`, documentos `QA76…`/`QA77…`).
+
+### 9.1 H-01 · carrera de capacidad (CON-01) — **PASS 12/12**
+
+6 hilos paralelos por ráfaga, `POST /medical-appointments` con el mismo cuerpo que en §5 salvo el documento. `filas` = `SELECT count(*) FROM medical_appointments WHERE doctor_id=… AND appointment_date::date=… AND status<>'cancelled'`.
+
+| Ráfaga | Día (local) | Qué compite | Códigos | Filas activas en BD |
+|---|---|---|---|---|
+| CON-01.1 | lun 2026-12-07 08:00 | 6 al mismo turno (cap. 1) | 201 ×1, 400 ×5 | **1** |
+| CON-01.2 | lun 2026-12-14 08:00 | ídem | 201 ×1, 400 ×5 | **1** |
+| CON-01.3 | lun 2026-12-21 08:00 | ídem | 201 ×1, 400 ×5 | **1** |
+| CON-01.4 | lun 2026-12-28 08:00 | ídem | 201 ×1, 400 ×5 | **1** |
+| CON-01.5 | lun 2027-01-04 08:00 | ídem | 201 ×1, 400 ×5 | **1** |
+| CON-01.6 | lun 2027-01-18 08:00 | ídem (corrida extra para capturar el mensaje) | 201 ×1, 400 ×5 | **1** |
+| CON-02.1 | mar 2026-12-08 08:00…10:30 | 6 a **turnos distintos** de un día con cupo 1 | 201 ×1, 400 ×5 | **1** |
+| CON-02.2 | mar 2026-12-15 | ídem | 201 ×1, 400 ×5 | **1** |
+| CON-02.3 | mar 2026-12-22 | ídem | 201 ×1, 400 ×5 | **1** |
+| CON-02.4 | mar 2026-12-29 | ídem | 201 ×1, 400 ×5 | **1** |
+| CON-02.5 | mar 2027-01-05 | ídem | 201 ×1, 400 ×5 | **1** |
+| CON-02.6 | mar 2027-01-12 | ídem (corrida extra) | 201 ×1, 400 ×5 | **1** |
+
+Mensajes de los 400 (únicos por ráfaga): `El turno de las 08:00 ya está completo: admite 1 paciente(s) y tiene 1.` (CON-01) y `El doctor ya alcanzó el máximo de 1 citas para este día en este centro médico.` (CON-02). Ningún 500 ni 429. BD por día tras las 12 ráfagas (`GROUP BY appointment_date::date`): 1 cita activa en cada uno de los 12 días (`APT-2026-00376`…`00388`, sin huecos duplicados); `appointment_number` duplicados en toda la tabla: 0. Antes del arreglo (§5): hasta 6 citas por turno.
+
+### 9.2 Resto de casos
+
+| Caso | Hallazgo | Request | Esperado | Obtenido | Resultado |
+|---|---|---|---|---|---|
+| ABU-07 | H-02 | `GET /medical-appointments/availability?doctorId=zzz&date=2026-12-22&medicalCenterId=<Ávila>` | 400 | 400 `["doctorId debe ser un UUID."]` | **PASS** |
+| ABU-08 | H-02 | `…availability?doctorId=<uuid>&date=22-12-2026&medicalCenterId=<Ávila>` | 400 (antes 200 con grilla vacía) | 400 `["date debe tener el formato YYYY-MM-DD."]` | **PASS** |
+| ABU-11 | H-02 | `…availability?doctorId=<uuid>&date=basura&medicalCenterId=<Ávila>` | 400 | 400 `["date debe tener el formato YYYY-MM-DD."]` | **PASS** |
+| ABU-12 | H-02 | `GET …/available-dates?doctorId=zzz&medicalCenterId=<Ávila>&startDate=2026-12-01&endDate=2026-12-14` | 400 | 400 `["doctorId debe ser un UUID."]` | **PASS** |
+| ABU-11b | H-02 | `…availability?doctorId=<uuid>&date=2026-12-22&medicalCenterId=zzz` | 400 | 400 `["medicalCenterId debe ser un UUID."]` | **PASS** |
+| ABU-14 | H-02 (control) | `…availability?doctorId=<uuid>&date=2026-12-21&medicalCenterId=<Ávila>` | 200 | 200 | **PASS** |
+| CAP-17 | H-03 | `PATCH /medical-appointments/<id>` `{"appointmentDate":"2027-01-11T15:30:00.000Z","medicalCenterId":"11111111-1111-4111-8111-111111111111"}` | 404 | 404 `Centro médico con ID 11111111-1111-4111-8111-111111111111 no encontrado.` | **PASS** |
+| CAP-17b | H-03 (control) | ídem con `medicalCenterId` = Unidad Médica Guaparo (real, médico no asignado) | 400 | 400 `El médico no está asignado a este centro médico.` | **PASS** |
+| ABU-04 | H-06 | `POST /medical-appointments` con `reason` de 501 caracteres | 400 | 400 `["El motivo de la cita no puede superar 500 caracteres."]` | **PASS** |
+| ABU-04b | H-06 | `POST` con `observations` de 2001 | 400 | 400 `["Las observaciones no pueden superar 2000 caracteres."]` | **PASS** |
+| ABU-04c | H-06 | `PATCH /medical-appointments/<id>/cancel` con `cancellationReason` de 501 | 400 | 400 `["El motivo de cancelación no puede superar 500 caracteres."]` | **PASS** |
+| ABU-04d | H-06 (límite) | ídem con 500 caracteres | 200 | 200 (cita cancelada) | **PASS** |
+| ABU-04e | MJ-25 | Las dos `POST` rechazadas por longitud (documento `QA7800002`) | 0 personas creadas | `SELECT count(*) FROM persona_comun WHERE documento='QA7800002'` → 0 | **PASS** |
+| MAM-13 | H-04 | SQL `raw_response::text ILIKE '%bi-rads%'` | 0 | **0** (antes 24) | **PASS** |
+| MAM-13b | H-04 | `GET /mammography-analyses/08127e07-935c-4961-bbce-548548b51de0` (admin) | 200 sin "BI-RADS" | 200; 0 ocurrencias; `rawResponse.raw.label` = `Sospechoso de malignidad` | **PASS** |
+| MAM-13c | H-04 | `GET /mammography-analyses/recent?dateFrom=2026-06-01&dateTo=2026-06-30&limit=50` | 0 etiquetas con "BI-RADS" | 200, 37 ítems; 0 en `label`/`rawResponse`; **8 ocurrencias en `reviewNotes`** ("BI-RADS 4C", "BI-RADS 3"): texto libre de la médica, excluido en H-04 | **PASS** |
+| REC-10 | H-05 | HU-07.2 RN-08/CA-07 reescritas (400 por campo fijo, MJ-28; `app` `d8a15e2`) | HU = comportamiento | Coinciden | **PASS** |
+
+H-07 se mantiene como observación de cobertura (sin cambio de código; motivo en `docs/tasks/2026-10-04-005-bloque-mejoras.md`).
+
+### 9.3 Limpieza y veredicto
+
+`cleanup.sql` (personas `QA%` con sus pacientes, médico, horario, centro y citas) en una transacción: `medical_appointments` **321** (= inicio), 0 personas / pacientes / médicos `QA%`, 0 horarios huérfanos, 0 citas `QA re-test` restantes. Quedan, como en §8, filas append-only de `auditoria.access_log` y secuencias consumidas (`APT-2026-00376…00388`, `PAC-`).
+
+**Veredicto actualizado:** matriz **394 PASS · 0 FAIL · 10 BLOQUEADO** (los 10 BLOQUEADO de §1 no cambian: interfaz, DICOM real, roles inexistentes). H-01 (ALTA) cerrado con 12/12 ráfagas serializadas; H-02, H-03, H-04 y H-06 cerrados; H-05 corregido en la HU; H-07 documentado. **El bloque queda apto para cierre.**
