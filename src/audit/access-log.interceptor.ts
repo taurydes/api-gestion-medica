@@ -13,6 +13,8 @@ export const AUDITED_READ_PREFIXES = [
   '/mammography-analyses',
   '/medical-appointments',
   '/files/appointment-files',
+  // Generated recipe PDFs and the status of document/email jobs
+  '/documents',
 ];
 const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 // Token refresh and logout are session noise, not data changes; a successful login is not recorded either.

@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Patch,
   Post,
@@ -21,6 +23,7 @@ import { ModuleItemsMenu } from 'src/menu/menu.const';
 import { PermissionActionsMenu } from 'src/permission/permission.const';
 
 import { ParseUuid } from 'src/common/pipes/parse-uuid.pipe';
+import { DocumentsService } from 'src/documents/documents.service';
 /**
  * Controlador para gestionar las recetas médicas
  * Endpoints CRUD completo con funcionalidad de dispensación y cancelación
@@ -30,7 +33,10 @@ import { ParseUuid } from 'src/common/pipes/parse-uuid.pipe';
 @Throttle({ short: {} })
 @Controller('recipes')
 export class RecipeController {
-  constructor(private readonly recipeService: RecipeService) {}
+  constructor(
+    private readonly recipeService: RecipeService,
+    private readonly documentsService: DocumentsService,
+  ) {}
 
   /**
    * Crear una nueva receta médica
@@ -68,6 +74,22 @@ export class RecipeController {
   @Permission(`${ModuleItemsMenu.RecipeModule}.${PermissionActionsMenu.VIEW}`)
   findOne(@Param('id', ParseUuid) id: string, @Req() req: any) {
     return this.recipeService.findOne(id, req.user);
+  }
+
+  /**
+   * Encolar la generación del PDF de una receta (mismo alcance que leerla)
+   */
+  @Post(':id/pdf')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({ summary: 'Encolar el PDF de una receta; consultar GET /documents/jobs/:jobId' })
+  @ApiResponse({ status: 202, description: "{ jobId, status: 'queued' }" })
+  @ApiResponse({ status: 403, description: 'La receta es de otro médico' })
+  @ApiResponse({ status: 404, description: 'Receta no encontrada' })
+  @Permission(`${ModuleItemsMenu.RecipeModule}.${PermissionActionsMenu.VIEW}`)
+  async requestPdf(@Param('id', ParseUuid) id: string, @Req() req: any) {
+    // Same 404/403 as GET /recipes/:id before anything is queued.
+    await this.recipeService.findOne(id, req.user);
+    return this.documentsService.enqueueRecipePdf(id, req.user.id);
   }
 
   /**

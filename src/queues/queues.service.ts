@@ -2,6 +2,7 @@ import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable } from '@nestjs/common';
 import { Queue } from 'bullmq';
+import { DOCUMENTS_QUEUE, EMAIL_QUEUE } from 'src/documents/documents.const';
 
 /**
  * @summary Servicio central para la gestión de colas BullMQ en el sistema.
@@ -14,14 +15,9 @@ import { Queue } from 'bullmq';
  */
 @Injectable()
 export class QueuesService {
-  /**
-   * @summary Cola principal de envío de correos electrónicos.
-   * @description
-   * Cola BullMQ donde se encolan y procesan las tareas relacionadas con el envío de correos.
-   * Está registrada en `queues.module.ts` con el nombre `'emailQueue'`.
-   */
   constructor(
-    @InjectQueue('emailQueue') private emailQueue: Queue,
+    @InjectQueue(DOCUMENTS_QUEUE) private documentsQueue: Queue,
+    @InjectQueue(EMAIL_QUEUE) private emailQueue: Queue,
   ) {}
 
   /**
@@ -35,6 +31,7 @@ export class QueuesService {
    */
   getBullAdapters() {
     return [
+      new BullMQAdapter(this.documentsQueue),
       new BullMQAdapter(this.emailQueue),
     ];
   }

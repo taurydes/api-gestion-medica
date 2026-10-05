@@ -1,6 +1,7 @@
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { DEFAULT_JOB_OPTIONS, DOCUMENTS_QUEUE, EMAIL_QUEUE } from 'src/documents/documents.const';
 import { QueuesService } from './queues.service';
 
 /**
@@ -37,21 +38,18 @@ import { QueuesService } from './queues.service';
       }),
     }),
 
-    /**
-     * @summary Registro de colas específicas utilizadas por la aplicación.
-     * @description
-     * Aquí se definen las colas BullMQ que serán instanciadas y disponibles para inyección.
-     * Ejemplo: `emailQueue` para tareas de envío de correos electrónicos.
-     */
+    // `documents` renders PDFs and `email` sends mail; the email flow waits on a documents child job.
     BullModule.registerQueue(
-      { name: 'emailQueue' },
+      { name: DOCUMENTS_QUEUE, defaultJobOptions: DEFAULT_JOB_OPTIONS },
+      { name: EMAIL_QUEUE, defaultJobOptions: DEFAULT_JOB_OPTIONS },
     ),
+    BullModule.registerFlowProducer({ name: EMAIL_QUEUE }),
   ],
 
   // 🔹 Proveedor principal con lógica de acceso a las colas
   providers: [QueuesService],
 
   // 🔹 Exporta el servicio para ser usado por otros módulos (p. ej. BullBoard)
-  exports: [QueuesService],
+  exports: [QueuesService, BullModule],
 })
 export class QueuesModule {}

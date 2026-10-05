@@ -11,6 +11,7 @@ import { Doctor } from 'src/doctors/entities/doctor.entity';
 import { MedicalHistory } from 'src/medical-history/entities/medical-history.entity';
 import { User } from 'src/user/entities/user.entity';
 import { FilesModule } from 'src/files/files.module';
+import { DocumentsModule } from 'src/documents/documents.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { FilesModule } from 'src/files/files.module';
       DatabaseConnectionName.DB_MAIN,
     ),
     FilesModule,
+    DocumentsModule,
   ],
   controllers: [RecipeController],
   providers: [RecipeService],

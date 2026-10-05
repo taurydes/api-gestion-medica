@@ -386,7 +386,8 @@ export class RecipeService {
 
       const recipes = await this.recipeRepository.find({
         where,
-        relations: ['doctor', 'doctor.commonPerson', 'medicalHistory', 'items'],
+        // patient.commonPerson too: without it the client-side PDF printed "undefined undefined".
+        relations: ['patient', 'patient.commonPerson', 'doctor', 'doctor.commonPerson', 'medicalHistory', 'items'],
         order: { issueDate: 'DESC' },
       });
 

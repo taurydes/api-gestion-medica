@@ -85,4 +85,10 @@ export const validationSchema = Joi.object({
     'any.required': '❌ DETECTOR_SECRET es obligatorio',
   }),
   DETECTOR_TIMEOUT_MS: Joi.number().integer().min(1000).default(30000),
+
+  // ---------------------------
+  // 🔹 Documentos (cola `documents`)
+  // ---------------------------
+  // PDFs rendered at once by the worker; the rest wait in the queue.
+  PDF_CONCURRENCY: Joi.number().integer().min(1).max(16).default(2),
 });

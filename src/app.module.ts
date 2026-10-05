@@ -36,6 +36,7 @@ import { DepartmentsModule } from './departments/departments.module';
 import { MedicalAppointmentsModule } from './medical-appointments/medical-appointments.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { MammographyAnalysisModule } from './mammography-analysis/mammography-analysis.module';
+import { DocumentsModule } from './documents/documents.module';
 
 @Module({
   imports: [
@@ -97,6 +98,7 @@ import { MammographyAnalysisModule } from './mammography-analysis/mammography-an
     MedicalAppointmentsModule,
     DashboardModule,
     MammographyAnalysisModule,
+    DocumentsModule,
   ],
   controllers: [],
   providers: [
