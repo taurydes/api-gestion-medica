@@ -6,7 +6,7 @@
    clave de bloqueo, alta/edición de usuarios, perfil y búsquedas; guardarlos normalizados; migración con
    resolución de colisiones e índices únicos sobre la forma normalizada.
 2. PDF de receta generado en el backend con `pdfmake`, cola BullMQ `documents` con worker acotado por
-   `PDF_CONCURRENCY`, caché por `updatedAt`, contrato `POST /recipes/:id/pdf` + `GET /documents/jobs/:jobId[/file]`.
+   `PDF_CONCURRENCY`, caché del archivo generado, contrato `POST /recipes/:id/pdf` + `GET /documents/jobs/:jobId[/file]`.
 3. Cola `email` (nodemailer) con `POST /recipes/:id/email`, `POST /medical-appointments/:id/email-summary` y
    `notifyPatient` en `finish-consultation`; Mailpit para desarrollo.
 4. Tests de procesadores con cola falsa, del builder (nombres sin `undefined`), de destinatarios/adjuntos y de 403.
@@ -26,6 +26,9 @@ Contrato fijado por el agente de frontend: implementado tal cual (ver guía
 | `2377893` | Endpoints de correo y `notifyPatient` |
 | `633c6f7` | La bitácora registra la descarga del PDF y no cada sondeo de estado |
 | `123b916` | Defecto hallado al verificar: `GET /recipes` paginaba y contaba filas de ítems (ver abajo) |
+| `c210333` | Segunda vuelta (pedido del coordinador): la caché del PDF se compara por sha256 de los datos impresos, guardado en `<recipeId>.pdf.sha256` |
+| `c8ff1f7` | Segunda vuelta: `finish-consultation` devuelve `notification: {jobId} \| {error}` cuando `notifyPatient: true` |
+| (fuera de git) | Segunda vuelta: generación del alcance `recipe` del caché renovada con `invalidateScope` (ver abajo) |
 
 `86b5eac` pasa de las 400 líneas: incluye el formateo con Prettier de los archivos nuevos de `src/documents`
 (solo forma) y los specs del módulo; separarlo dejaba commits sin tests.
@@ -40,7 +43,8 @@ Contrato fijado por el agente de frontend: implementado tal cual (ver guía
 | Duplicado 409 en vez de 400 | Lo pide el contrato ("creating Juan when juan exists → 409") y es el código de conflicto del resto de la API |
 | El chequeo de unicidad en `PATCH` solo corre si el nombre/correo cambia | Reenviar el propio nombre en el formulario no debe consultar ni fallar |
 | Refresh y reset de contraseña sin cambios | Ambos buscan por `id`, no por credencial |
-| Caché del PDF: `mtime` del archivo = `updatedAt` de la receta, comparación por igualdad | Inmune a la diferencia de reloj o zona entre Postgres y Node (`>=` regeneraría siempre o serviría un PDF viejo) |
+| Caché del PDF: sha256 de lo que el PDF imprime (receta, ítems, nombres y documento de paciente y médico, especialidad, centro y dirección), guardado junto al PDF | Primera versión usaba `updatedAt` de la receta (vía `mtime`): no veía un médico o paciente renombrado ni un centro con otra dirección. La fecha de impresión queda fuera del hash: si no, nunca habría acierto |
+| El hash se escribe después del PDF (tmp + rename en ambos) | Una caída entre los dos solo cuesta una regeneración, nunca un hash nuevo sobre un PDF viejo |
 | Escritura a `.tmp` + `rename` | Dos workers sobre la misma receta nunca dejan un PDF a medio escribir |
 | Archivo por receta (`uploads/documents/<recipeId>.pdf`), no por trabajo | Es lo que permite reutilizarlo; el `jobId` apunta a la receta |
 | Concurrencia del worker fijada en `onApplicationBootstrap` | `@Processor({ concurrency })` se evalúa antes de que `ConfigModule` cargue el `.env` local |
@@ -50,6 +54,7 @@ Contrato fijado por el agente de frontend: implementado tal cual (ver guía
 | Alcance del correo: médico de la consulta o admin (más estricto que leer la receta) | Lo pide el contrato; el personal no médico puede leer recetas pero no enviarlas |
 | Permiso de los endpoints de correo: `recipe.consultar` / `appointments.consultar` | Son las lecturas del recurso que se envía; el alcance por médico es el control real |
 | `notifyPatient` fuera de la transacción y sin propagar errores | Lo pide el contrato; la consulta queda cerrada aunque el correo no pueda encolarse |
+| El resultado va en `notification` (aditivo) con el mensaje de dominio, o uno genérico si el error no es HTTP | El front necesita el `jobId` para sondear y saber por qué no salió; un error de Redis no debe filtrar el host |
 | Una fila `email_sent` por correo entregado, sin la dirección | Deja rastro del envío sin guardar datos de contacto en la bitácora |
 | Status de trabajos fuera de la bitácora; la descarga sí | El sondeo cada 1 s generaba una fila por segundo |
 | `nodemailer` 8.0.11 y no 10.0.15 | La 10.0.15 se publicó el mismo día de esta tarea |
@@ -63,7 +68,7 @@ Contrato fijado por el agente de frontend: implementado tal cual (ver guía
 | `migration:generate` después | "No changes in database schema were found" |
 | `npx tsc -p tsconfig.build.json --noEmit` antes de cada commit | Limpio |
 | `npm run build` | 0 errores, 0 advertencias |
-| `npx jest --ci` | **684** pruebas, 85 suites (baseline anterior 629) |
+| `npx jest --ci` | **684** pruebas, 85 suites (baseline anterior 629); tras la segunda vuelta **690** |
 | Login `" CMENDOZA "` y `CMendoza@medos-demo.example.com` contra el contenedor | 201 |
 | `POST /recipes/<REC-2026-00153>/pdf` → `file` antes de terminar → estado → descarga | 202 → 409 → `done` → 200 `application/pdf`, 3943 bytes, `%PDF-`; texto extraído contiene "Johana … Silva" y "Carolina … Mendoza", sin `undefined` |
 | Correo de la receta | 202 → `done`; en Mailpit: asunto `Receta médica REC-2026-00153 - Centro Clínico Ávila`, a `johana.silva28@example.com`, 1 adjunto `receta-REC-2026-00153.pdf` (3943 bytes), pie de confidencialidad; fila `email_sent` en `access_log` |
@@ -83,6 +88,14 @@ desempate `id`) y los ítems se ordenan en memoria. Verificado en el contenedor:
 filas, `total: 34`, ítems en orden. Las respuestas ya cacheadas con la clave vieja expiran con el TTL de listas
 (o al crear/editar una receta). `patient.service` ordena por `commonPerson` (muchos-a-uno): no multiplica filas.
 
+## Segunda vuelta (pedido del coordinador)
+
+| Qué | Cómo se verificó | Resultado |
+|---|---|---|
+| PDF por hash de contenido | Specs: renombrar al médico con la receta intacta → PDF nuevo y distinto; documento del paciente, dirección del centro, especialidad y dosis → regenera; solo `updatedAt` → reutiliza. En vivo (REC-2026-00153): 2 pedidos → mismo sha256 del archivo; `segundonombre` del médico `Isabel` → `Isabela` por SQL (sin tocar la receta, `updated_at` sigue 2026-10-03) → PDF nuevo con "Carolina Isabela Mendoza Rivas"; nombre restaurado → regenerado otra vez | OK; dato restaurado |
+| Caché de listas de recetas | `invalidateScope(cache, 'recipe')` ejecutado dentro del contenedor con `dist/common/cache` (solo cambia la clave `recipe:generation`; `session:*` y `bull:*` intactos). Ya no quedaban claves `recipe:query*` (TTL de listas: 5 min) | `GET /recipes` de cmendoza: `limit` 10/25/50 → `total: 34` con 10/25/34 filas = 34 en la base |
+| `notification` | Specs: `{jobId}` al encolar, ausente sin `notifyPatient`, `{error}` con el mensaje de dominio, genérico ante un error no HTTP, la cita queda `completed` en todos. En vivo: cita `c3d407dd…` → `{"jobId":"a147daa7-…"}` y el trabajo llegó a `done`; cita `a0c6b59e…` con el correo del paciente puesto en `null` por SQL → 200 `completed` + `{"error":"El paciente no tiene correo registrado."}` | OK; correo del paciente restaurado |
+
 ## Entorno: Mailpit (no versionado)
 
 `tesis/docker-compose.yml` no está en git; se editó a mano (copia previa en el scratchpad de la sesión):
@@ -101,9 +114,6 @@ reales (Joi exige `SMTP_HOST` cuando `MAIL_ENABLED=true`). Sin eso los endpoints
 - **Frontend:** reemplazar `PdfService` (html2canvas) por el flujo del backend y agregar los botones de correo y la
   casilla `notifyPatient` (checklist en la guía). El agente de frontend ya ejercitó `email-summary` y el correo de
   receta contra este backend (correos `E2E-…` en Mailpit).
-- La caché del PDF se invalida por `updatedAt` de la receta: si cambia el nombre del paciente o del médico, o el
-  centro, el PDF viejo se reutiliza hasta que la receta se edite. Aceptado: la receta es un documento emitido.
-- La respuesta de `finish-consultation` no informa si el correo se encoló (el contrato no lo pide).
 - El 503 con `MAIL_ENABLED=false` está cubierto por tests; no se probó en vivo porque el contenedor corre con correo
   activado.
 - `npm run lint` sigue en rojo en todo el repo (miles de errores previos de Prettier/ESLint); los archivos nuevos se

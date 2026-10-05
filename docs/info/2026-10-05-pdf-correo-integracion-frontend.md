@@ -8,9 +8,14 @@
 Commits de `api-gestion-medica` (rama `dt/modules`): `365c448` (migración de normalización), `e67248e` (login y
 escrituras normalizadas), `cdd2931` (PDF con pdfmake), `774ef30` (cola `documents` y endpoints), `86b5eac` (cola
 `email`), `2377893` (endpoints de correo y `notifyPatient`), `633c6f7` (bitácora solo de descargas), `123b916`
-(paginación de `GET /recipes`).
+(paginación de `GET /recipes`), `c210333` (caché del PDF por contenido), `c8ff1f7` (`notification` en
+`finish-consultation`).
 
 ## Qué cambió en esta versión
+
+> Actualización 2026-10-05 (2), commits `c210333` y `c8ff1f7`: `finish-consultation` con `notifyPatient: true` ahora
+> **devuelve `notification`** (fila marcada **(2)** y sección "`notifyPatient`"); el PDF en caché se regenera cuando
+> cambia cualquier dato impreso (antes solo con `updatedAt` de la receta), sin cambio de contrato.
 
 | Endpoint | Antes | Ahora | Acción del front |
 | --- | --- | --- | --- |
@@ -24,10 +29,10 @@ escrituras normalizadas), `cdd2931` (PDF con pdfmake), `774ef30` (cola `document
 | `GET /documents/jobs/:jobId/file` | No existía | El PDF (`application/pdf`) cuando `status = done` | Descargar con `HttpClient` (`responseType: 'blob'`) |
 | `POST /recipes/:id/email` | No existía | **202** `{ jobId }` | Botón "Enviar por correo" en la receta |
 | `POST /medical-appointments/:id/email-summary` | No existía | **202** `{ jobId }` (solo citas `completed`) | Botón en el detalle de cita completada |
-| `PATCH /medical-appointments/:id/finish-consultation` | Sin aviso al paciente | Acepta **`notifyPatient?: boolean`**; con `true` encola el resumen **después** de guardar. La respuesta no cambia | Casilla "Enviar resumen al paciente" |
+| **(2)** `PATCH /medical-appointments/:id/finish-consultation` | Sin aviso al paciente | Acepta **`notifyPatient?: boolean`**; con `true` encola el resumen **después** de guardar y la respuesta suma **`notification`**: `{ "jobId": "…" }` o `{ "error": "…" }`. Sin `notifyPatient` (o `false`) la respuesta no trae `notification` | Casilla "Enviar resumen al paciente"; con `jobId`, sondear `GET /documents/jobs/:jobId`; con `error`, mostrarlo como aviso (la consulta **sí** quedó cerrada) |
 
 **Lo que NO cambió:** la forma de `POST /auth/login` (sigue sin envelope: `{ access_token, refresh_token }`), los
-mensajes de 401/429 del login, la respuesta de `finish-consultation` (la cita completa, sin `jobId` del correo) y el
+mensajes de 401/429 del login, el resto de la respuesta de `finish-consultation` (la cita completa; solo se suma `notification`) y el
 resto de endpoints de recetas. `GET /recipes/:id` ya traía `patient.commonPerson` y `doctor.commonPerson`.
 
 **Datos:** los 109 usuarios de `public.users` y el de `seguridad.users` ya están normalizados (2 correos tenían
@@ -141,9 +146,25 @@ Contenido:
 }
 ```
 
-El correo se encola después del commit. **Nunca hace fallar la consulta**: si el correo está desactivado o el
-paciente no tiene correo, la cita queda `completed` igual y solo se registra un aviso en el log del servidor. La
-respuesta no dice si se encoló; para confirmarlo, usar `POST …/email-summary`, que sí devuelve los errores.
+El correo se encola después del commit. **Nunca hace fallar la consulta**: la respuesta es siempre la de éxito
+(200, cita `completed`) y suma `notification` con el resultado del encolado:
+
+```json
+{ "code": 200, "data": { "id": "c3d407dd-…", "status": "completed", "…": "…", "notification": { "jobId": "a147daa7-96a2-4e35-8767-088806fb592a" } } }
+```
+
+```json
+{ "code": 200, "data": { "id": "a0c6b59e-…", "status": "completed", "…": "…", "notification": { "error": "El paciente no tiene correo registrado." } } }
+```
+
+| `notification` | Cuándo |
+| --- | --- |
+| `{ "jobId": "<uuid>" }` | Encolado; el estado del envío en `GET /documents/jobs/:jobId` |
+| `{ "error": "El paciente no tiene correo registrado." }` | Paciente sin `email` |
+| `{ "error": "El envío de correos no está configurado." }` | `MAIL_ENABLED=false` |
+| `{ "error": "Solo el médico de la consulta o un administrador puede enviar este correo." }` | Quien cierra no es el médico ni administrador |
+| `{ "error": "No se pudo encolar el correo al paciente." }` | Fallo inesperado (p. ej. Redis caído); el detalle queda en el log |
+| (ausente) | `notifyPatient` omitido o `false` |
 
 ## Errores
 
@@ -174,5 +195,6 @@ solo trabajo queda holgado.
       como blob, en lista de recetas, detalle de paciente y detalle de cita.
 - [ ] Botón "Enviar por correo" en la receta (`POST /recipes/:id/email`, `to` opcional) y "Enviar resumen" en la cita
       completada (`POST /medical-appointments/:id/email-summary`); mostrar el `error` en 400/403/503.
-- [ ] Casilla `notifyPatient` al finalizar la consulta.
+- [ ] Casilla `notifyPatient` al finalizar la consulta; leer `notification` de la respuesta (`jobId` → sondear,
+      `error` → aviso sin revertir nada).
 - [ ] Ocultar o deshabilitar los botones de correo si la API responde 503.
