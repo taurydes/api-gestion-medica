@@ -3,7 +3,6 @@ export * from './revoke-permission.dto';
 export * from './check-permission.dto';
 export * from './bulk-update-permissions.dto';
 export * from './bulk-assign-permissions.dto';
-export * from './set-permission-status.dto';
 export * from './responses.dto';
 export * from './pagination.dto';
 export * from './user-permissions.dto';

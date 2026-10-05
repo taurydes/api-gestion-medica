@@ -356,40 +356,6 @@ export class PermissionService {
     return saved;
   }
 
-  /**
-   * Activar/Desactivar un permiso (acción) existente.
-   */
-  async setPermissionActionStatus(
-    permissionId: string | number,
-    isActive: boolean,
-  ): Promise<Permission> {
-    const permission = await this.permissionRepo.findOne({
-      where: { id: String(permissionId) },
-    });
-    if (!permission) {
-      throw new NotFoundException(
-        `Permiso con ID ${permissionId} no encontrado`,
-      );
-    }
-
-    permission.isActive = isActive;
-    permission.updatedAt = new Date();
-    permission.deletedAt = isActive ? null : new Date();
-
-    const saved = await this.permissionRepo.save(permission);
-    await this.invalidateAllCache();
-
-    // Si desactivamos, también desactivamos las asignaciones activas para evitar inconsistencias
-    if (!isActive) {
-      await this.permissionMenuRepo.update(
-        { permissionId: String(permissionId) },
-        { isActive: false, updatedAt: new Date(), deletedAt: new Date() },
-      );
-    }
-
-    return saved;
-  }
-
   // ===========================================================================
   // PUBLIC METHODS - PERMISSION CRUD
   // ===========================================================================
