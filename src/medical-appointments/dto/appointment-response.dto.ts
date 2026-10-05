@@ -53,6 +53,7 @@ export class PatientSummaryDto {
 // ─── Patient DTO completo para detalle (findOne) ─────────────────────────────
 
 export class PatientDetailDto extends PatientSummaryDto {
+  email: string | null;
   bloodType: string | null;
   insuranceCompany: string | null;
   insurancePolicyNumber: string | null;
@@ -168,6 +169,7 @@ export function mapPatientDetail(patient: any): PatientDetailDto | null {
     fullName: buildFullName(cp),
     documentNumber: buildDocumentNumber(cp),
     photoUrl: patient.imageUrl ?? cp.photoUrl ?? null,
+    email: patient.email ?? null,
     bloodType: patient.bloodType ?? null,
     insuranceCompany: patient.insuranceCompany ?? null,
     insurancePolicyNumber: patient.insurancePolicyNumber ?? null,
