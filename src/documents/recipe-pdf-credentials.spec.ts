@@ -6,6 +6,7 @@ import { authContextForUsers } from '../../test/auth-context-stub';
 import { FakeRepo } from '../../test/in-memory-db';
 import { RECIPE_FIXTURE } from '../../test/recipe-pdf-fixture';
 import { DoctorCredentialsService } from 'src/doctors/doctor-credentials.service';
+import * as builder from './recipe-pdf.builder';
 import { VERIFY_LEGEND, buildRecipePdfDefinition, recipePdfFingerprint } from './recipe-pdf.builder';
 import { RecipePdfService } from './recipe-pdf.service';
 
@@ -23,7 +24,10 @@ beforeAll(() => {
       .toBuffer();
 });
 beforeEach(() => (uploads = mkdtempSync(path.join(tmpdir(), 'pdf-cred-'))));
-afterEach(() => rmSync(uploads, { recursive: true, force: true }));
+afterEach(() => {
+  jest.restoreAllMocks();
+  rmSync(uploads, { recursive: true, force: true });
+});
 
 function build() {
   const recipe = { ...structuredClone(RECIPE_FIXTURE), doctorId: DOCTOR, verificationCode: CODE, deletedAt: null };
@@ -78,6 +82,8 @@ describe('Recipe PDF: signature, stamp and verification QR', () => {
   });
 
   it('a new signature changes the content hash, so the cached PDF regenerates', async () => {
+    // Only the cache decision is under test: skip pdfmake's layout (rendering is covered by the test above).
+    jest.spyOn(builder, 'renderPdf').mockResolvedValue(Buffer.from('%PDF-fake'));
     const { pdf, credentials } = build();
     await credentials.upload(DOCTOR, 'signature', upload(await png(10)));
     await pdf.ensurePdf(RECIPE_FIXTURE.id);

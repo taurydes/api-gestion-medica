@@ -23,6 +23,7 @@ import {
   JOB_FORBIDDEN,
   JOB_NOT_FOUND,
 } from './documents.service';
+import * as builder from './recipe-pdf.builder';
 import { RecipePdfService } from './recipe-pdf.service';
 
 // The doctor has no signature or stamp: these specs cover the queues, not the images.
@@ -122,44 +123,55 @@ describe('Documents queue — recipe PDF', () => {
     expect(file.fileName).toBe(`receta-${RECIPE_ID}.pdf`);
   });
 
-  it('reuses the file while nothing printed changes; updatedAt alone does not matter', async () => {
-    const { recipePdf, recipe } = setup();
-    expect((await recipePdf.ensurePdf(RECIPE_ID)).cached).toBe(false);
-    expect((await recipePdf.ensurePdf(RECIPE_ID)).cached).toBe(true);
+  // Cache-key tests: they only need distinct bytes per definition, not pdfmake's font layout, which under a
+  // loaded parallel run pushed the 2-3 renders per test past the 5 s timeout. Real rendering is covered above.
+  describe('PDF cache by content hash', () => {
+    beforeEach(() => {
+      jest
+        .spyOn(builder, 'renderPdf')
+        .mockImplementation(async (definition) => Buffer.from(`%PDF-fake ${JSON.stringify(definition.content)}`));
+    });
+    afterEach(() => jest.restoreAllMocks());
 
-    recipe.updatedAt = new Date('2026-10-05T11:00:00.000Z');
-    expect((await recipePdf.ensurePdf(RECIPE_ID)).cached).toBe(true);
-  });
+    it('reuses the file while nothing printed changes; updatedAt alone does not matter', async () => {
+      const { recipePdf, recipe } = setup();
+      expect((await recipePdf.ensurePdf(RECIPE_ID)).cached).toBe(false);
+      expect((await recipePdf.ensurePdf(RECIPE_ID)).cached).toBe(true);
 
-  it('renaming the doctor (recipe untouched) produces a new PDF', async () => {
-    const { recipePdf, recipe } = setup();
-    const first = await recipePdf.ensurePdf(RECIPE_ID);
-    const before = fs.readFileSync(first.path);
+      recipe.updatedAt = new Date('2026-10-05T11:00:00.000Z');
+      expect((await recipePdf.ensurePdf(RECIPE_ID)).cached).toBe(true);
+    });
 
-    recipe.doctor!.commonPerson!.firstName = 'Carolina';
-    const second = await recipePdf.ensurePdf(RECIPE_ID);
+    it('renaming the doctor (recipe untouched) produces a new PDF', async () => {
+      const { recipePdf, recipe } = setup();
+      const first = await recipePdf.ensurePdf(RECIPE_ID);
+      const before = fs.readFileSync(first.path);
 
-    expect(second.cached).toBe(false);
-    expect(fs.readFileSync(second.path).equals(before)).toBe(false);
-    expect((await recipePdf.ensurePdf(RECIPE_ID)).cached).toBe(true);
-  });
+      recipe.doctor!.commonPerson!.firstName = 'Carolina';
+      const second = await recipePdf.ensurePdf(RECIPE_ID);
 
-  it.each([
-    [
-      'patient document',
-      (r: any) => (r.patient.commonPerson.documentNumber = '99999999'),
-    ],
-    [
-      'center address',
-      (r: any) => (r.medicalHistory.medicalCenter.address = 'Otra dirección'),
-    ],
-    ['specialty', (r: any) => (r.medicalHistory.specialty.name = 'Pediatría')],
-    ['an item dose', (r: any) => (r.items[0].dosage = '2 cápsulas')],
-  ])('changing the %s regenerates the PDF', async (_what, change) => {
-    const { recipePdf, recipe } = setup();
-    await recipePdf.ensurePdf(RECIPE_ID);
-    change(recipe);
-    expect((await recipePdf.ensurePdf(RECIPE_ID)).cached).toBe(false);
+      expect(second.cached).toBe(false);
+      expect(fs.readFileSync(second.path).equals(before)).toBe(false);
+      expect((await recipePdf.ensurePdf(RECIPE_ID)).cached).toBe(true);
+    });
+
+    it.each([
+      [
+        'patient document',
+        (r: any) => (r.patient.commonPerson.documentNumber = '99999999'),
+      ],
+      [
+        'center address',
+        (r: any) => (r.medicalHistory.medicalCenter.address = 'Otra dirección'),
+      ],
+      ['specialty', (r: any) => (r.medicalHistory.specialty.name = 'Pediatría')],
+      ['an item dose', (r: any) => (r.items[0].dosage = '2 cápsulas')],
+    ])('changing the %s regenerates the PDF', async (_what, change) => {
+      const { recipePdf, recipe } = setup();
+      await recipePdf.ensurePdf(RECIPE_ID);
+      change(recipe);
+      expect((await recipePdf.ensurePdf(RECIPE_ID)).cached).toBe(false);
+    });
   });
 
   it('a deleted recipe fails without retries and with a readable error', async () => {
