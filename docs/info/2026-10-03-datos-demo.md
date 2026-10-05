@@ -114,5 +114,5 @@ docker exec -w /app -e NODE_PATH=/app/node_modules medos-backend node /tmp/seed-
 ## 7. Lo que no se hizo o hay que saber
 
 - **Horarios (corregido en `4b9c21f`):** ahora se puede reservar el primer turno de cada bloque. La cita debe caber completa en el bloque: puede terminar justo a la hora de cierre, pero no empezar a esa hora. El seed sigue empezando en inicio + 30 min, lo que no afecta a los datos.
-- Las historias clínicas quedan con estado `in_progress`, igual que en el flujo real de `finish-consultation`.
+- Las historias clínicas quedan con estado `completed`, igual que en el flujo real de `finish-consultation` (que las crea cerradas desde el bloque de mejoras; corregido tras el E2E del 2026-10-05, H-05).
 - Se conservan los usuarios de prueba que los informes de QA usan (`mario`, `julio`, `daniel`, `gabriel`, `qa*`) y sus citas antiguas.
