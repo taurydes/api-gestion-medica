@@ -309,11 +309,13 @@ export class RecipeService {
     if (startDate) qb.andWhere('recipe.issueDate >= :startDate', { startDate: new Date(startDate) });
     if (endDate) qb.andWhere('recipe.issueDate <= :endDate', { endDate: new Date(endDate) });
 
+    // No ORDER BY on the joined items: with skip/take TypeORM then paged and counted item rows (total 9 for limit 10).
     qb.orderBy('recipe.issueDate', order);
-    qb.addOrderBy('items.orderNumber', 'ASC');
+    qb.addOrderBy('recipe.id', 'ASC');
     qb.skip((page - 1) * limit).take(limit);
 
     const [items, total] = await qb.getManyAndCount();
+    for (const recipe of items) recipe.items?.sort((a, b) => a.orderNumber - b.orderNumber);
     const enriched = await Promise.all(items.map((r) => this.enrichWithImages(r)));
     const result = { data: enriched, total, page, limit };
 
