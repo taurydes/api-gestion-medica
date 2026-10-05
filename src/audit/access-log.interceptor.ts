@@ -13,9 +13,9 @@ export const AUDITED_READ_PREFIXES = [
   '/mammography-analyses',
   '/medical-appointments',
   '/files/appointment-files',
-  // Generated recipe PDFs and the status of document/email jobs
-  '/documents',
 ];
+// Downloading a generated recipe PDF is a clinical read; polling a job's status is not.
+const AUDITED_READ_PATTERNS = [/^\/documents\/jobs\/[^/]+\/file$/];
 const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 // Token refresh and logout are session noise, not data changes; a successful login is not recorded either.
 const SKIPPED_WRITES = new Set(['/auth/refresh', '/auth/logout']);
@@ -34,7 +34,10 @@ export function describeAccess(method: string, url: string, params: Record<strin
     return { path, resource, resourceId: attempted, action: 'login_failed', failedOnly: true } as const;
   }
   const isWrite = WRITE_METHODS.has(method);
-  const auditedRead = method === 'GET' && AUDITED_READ_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
+  const auditedRead =
+    method === 'GET' &&
+    (AUDITED_READ_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`)) ||
+      AUDITED_READ_PATTERNS.some((pattern) => pattern.test(path)));
   if (isWrite ? SKIPPED_WRITES.has(path) : !auditedRead) {
     return null;
   }

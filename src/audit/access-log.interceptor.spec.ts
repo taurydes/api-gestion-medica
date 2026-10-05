@@ -12,6 +12,7 @@ describe('What the access trail records (MJ-39)', () => {
     ['GET', `/recipes/${HISTORY}?x=1`, { id: HISTORY }, { path: `/recipes/${HISTORY}`, resource: 'recipes', action: 'read' }],
     ['GET', `/files/appointment-files/${HISTORY}`, { fileId: HISTORY }, { resource: 'files', resourceId: HISTORY, action: 'read' }],
     ['GET', '/patient?search=Rivas', {}, { path: '/patient', resource: 'patient', action: 'read' }],
+    ['GET', `/documents/jobs/${HISTORY}/file`, { jobId: HISTORY }, { resource: 'documents', resourceId: HISTORY, action: 'read' }],
   ])('%s %s → recorded', (method, url, params, expected) => {
     expect(describeAccess(method, url, params as any)).toMatchObject(expected);
   });
@@ -22,6 +23,7 @@ describe('What the access trail records (MJ-39)', () => {
     ['GET', '/patientes'],
     ['POST', '/auth/refresh'],
     ['POST', '/auth/logout'],
+    ['GET', `/documents/jobs/${HISTORY}`],
   ])('%s %s → not recorded', (method, url) => {
     expect(describeAccess(method, url)).toBeNull();
   });
