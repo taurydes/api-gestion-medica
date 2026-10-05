@@ -11,6 +11,7 @@ import {
   ArrayMaxSize,
   IsInt,
   Min,
+  MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -155,6 +156,7 @@ export class CompleteConsultationDto {
   })
   @IsOptional()
   @IsString()
+  @MaxLength(2000, { message: 'Las observaciones no pueden superar 2000 caracteres.' })
   observations?: string;
 
   @ApiProperty({

@@ -146,3 +146,12 @@ describe('Daily cap = sum of the day\'s blocks, whatever their order (MJ-19)', (
     expect(dates).toEqual([{ date: '2030-01-07', dayOfWeek: 1, slotsAvailable: 1 }]);
   });
 });
+
+describe('PATCH with a center that does not exist answers like POST (QA H-03)', () => {
+  it('reschedule into an unknown center → 404, not 400 "not assigned"', async () => {
+    const { moveTo, appointmentRepository } = build([{ startTime: '08:00', endTime: '12:00', maxDailyAppointments: 20 }], []);
+
+    await expect(moveTo(at(10), { medicalCenterId: 'mc-9' })).rejects.toThrow(NotFoundException);
+    expect(appointmentRepository.save).not.toHaveBeenCalled();
+  });
+});

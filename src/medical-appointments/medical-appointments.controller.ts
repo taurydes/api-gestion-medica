@@ -13,7 +13,6 @@ import {
   ApiBearerAuth,
   ApiOperation,
   ApiParam,
-  ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
@@ -23,6 +22,7 @@ import { UpdateMedicalAppointmentDto } from './dto/update-medical-appointment.dt
 import { QueryMedicalAppointmentDto } from './dto/query-medical-appointment.dto';
 import { CompleteConsultationDto } from './dto/complete-consultation.dto';
 import { CancelMedicalAppointmentDto } from './dto/cancel-medical-appointment.dto';
+import { AvailabilityQueryDto, AvailableDatesQueryDto } from './dto/availability-query.dto';
 import { Permission } from 'src/auth/decorators/permission.decorator';
 import { GetUser } from 'src/auth/decorators/get-user.decorator';
 import { ModuleItemsMenu } from 'src/menu/menu.const';
@@ -45,24 +45,12 @@ export class MedicalAppointmentsController {
     description:
       'Retorna los bloques horarios ocupados de un médico para una fecha determinada.',
   })
-  @ApiQuery({ name: 'doctorId', type: Number, required: true })
-  @ApiQuery({
-    name: 'date',
-    type: String,
-    required: true,
-    example: '2026-03-15',
-  })
-  @ApiQuery({ name: 'medicalCenterId', type: String, required: false })
   @Get('availability')
   @Permission(
     `${ModuleItemsMenu.MedicalAppointmentsModule}.${PermissionActionsMenu.VIEW}`,
   )
-  checkAvailability(
-    @Query('doctorId') doctorId: string,
-    @Query('date') date: string,
-    @Query('medicalCenterId') medicalCenterId?: string,
-  ) {
-    return this.appointmentsService.checkAvailability(doctorId, date, medicalCenterId);
+  checkAvailability(@Query() query: AvailabilityQueryDto) {
+    return this.appointmentsService.checkAvailability(query.doctorId, query.date, query.medicalCenterId);
   }
 
   @ApiOperation({
@@ -70,20 +58,12 @@ export class MedicalAppointmentsController {
     description:
       'Retorna los días en un rango de fechas donde el doctor tiene horario y cupos disponibles.',
   })
-  @ApiQuery({ name: 'doctorId', type: String, required: true })
-  @ApiQuery({ name: 'medicalCenterId', type: String, required: true })
-  @ApiQuery({ name: 'startDate', type: String, required: true, example: '2026-03-01' })
-  @ApiQuery({ name: 'endDate', type: String, required: true, example: '2026-03-31' })
   @Get('available-dates')
   @Permission(
     `${ModuleItemsMenu.MedicalAppointmentsModule}.${PermissionActionsMenu.VIEW}`,
   )
-  getAvailableDates(
-    @Query('doctorId') doctorId: string,
-    @Query('medicalCenterId') medicalCenterId: string,
-    @Query('startDate') startDate: string,
-    @Query('endDate') endDate: string,
-  ) {
+  getAvailableDates(@Query() query: AvailableDatesQueryDto) {
+    const { doctorId, medicalCenterId, startDate, endDate } = query;
     return this.appointmentsService.getAvailableDates(doctorId, medicalCenterId, startDate, endDate);
   }
 

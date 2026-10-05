@@ -9,6 +9,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  MaxLength,
   Min,
   ValidateIf,
 } from 'class-validator';
@@ -143,6 +144,7 @@ export class CreateMedicalAppointmentDto {
   })
   @IsNotEmpty({ message: 'El motivo de la cita es requerido.' })
   @IsString()
+  @MaxLength(500, { message: 'El motivo de la cita no puede superar 500 caracteres.' })
   reason: string;
 
   @ApiPropertyOptional({
@@ -151,5 +153,6 @@ export class CreateMedicalAppointmentDto {
   })
   @IsOptional()
   @IsString()
+  @MaxLength(2000, { message: 'Las observaciones no pueden superar 2000 caracteres.' })
   observations?: string;
 }
