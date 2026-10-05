@@ -9,7 +9,11 @@ import { resolveUploadPath } from 'src/files/upload-path.util';
 import { Recipe } from 'src/recipe/entities/recipe.entity';
 import { IsNull, Repository } from 'typeorm';
 import { DOCUMENTS_FOLDER } from './documents.const';
-import { buildRecipePdfDefinition, renderPdf } from './recipe-pdf.builder';
+import {
+  buildRecipePdfDefinition,
+  recipePdfFingerprint,
+  renderPdf,
+} from './recipe-pdf.builder';
 
 /** Loads a recipe with every relation the PDF prints and keeps one generated file per recipe. */
 @Injectable()
@@ -47,16 +51,20 @@ export class RecipePdfService {
     return recipe;
   }
 
-  /** Path of the recipe's PDF, regenerated only when the recipe's updatedAt differs from the file's stamp. */
+  /** Path of the recipe's PDF, regenerated only when the printed data's hash differs from the stored one. */
   async ensurePdf(
     recipeId: string,
   ): Promise<{ path: string; cached: boolean; recipeNumber: string }> {
     const recipe = await this.loadRecipe(recipeId);
     const target = this.filePath(recipe.id);
-    const version = new Date(recipe.updatedAt).getTime();
-    const stat = await fs.stat(target).catch(() => null);
-    // The file's mtime is set to the recipe's updatedAt: an equality check, immune to clock or TZ skew.
-    if (stat && Math.round(stat.mtimeMs) === version) {
+    // Hash of what the PDF prints, so a renamed doctor or patient also invalidates it (updatedAt would not).
+    const hash = recipePdfFingerprint(recipe);
+    const hashFile = `${target}.sha256`;
+    const [stored, stat] = await Promise.all([
+      fs.readFile(hashFile, 'utf8').catch(() => null),
+      fs.stat(target).catch(() => null),
+    ]);
+    if (stat && stored?.trim() === hash) {
       return { path: target, cached: true, recipeNumber: recipe.recipeNumber };
     }
 
@@ -65,8 +73,11 @@ export class RecipePdfService {
     // Write then rename: two workers on the same recipe never leave a half-written file behind.
     const tmp = `${target}.${randomUUID()}.tmp`;
     await fs.writeFile(tmp, pdf);
-    await fs.utimes(tmp, new Date(), new Date(version));
     await fs.rename(tmp, target);
+    // Hash after the PDF: a crash in between only costs one extra regeneration.
+    const hashTmp = `${hashFile}.tmp-${randomUUID()}`;
+    await fs.writeFile(hashTmp, hash);
+    await fs.rename(hashTmp, hashFile);
     return { path: target, cached: false, recipeNumber: recipe.recipeNumber };
   }
 }

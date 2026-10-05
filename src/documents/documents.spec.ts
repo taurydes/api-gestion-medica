@@ -30,7 +30,7 @@ const RECIPE_ID = RECIPE_FIXTURE.id;
 function setup() {
   const uploadsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'documents-spec-'));
   const recipe = {
-    ...RECIPE_FIXTURE,
+    ...structuredClone(RECIPE_FIXTURE),
     updatedAt: new Date('2026-10-05T10:00:00.000Z'),
     deletedAt: null,
   };
@@ -107,14 +107,44 @@ describe('Documents queue — recipe PDF', () => {
     expect(fs.readFileSync(file.path).subarray(0, 5).toString()).toBe('%PDF-');
   });
 
-  it('reuses the file while the recipe is unchanged and regenerates it after an update', async () => {
+  it('reuses the file while nothing printed changes; updatedAt alone does not matter', async () => {
     const { recipePdf, recipe } = setup();
     expect((await recipePdf.ensurePdf(RECIPE_ID)).cached).toBe(false);
     expect((await recipePdf.ensurePdf(RECIPE_ID)).cached).toBe(true);
 
     recipe.updatedAt = new Date('2026-10-05T11:00:00.000Z');
-    expect((await recipePdf.ensurePdf(RECIPE_ID)).cached).toBe(false);
     expect((await recipePdf.ensurePdf(RECIPE_ID)).cached).toBe(true);
+  });
+
+  it('renaming the doctor (recipe untouched) produces a new PDF', async () => {
+    const { recipePdf, recipe } = setup();
+    const first = await recipePdf.ensurePdf(RECIPE_ID);
+    const before = fs.readFileSync(first.path);
+
+    recipe.doctor!.commonPerson!.firstName = 'Carolina';
+    const second = await recipePdf.ensurePdf(RECIPE_ID);
+
+    expect(second.cached).toBe(false);
+    expect(fs.readFileSync(second.path).equals(before)).toBe(false);
+    expect((await recipePdf.ensurePdf(RECIPE_ID)).cached).toBe(true);
+  });
+
+  it.each([
+    [
+      'patient document',
+      (r: any) => (r.patient.commonPerson.documentNumber = '99999999'),
+    ],
+    [
+      'center address',
+      (r: any) => (r.medicalHistory.medicalCenter.address = 'Otra dirección'),
+    ],
+    ['specialty', (r: any) => (r.medicalHistory.specialty.name = 'Pediatría')],
+    ['an item dose', (r: any) => (r.items[0].dosage = '2 cápsulas')],
+  ])('changing the %s regenerates the PDF', async (_what, change) => {
+    const { recipePdf, recipe } = setup();
+    await recipePdf.ensurePdf(RECIPE_ID);
+    change(recipe);
+    expect((await recipePdf.ensurePdf(RECIPE_ID)).cached).toBe(false);
   });
 
   it('a deleted recipe fails without retries and with a readable error', async () => {

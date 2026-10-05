@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import * as pdfmake from 'pdfmake';
 import type { Content, TDocumentDefinitions } from 'pdfmake/interfaces';
 
@@ -136,6 +137,48 @@ const section = (title: string, body: string, color: string): Content[] => [
 ];
 
 /** pdfmake definition of the recipe: header, patient/doctor boxes, diagnosis, prescription table and signature. */
+/** sha256 of every value the PDF prints (print date aside): the cache key of the generated file. */
+export function recipePdfFingerprint(recipe: RecipePdfData): string {
+  const person = (p?: PersonName | null) => [
+    p?.firstName ?? null,
+    p?.middleName ?? null,
+    p?.lastName ?? null,
+    p?.secondLastName ?? null,
+    p?.letter ?? null,
+    p?.documentNumber ?? null,
+  ];
+  const printed = {
+    id: recipe.id,
+    recipeNumber: recipe.recipeNumber,
+    issueDate: new Date(recipe.issueDate).toISOString(),
+    diagnosis: recipe.diagnosis ?? null,
+    generalInstructions: recipe.generalInstructions ?? null,
+    notes: recipe.notes ?? null,
+    patient: person(recipe.patient?.commonPerson),
+    doctor: person(recipe.doctor?.commonPerson),
+    doctorSpecialties: (recipe.doctor?.specialties ?? []).map((s) => s.name),
+    specialty: recipe.medicalHistory?.specialty?.name ?? null,
+    center: [
+      recipe.medicalHistory?.medicalCenter?.name ?? null,
+      recipe.medicalHistory?.medicalCenter?.address ?? null,
+    ],
+    items: [...(recipe.items ?? [])]
+      .sort((a, b) => (a.orderNumber ?? 0) - (b.orderNumber ?? 0))
+      .map((i) => [
+        i.medicationName,
+        i.presentation ?? null,
+        i.concentration ?? null,
+        i.dosage,
+        i.frequency,
+        i.duration ?? null,
+        i.quantity ?? null,
+        i.unit ?? null,
+        i.instructions ?? null,
+      ]),
+  };
+  return createHash('sha256').update(JSON.stringify(printed)).digest('hex');
+}
+
 export function buildRecipePdfDefinition(
   recipe: RecipePdfData,
   printedAt: Date = new Date(),
