@@ -4,7 +4,9 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { AuthContextService } from 'src/common/services/auth-context.service';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
@@ -62,6 +64,7 @@ import { User } from 'src/user/entities/user.entity';
 import { DoctorScheduleService } from 'src/doctors/doctor-schedule.service';
 import { FilesService } from 'src/files/files.service';
 import { toHttpException } from 'src/common/exceptions/to-http-exception';
+import { EmailService } from 'src/email/email.service';
 
 @Injectable()
 export class MedicalAppointmentsService {
@@ -111,7 +114,13 @@ export class MedicalAppointmentsService {
 
     @InjectDataSource(DatabaseConnectionName.DB_MAIN)
     private readonly dataSource: DataSource,
+
+    // Optional so the specs that build this service by hand still compile
+    @Optional()
+    private readonly emailService?: EmailService,
   ) {}
+
+  private readonly logger = new Logger(MedicalAppointmentsService.name);
 
   // ─── IDOR helper ───────────────────────────────────────────────────────────
 
@@ -1109,7 +1118,26 @@ export class MedicalAppointmentsService {
     if (scope.hasRecipe) await this.recipeService.invalidateCaches(scope);
     await this.clearQueryCache();
 
+    // After the commit and never fatal: the consultation is closed whether or not the email can be queued.
+    if (dto.notifyPatient && userId) await this.notifyPatient(id, userId);
+
     return this.loadFullAppointment(id);
+  }
+
+  private async notifyPatient(appointmentId: string, userId: string): Promise<void> {
+    try {
+      if (!this.emailService) return;
+      const { jobId } = await this.emailService.enqueueAppointmentSummary(appointmentId, undefined, userId);
+      this.logger.log(`Resumen de la cita ${appointmentId} encolado (${jobId}).`);
+    } catch (error) {
+      this.logger.warn(`No se encoló el resumen de la cita ${appointmentId}: ${(error as Error)?.message}`);
+    }
+  }
+
+  /** POST /medical-appointments/:id/email-summary: same checks as notifyPatient, but errors reach the client. */
+  async emailSummary(appointmentId: string, to: string | undefined, userId: string): Promise<{ jobId: string }> {
+    if (!this.emailService) throw new Error('EmailService no está disponible.');
+    return this.emailService.enqueueAppointmentSummary(appointmentId, to, userId);
   }
 
   /**

@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Patch,
   Post,
@@ -29,6 +31,7 @@ import { ModuleItemsMenu } from 'src/menu/menu.const';
 import { PermissionActionsMenu } from 'src/permission/permission.const';
 
 import { ParseUuid } from 'src/common/pipes/parse-uuid.pipe';
+import { SendEmailDto } from 'src/email/dto/send-email.dto';
 @ApiTags('Medical Appointments')
 @ApiBearerAuth()
 @Throttle({ short: {} })
@@ -217,6 +220,24 @@ export class MedicalAppointmentsController {
     @GetUser('id') userId: string,
   ) {
     return this.appointmentsService.finishConsultation(id, dto, userId);
+  }
+
+  @ApiOperation({
+    summary: 'Enviar por correo el resumen de una cita completada',
+    description:
+      'Encola el resumen (fecha, médico, motivo, diagnóstico, observaciones, exámenes) con la receta en PDF si la hay. 202 { jobId }; estado en GET /documents/jobs/:jobId.',
+  })
+  @Post(':id/email-summary')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @Permission(
+    `${ModuleItemsMenu.MedicalAppointmentsModule}.${PermissionActionsMenu.VIEW}`,
+  )
+  emailSummary(
+    @Param('id', ParseUuid) id: string,
+    @Body() dto: SendEmailDto,
+    @GetUser('id') userId: string,
+  ) {
+    return this.appointmentsService.emailSummary(id, dto.to, userId);
   }
 
   @ApiOperation({

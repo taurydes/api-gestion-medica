@@ -12,6 +12,7 @@ import { MedicalHistory } from 'src/medical-history/entities/medical-history.ent
 import { User } from 'src/user/entities/user.entity';
 import { FilesModule } from 'src/files/files.module';
 import { DocumentsModule } from 'src/documents/documents.module';
+import { EmailModule } from 'src/email/email.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { DocumentsModule } from 'src/documents/documents.module';
     ),
     FilesModule,
     DocumentsModule,
+    EmailModule,
   ],
   controllers: [RecipeController],
   providers: [RecipeService],

@@ -19,6 +19,7 @@ import { MedicalHistoryModule } from 'src/medical-history/medical-history.module
 import { RecipeModule } from 'src/recipe/recipe.module';
 import { DoctorsModule } from 'src/doctors/doctors.module';
 import { FilesModule } from 'src/files/files.module';
+import { EmailModule } from 'src/email/email.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { FilesModule } from 'src/files/files.module';
     RecipeModule,
     DoctorsModule,
     FilesModule,
+    EmailModule,
   ],
   controllers: [MedicalAppointmentsController],
   providers: [MedicalAppointmentsService],

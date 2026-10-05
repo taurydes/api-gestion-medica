@@ -20,7 +20,7 @@ import { CompleteConsultationDto } from './dto/complete-consultation.dto';
 
 const MISSING_MEDICATION = '5b0f6a55-4a0e-4c1a-9f5e-000000000000';
 
-function setup(authContext: any = authContextFor({ isAdmin: true, doctorId: null })) {
+function setup(authContext: any = authContextFor({ isAdmin: true, doctorId: null }), emailService?: any) {
   const db = new InMemoryDb()
     .table(MedicalAppointment, [
       { id: 'apt-1', patientId: 'pat-1', doctorId: 'doc-1', status: AppointmentStatus.IN_CONSULTATION, deletedAt: null },
@@ -79,6 +79,7 @@ function setup(authContext: any = authContextFor({ isAdmin: true, doctorId: null
     {} as any,
     authContext,
     db.dataSource,
+    emailService,
   );
   // The final reload joins many relations; it is not what these tests are about.
   jest
@@ -296,5 +297,57 @@ describe('Patient history leaves soft-deleted records out (MJ-41)', () => {
     const rows = await history.findByPatient('pat-1', { id: 'admin' });
 
     expect(rows.map((h) => h.id)).toEqual(['h-live']);
+  });
+});
+
+describe('finishConsultation — notifyPatient enqueues the summary after the commit', () => {
+  const emailStub = (db: () => InMemoryDb) => ({
+    // Records the appointment status seen at enqueue time: it must already be committed as completed.
+    seen: [] as string[],
+    enqueueAppointmentSummary: jest.fn(async function (this: any, id: string) {
+      this.seen.push(db().rows(MedicalAppointment).find((a) => a.id === id)!.status);
+      return { jobId: 'mail-1' };
+    }),
+  });
+
+  it('notifyPatient: true → enqueued once, with the appointment already completed', async () => {
+    let ref!: InMemoryDb;
+    const email = emailStub(() => ref);
+    const { service, db } = setup(undefined, email);
+    ref = db;
+
+    await service.finishConsultation('apt-1', { ...dto(), notifyPatient: true }, 'u1');
+
+    expect(email.enqueueAppointmentSummary).toHaveBeenCalledWith('apt-1', undefined, 'u1');
+    expect(email.seen).toEqual([AppointmentStatus.COMPLETED]);
+  });
+
+  it('without notifyPatient nothing is enqueued', async () => {
+    let ref!: InMemoryDb;
+    const email = emailStub(() => ref);
+    const { service, db } = setup(undefined, email);
+    ref = db;
+
+    await service.finishConsultation('apt-1', dto(), 'u1');
+    expect(email.enqueueAppointmentSummary).not.toHaveBeenCalled();
+  });
+
+  it('a rolled-back consultation never enqueues', async () => {
+    let ref!: InMemoryDb;
+    const email = emailStub(() => ref);
+    const { service, db } = setup(undefined, email);
+    ref = db;
+    db.failSaves(RecipeItem, 1);
+
+    await expect(service.finishConsultation('apt-1', { ...dto(), notifyPatient: true }, 'u1')).rejects.toThrow();
+    expect(email.enqueueAppointmentSummary).not.toHaveBeenCalled();
+  });
+
+  it('an email that cannot be queued (no patient email, mail off) does not fail the consultation', async () => {
+    const email = { enqueueAppointmentSummary: jest.fn().mockRejectedValue(new BadRequestException('El paciente no tiene correo registrado.')) };
+    const { service, db } = setup(undefined, email);
+
+    await expect(service.finishConsultation('apt-1', { ...dto(), notifyPatient: true }, 'u1')).resolves.toBeDefined();
+    expect(status(db)).toBe(AppointmentStatus.COMPLETED);
   });
 });

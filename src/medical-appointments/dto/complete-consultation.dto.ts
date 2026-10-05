@@ -9,6 +9,7 @@ import {
   IsDateString,
   ArrayMinSize,
   ArrayMaxSize,
+  IsBoolean,
   IsInt,
   Min,
   MaxLength,
@@ -176,4 +177,12 @@ export class CompleteConsultationDto {
   @ValidateNested()
   @Type(() => ConsultationRecipeInputDto)
   recipe?: ConsultationRecipeInputDto;
+
+  @ApiPropertyOptional({
+    description: 'Si es true, encola el resumen por correo al paciente después de guardar (no falla la consulta si no se puede)',
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean({ message: 'notifyPatient debe ser verdadero o falso' })
+  notifyPatient?: boolean;
 }

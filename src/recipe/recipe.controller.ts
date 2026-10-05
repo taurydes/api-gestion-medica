@@ -24,6 +24,8 @@ import { PermissionActionsMenu } from 'src/permission/permission.const';
 
 import { ParseUuid } from 'src/common/pipes/parse-uuid.pipe';
 import { DocumentsService } from 'src/documents/documents.service';
+import { EmailService } from 'src/email/email.service';
+import { SendEmailDto } from 'src/email/dto/send-email.dto';
 /**
  * Controlador para gestionar las recetas médicas
  * Endpoints CRUD completo con funcionalidad de dispensación y cancelación
@@ -36,6 +38,7 @@ export class RecipeController {
   constructor(
     private readonly recipeService: RecipeService,
     private readonly documentsService: DocumentsService,
+    private readonly emailService: EmailService,
   ) {}
 
   /**
@@ -90,6 +93,21 @@ export class RecipeController {
     // Same 404/403 as GET /recipes/:id before anything is queued.
     await this.recipeService.findOne(id, req.user);
     return this.documentsService.enqueueRecipePdf(id, req.user.id);
+  }
+
+  /**
+   * Enviar la receta por correo (PDF adjunto); por defecto al correo del paciente
+   */
+  @Post(':id/email')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({ summary: 'Encolar el envío de la receta por correo; estado en GET /documents/jobs/:jobId' })
+  @ApiResponse({ status: 202, description: '{ jobId }' })
+  @ApiResponse({ status: 400, description: 'El paciente no tiene correo registrado y no se envió el destinatario' })
+  @ApiResponse({ status: 403, description: 'Solo el médico de la receta o un administrador' })
+  @ApiResponse({ status: 503, description: 'El envío de correos no está configurado' })
+  @Permission(`${ModuleItemsMenu.RecipeModule}.${PermissionActionsMenu.VIEW}`)
+  sendEmail(@Param('id', ParseUuid) id: string, @Body() dto: SendEmailDto, @GetUser('id') userId: string) {
+    return this.emailService.enqueueRecipeEmail(id, dto.to, userId);
   }
 
   /**
