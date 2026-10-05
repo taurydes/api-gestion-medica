@@ -27,6 +27,7 @@ import {
   tooLargeMessage,
 } from 'src/files/upload-limits';
 import { DetectorClient } from './detector/detector.client';
+import { neutralizeLabels } from './detector/neutral-labels';
 
 import { MammographyAnalysis } from './entities/mammography-analysis.entity';
 import { CreateMammographyAnalysisDto } from './dto/create-mammography-analysis.dto';
@@ -485,6 +486,8 @@ export class MammographyAnalysisService {
       throw new NotFoundException('Análisis no encontrado.');
     }
     this.assertDoctorAccess(record, await this.resolveDoctorScope(authUser));
+    // Legacy rows may still carry the detector's BI-RADS wording inside raw.label (MJ-36).
+    record.rawResponse = neutralizeLabels(record.rawResponse, record.prediction);
     return record;
   }
 
