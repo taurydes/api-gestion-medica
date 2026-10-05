@@ -14,12 +14,14 @@ import {
 import { PASSWORD_MIN_LENGTH, passwordMinLengthMessage } from 'src/common/validation/password-policy';
 import { CreateCommonPersonDto } from '../../common-person/dto/create-common-person.dto';
 import { CreateDoctorNestedDto } from 'src/doctors/dto/create-doctor-nested.dto';
+import { NormalizeIdentity } from 'src/user/user-identity';
 
 export class CreateUserDto {
   @ApiProperty({
     description: 'Nombre de usuario',
     example: 'juan',
   })
+  @NormalizeIdentity()
   @IsString({ message: 'El nombre debe ser una cadena de texto' })
   name: string;
 
@@ -28,6 +30,7 @@ export class CreateUserDto {
     example: 'juan@example.com',
     uniqueItems: true,
   })
+  @NormalizeIdentity()
   @IsEmail({}, { message: 'Debe ser un correo electrónico válido' })
   email: string;
 

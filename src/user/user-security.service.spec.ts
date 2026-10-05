@@ -1,4 +1,5 @@
 import {
+  ConflictException,
   ForbiddenException,
   ServiceUnavailableException,
 } from '@nestjs/common';
@@ -27,6 +28,12 @@ function setup() {
     findOneBy: jest.fn().mockResolvedValue(stored),
     update: jest.fn().mockResolvedValue(undefined),
     delete: jest.fn().mockResolvedValue(undefined),
+    // Identity lookup: OR of { email } / { name } conditions over the stored row.
+    find: jest.fn(async ({ where }: any) =>
+      [stored].filter((u: any) => where.some((c: any) => Object.entries(c).every(([k, v]) => u[k] === v))),
+    ),
+    create: jest.fn((data: any) => data),
+    save: jest.fn(async (data: any) => ({ id: 's2', ...data })),
   };
   const cache = {
     get: jest.fn().mockResolvedValue(undefined),
@@ -132,5 +139,21 @@ describe('UserSecurityController.update — reenvía los permisos del actor (C-0
 
     await controller.update('s1', dto, { userPermissions: ['user-security.actualizar'] });
     expect(service.update).toHaveBeenCalledWith('s1', dto, ['user-security.actualizar']);
+  });
+});
+
+describe('UserSecurityService — usernames and emails are normalized', () => {
+  it('creating "OPERADOR" when "operador" exists is a 409', async () => {
+    const { service, repo } = setup();
+    await expect(
+      service.create({ name: ' OPERADOR ', email: 'nuevo@example.com', password: 'Clave12345', roleId: MEDICO_ROLE } as any),
+    ).rejects.toThrow(ConflictException);
+    expect(repo.save).not.toHaveBeenCalled();
+  });
+
+  it('a new security user is stored trimmed and lowercased', async () => {
+    const { service, repo } = setup();
+    await service.create({ name: ' Nuevo ', email: ' Nuevo@Example.COM', password: 'Clave12345', roleId: MEDICO_ROLE } as any);
+    expect(repo.save).toHaveBeenCalledWith(expect.objectContaining({ name: 'nuevo', email: 'nuevo@example.com' }));
   });
 });

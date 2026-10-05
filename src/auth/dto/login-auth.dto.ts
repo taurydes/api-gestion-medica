@@ -1,11 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsBoolean, IsString, MinLength } from 'class-validator';
+import { NormalizeIdentity } from 'src/user/user-identity';
 
 export class LoginUserDto {
   @ApiProperty({
     description: 'Nombre de usuario o correo electrónico',
     example: 'admin',
   })
+  @NormalizeIdentity()
   @IsString({
     message: 'Debe ingresar un correo electrónico o nombre de usuario',
   })

@@ -2,6 +2,7 @@ import { ApiPropertyOptional, PartialType, PickType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsEmail, IsOptional, ValidateNested } from 'class-validator';
 import { CreateCommonPersonDto } from 'src/common-person/dto/create-common-person.dto';
+import { NormalizeIdentity } from 'src/user/user-identity';
 
 export class UpdateProfileCommonPersonDto extends PartialType(
   PickType(CreateCommonPersonDto, [
@@ -18,6 +19,7 @@ export class UpdateProfileCommonPersonDto extends PartialType(
 export class UpdateProfileDto {
   @ApiPropertyOptional({ description: 'Correo electrónico', example: 'juan@example.com' })
   @IsOptional()
+  @NormalizeIdentity()
   @IsEmail({}, { message: 'Debe ser un correo electrónico válido' })
   email?: string;
 

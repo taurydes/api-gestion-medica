@@ -53,6 +53,7 @@ import {
 import { UserMedicalCenter } from './entities/user-medical-center.entity';
 import { findUserCenters, replaceUserCenters } from './user-centers';
 import { toHttpException } from 'src/common/exceptions/to-http-exception';
+import { changedIdentity, normalizeIdentityFields, USER_IDENTITY_CONFLICT } from './user-identity';
 
 export {
   USER_ROLE_CHANGE_PERMISSION,
@@ -116,18 +117,28 @@ export class UserService {
     await invalidateScope(this.cacheManager, 'user');
   }
 
-  private async validateUserData(data: CreateUserDto): Promise<void> {
+  /** 409 when another active user already holds the (normalized) name or email; the unique indexes back it up. */
+  private async assertIdentityAvailable(
+    data: { name?: string; email?: string },
+    exceptId?: string,
+  ): Promise<void> {
+    if (data.name === undefined && data.email === undefined) return;
     const qb = this.repo
       .createQueryBuilder('u')
-      .where('(u.email = :email OR u.name = :name)', { email: data.email, name: data.name })
+      .where('(lower(btrim(u.email)) = :email OR lower(btrim(u.name)) = :name)', {
+        email: data.email ?? null,
+        name: data.name ?? null,
+      })
       // Same scope as the partial unique indexes: a deleted user frees its name and email (M-21).
       .andWhere('u.deletedAt IS NULL');
-    const existsUser = await qb.getOne();
-    if (existsUser) {
-      throw new BadRequestException(
-        'El correo electrónico o nombre ya está en uso.',
-      );
+    if (exceptId) qb.andWhere('u.id <> :exceptId', { exceptId });
+    if (await qb.getOne()) {
+      throw new ConflictException(USER_IDENTITY_CONFLICT);
     }
+  }
+
+  private async validateUserData(data: CreateUserDto): Promise<void> {
+    await this.assertIdentityAvailable(data);
 
     const { letter, documentNumber } = data.commonPerson;
     if (documentNumber) {
@@ -171,6 +182,7 @@ export class UserService {
     actorId: string | null = null,
   ): Promise<Omit<User, 'password'>> {
     this.assertCanChangeCenters(dto.medicalCenterIds, actorPermissions);
+    normalizeIdentityFields(dto);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -442,6 +454,8 @@ export class UserService {
         actorPermissions,
       );
       Object.assign(userFields, fields);
+      normalizeIdentityFields(userFields);
+      await this.assertIdentityAvailable(changedIdentity(userFields, exists), id);
 
       if (commonPersonDto && exists.commonPerson) {
         await assertDocumentAvailable(this.commonPersonrepo, exists.commonPerson, commonPersonDto);

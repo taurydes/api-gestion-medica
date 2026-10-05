@@ -1,6 +1,6 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import {
-  BadRequestException,
+  ConflictException,
   HttpException,
   Inject,
   Injectable,
@@ -29,6 +29,7 @@ import {
   revokeSessionOrFail,
 } from './user-admin-fields';
 import { toHttpException } from 'src/common/exceptions/to-http-exception';
+import { changedIdentity, normalizeIdentityFields, USER_IDENTITY_CONFLICT } from './user-identity';
 
 @Injectable()
 export class UserSecurityService {
@@ -49,6 +50,22 @@ export class UserSecurityService {
     await invalidateScope(this.cacheManager, 'users-security');
   }
 
+  /** 409 when another security user holds the (normalized) name or email; the unique indexes back it up. */
+  private async assertIdentityAvailable(
+    data: { name?: string; email?: string },
+    exceptId?: string,
+  ): Promise<void> {
+    if (data.name === undefined && data.email === undefined) return;
+    const where = [
+      ...(data.email !== undefined ? [{ email: data.email }] : []),
+      ...(data.name !== undefined ? [{ name: data.name }] : []),
+    ];
+    const found = await this.userSecurityRepository.find({ where });
+    if (found.some((user) => user.id !== exceptId)) {
+      throw new ConflictException(USER_IDENTITY_CONFLICT);
+    }
+  }
+
   /**
    * Crear usuario
    */
@@ -56,13 +73,8 @@ export class UserSecurityService {
     createUserSecurityDto: CreateUserSecurityDto,
   ): Promise<Omit<UserSecurity, 'password'>> {
     try {
-      const existingUser = await this.userSecurityRepository.findOne({
-        where: { email: createUserSecurityDto.email },
-      });
-
-      if (existingUser) {
-        throw new BadRequestException('El correo electrónico ya está en uso.');
-      }
+      normalizeIdentityFields(createUserSecurityDto);
+      await this.assertIdentityAvailable(createUserSecurityDto);
 
       const hashedPassword = await bcrypt.hash(
         createUserSecurityDto.password,
@@ -198,6 +210,8 @@ export class UserSecurityService {
         actorPermissions,
       );
       Object.assign(userFields, fields);
+      normalizeIdentityFields(userFields);
+      await this.assertIdentityAvailable(changedIdentity(userFields, user), id);
 
       // Revocar antes de escribir: si Redis falla, no queda nada persistido
       if (deactivates) {

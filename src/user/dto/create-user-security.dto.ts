@@ -12,15 +12,18 @@ import {
   MinLength,
 } from 'class-validator';
 import { PASSWORD_MIN_LENGTH, passwordMinLengthMessage } from 'src/common/validation/password-policy';
+import { NormalizeIdentity } from 'src/user/user-identity';
 
 export class CreateUserSecurityDto {
-  @ApiProperty({ example: 'Carlos Pérez' })
+  @ApiProperty({ example: 'carlos.perez' })
+  @NormalizeIdentity()
   @IsString()
   @IsNotEmpty()
   @MaxLength(255)
   name: string;
 
   @ApiProperty({ example: 'carlos@example.com' })
+  @NormalizeIdentity()
   @IsEmail()
   @IsNotEmpty()
   @MaxLength(255)

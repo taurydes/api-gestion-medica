@@ -18,6 +18,7 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { AuthUser } from './interfaces/User';
 import { PermissionService } from 'src/permission/services/permission.service';
 import { encryptModules } from './utils/permissions-cipher.util';
+import { normalizeIdentity } from 'src/user/user-identity';
 
 /**
  * @summary Servicio de autenticación principal de la aplicación.
@@ -64,7 +65,9 @@ export class AuthService {
    * @summary Valida un usuario regular por email o nombre.
    * @throws UnauthorizedException Si las credenciales son inválidas.
    */
-  async validateUser(credential: string, password: string): Promise<AuthUser> {
+  async validateUser(rawCredential: string, password: string): Promise<AuthUser> {
+    // Stored normalized (migration NormalizeUserIdentities), so " CMendoza " finds "cmendoza".
+    const credential = normalizeIdentity(rawCredential);
     // Usuarios borrados o desactivados no inician sesión
     const active = { deletedAt: IsNull(), status: true };
     const user = await this.userRepository.findOne({
@@ -91,9 +94,10 @@ export class AuthService {
    * @throws UnauthorizedException Si las credenciales son inválidas.
    */
   async validateSystemUser(
-    credential: string,
+    rawCredential: string,
     password: string,
   ): Promise<AuthUser> {
+    const credential = normalizeIdentity(rawCredential);
     const active = { deletedAt: IsNull(), status: true };
     const user = await this.userSystemRepository.findOne({
       where: [
@@ -125,7 +129,7 @@ export class AuthService {
    */
   async login(loginDto: LoginUserDto): Promise<JwtPayload> {
     // Keyed by the credential typed, so the lock does not reveal whether the account exists.
-    const attemptKey = `${loginDto.isSystemUser ? 'sys' : 'usr'}:${String(loginDto.credential ?? '').trim().toLowerCase()}`;
+    const attemptKey = `${loginDto.isSystemUser ? 'sys' : 'usr'}:${normalizeIdentity(loginDto.credential)}`;
     if ((await this.redisSession.getLoginFailures(attemptKey)) >= LOGIN_MAX_FAILURES) {
       throw new HttpException(LOGIN_LOCKED, HttpStatus.TOO_MANY_REQUESTS);
     }

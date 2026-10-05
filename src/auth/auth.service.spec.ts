@@ -3,6 +3,8 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { FindOperator } from 'typeorm';
 import { AuthService, LOGIN_LOCKED, LOGIN_MAX_FAILURES } from './auth.service';
+import { LoginUserDto } from './dto/login-auth.dto';
+import { createAppValidationPipe } from 'src/common/validation/spanish-validation';
 
 /** Repositorio en memoria que evalúa `where` (objeto u OR en arreglo) incluido IsNull(). */
 function memoryRepo(rows: any[]) {
@@ -215,5 +217,40 @@ describe('AuthService — bloqueo por credencial tras intentos fallidos (MJ-01)'
       await expect(login(service, 'nadie', 'x')).rejects.toThrow(UnauthorizedException);
     }
     await expect(login(service, 'marta', 'clave123')).resolves.toHaveProperty('access_token');
+  });
+});
+
+describe('AuthService — credentials are trimmed and case-insensitive', () => {
+  const stored = { name: 'cmendoza', email: 'cmendoza@example.com' };
+
+  it('" Cmendoza " logs in as cmendoza', async () => {
+    const { service } = await setup(stored);
+    await expect(
+      service.login({ credential: ' Cmendoza ', password: 'clave123', isSystemUser: false }),
+    ).resolves.toHaveProperty('access_token');
+  });
+
+  it('"CMENDOZA@EXAMPLE.COM" logs in by email', async () => {
+    const { service } = await setup(stored);
+    await expect(
+      service.login({ credential: 'CMENDOZA@EXAMPLE.COM', password: 'clave123', isSystemUser: false }),
+    ).resolves.toHaveProperty('access_token');
+  });
+
+  it('the lockout counts " CMendoza " and "cmendoza" as the same credential', async () => {
+    const { service, redis } = await setup(stored);
+    await expect(
+      service.login({ credential: ' CMendoza ', password: 'mala-clave', isSystemUser: false }),
+    ).rejects.toThrow(UnauthorizedException);
+    expect(redis.registerLoginFailure).toHaveBeenCalledWith('usr:cmendoza', LOGIN_MAX_FAILURES, expect.any(Number));
+  });
+
+  it('LoginUserDto normalizes the credential before validation', async () => {
+    const pipe = createAppValidationPipe();
+    const dto = await pipe.transform(
+      { credential: ' CMendoza@Example.COM ', password: 'clave123', isSystemUser: false },
+      { type: 'body', metatype: LoginUserDto },
+    );
+    expect(dto.credential).toBe('cmendoza@example.com');
   });
 });

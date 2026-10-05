@@ -1,11 +1,13 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   InternalServerErrorException,
   ServiceUnavailableException,
   ValidationPipe,
 } from '@nestjs/common';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { USER_IDENTITY_CONFLICT } from './user-identity';
 import { CommonPerson } from '../common-person/entities/common-person.entity';
 import {
   USER_ROLE_CHANGE_PERMISSION,
@@ -16,7 +18,24 @@ import {
 const SUPERUSER_ROLE = '2812c7ac-4829-4880-a3b1-314cf88b4895';
 const MEDICO_ROLE = '69cf7b3a-864c-44d7-8541-1ab57d34f49b';
 
-function setup() {
+/** Query builder over an in-memory list that answers the identity lookup of UserService. */
+function identityQueryBuilder(users: Array<{ id: string; name: string; email: string; deletedAt?: Date | null }>) {
+  const params: Record<string, any> = {};
+  const qb = {
+    where: (_sql: string, p: Record<string, any> = {}) => (Object.assign(params, p), qb),
+    andWhere: (_sql: string, p: Record<string, any> = {}) => (Object.assign(params, p), qb),
+    getOne: async () =>
+      users.find(
+        (u) =>
+          !u.deletedAt &&
+          u.id !== params.exceptId &&
+          (u.name.trim().toLowerCase() === params.name || u.email.trim().toLowerCase() === params.email),
+      ) ?? null,
+  };
+  return qb;
+}
+
+function setup(otherUsers: Array<{ id: string; name: string; email: string; deletedAt?: Date | null }> = []) {
   const stored = {
     id: 'u1',
     name: 'marta',
@@ -30,6 +49,7 @@ function setup() {
     findOne: jest.fn().mockResolvedValue(stored),
     findOneBy: jest.fn().mockResolvedValue(stored),
     update: jest.fn().mockResolvedValue(undefined),
+    createQueryBuilder: jest.fn(() => identityQueryBuilder([stored, ...otherUsers])),
   };
   const commonPersonRepo = { update: jest.fn().mockResolvedValue(undefined) };
   const cache = {
@@ -236,5 +256,48 @@ describe('UserService.update — users and persona_comun in one transaction', ()
       [],
     );
     expect(committed).toEqual(['users', 'persona_comun']);
+  });
+});
+
+describe('UserService — usernames and emails are normalized (trim + lowercase)', () => {
+  const createDto = (name: string, email: string) =>
+    ({ name, email, password: 'Clave12345', roleId: MEDICO_ROLE, commonPerson: { firstName: 'Juan', lastName: 'Pérez' } }) as any;
+
+  it('creating "Juan" when "juan" exists is a 409 and nothing is saved', async () => {
+    const { service, queryRunner } = setup([{ id: 'u2', name: 'juan', email: 'juan@example.com' }]);
+    const save = jest.fn();
+    (queryRunner.manager as any).save = save;
+
+    await expect(service.create(createDto('Juan', 'otro@example.com'))).rejects.toThrow(ConflictException);
+    await expect(service.create(createDto(' JUAN ', 'otro@example.com'))).rejects.toThrow(USER_IDENTITY_CONFLICT);
+    await expect(service.create(createDto('pedro', ' Juan@Example.COM'))).rejects.toThrow(ConflictException);
+    expect(save).not.toHaveBeenCalled();
+    expect(queryRunner.rollbackTransaction).toHaveBeenCalled();
+  });
+
+  it('a deleted "juan" does not block a new "Juan"', async () => {
+    const { service } = setup([{ id: 'u2', name: 'juan', email: 'juan@example.com', deletedAt: new Date() }]);
+    // Passes the identity check and fails later on the stubbed person lookup, not with a 409.
+    await expect(service.create(createDto('Juan', 'juan@example.com'))).rejects.not.toThrow(ConflictException);
+  });
+
+  it('an update stores the email trimmed and lowercased', async () => {
+    const { service, repo } = setup();
+    await service.update('u1', { email: '  Nuevo@Example.COM ' } as UpdateUserDto, ['user.actualizar']);
+    expect(repo.update).toHaveBeenCalledWith('u1', { email: 'nuevo@example.com' });
+  });
+
+  it('renaming to the name of another user in other casing is a 409 and writes nothing', async () => {
+    const { service, repo } = setup([{ id: 'u2', name: 'juan', email: 'juan@example.com' }]);
+    await expect(service.update('u1', { name: 'JUAN' } as UpdateUserDto, ['user.actualizar'])).rejects.toThrow(
+      ConflictException,
+    );
+    expect(repo.update).not.toHaveBeenCalled();
+  });
+
+  it('resending the own name in other casing is not a conflict', async () => {
+    const { service, repo } = setup();
+    await service.update('u1', { name: ' Marta ' } as UpdateUserDto, ['user.actualizar']);
+    expect(repo.update).toHaveBeenCalledWith('u1', { name: 'marta' });
   });
 });
