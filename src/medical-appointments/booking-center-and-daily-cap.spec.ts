@@ -5,6 +5,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { MedicalAppointmentsService } from './medical-appointments.service';
 import { AppointmentStatus } from './entities/medical-appointment.entity';
 import { authContextFor } from '../../test/auth-context-stub';
+import { transactionOver } from '../../test/fake-data-source';
 
 type Existing = { appointmentDate: Date; durationMinutes: number; medicalCenterId: string; appointmentNumber: string };
 type Block = { startTime: string; endTime: string; maxDailyAppointments: number };
@@ -46,6 +47,7 @@ function build(blocks: Block[], existing: Existing[], aptOverrides: Record<strin
     getSchedulesByDoctor: jest.fn(async () => fullBlocks),
   };
   deps[16] = authContextFor({ isAdmin: true, doctorId: null });
+  deps[17] = transactionOver({ MedicalAppointment: appointmentRepository });
   const service = new (MedicalAppointmentsService as any)(...deps) as MedicalAppointmentsService;
   jest.spyOn(service as any, 'loadFullAppointment').mockImplementation(async () => apt);
   const moveTo = (date: Date, extra: Record<string, unknown> = {}) =>

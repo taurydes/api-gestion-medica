@@ -4,6 +4,7 @@ process.env.TZ = 'America/Caracas';
 import { BadRequestException } from '@nestjs/common';
 import { MedicalAppointmentsService } from './medical-appointments.service';
 import { authContextFor } from '../../test/auth-context-stub';
+import { transactionOver } from '../../test/fake-data-source';
 import { AppointmentStatus } from './entities/medical-appointment.entity';
 import { formatLocalDate, parseLocalDate } from 'src/doctors/schedule-time.util';
 
@@ -38,6 +39,7 @@ function build(blocks: Array<{ dayOfWeek: number; startTime: string; endTime: st
   deps[10] = { get: jest.fn(), set: jest.fn(), del: jest.fn() };
   deps[14] = scheduleService;
   deps[16] = authContextFor({ isAdmin: true, doctorId: null });
+  deps[17] = transactionOver({ MedicalAppointment: appointmentRepository });
   const service = new (MedicalAppointmentsService as any)(...deps) as MedicalAppointmentsService;
   jest.spyOn(service as any, 'loadFullAppointment').mockImplementation(async () => apt);
   return { service, apt, appointmentRepository };

@@ -97,15 +97,25 @@ export class FakeRepo {
     return [{ value: String(value) }];
   }
 
+  /** Filters are not interpreted: getMany/getCount return the whole table, so a spec keeps one doctor/day per table. */
   createQueryBuilder() {
     const qb: any = {
       where: () => qb,
       andWhere: () => qb,
       orderBy: () => qb,
       getOne: async () => null,
+      getMany: async () => this.rows.map((r) => ({ ...r })),
+      getCount: async () => this.rows.length,
     };
     return qb;
   }
+}
+
+/** What a transaction knows about itself: the advisory locks it holds and whether it already wrote. */
+interface TxState {
+  held: Array<() => void>;
+  dirty: boolean;
+  refresh: () => void;
 }
 
 /**
@@ -133,7 +143,11 @@ export class InMemoryDb {
     this.failures.set(entity, { times, after });
   }
 
-  private managerOver(tables: Tables) {
+  /** Every `pg_advisory_xact_lock` key taken, in acquisition order. */
+  readonly locks: string[] = [];
+  private readonly lockTails = new Map<string, Promise<void>>();
+
+  private managerOver(tables: Tables, tx?: TxState) {
     const repos = new Map<Function, FakeRepo>();
     return {
       getRepository: (entity: Function) => {
@@ -142,6 +156,7 @@ export class InMemoryDb {
           const repo = new FakeRepo(tables.get(entity)!, this.options.get(entity));
           const originalSave = repo.save.bind(repo);
           repo.save = async (input: any) => {
+            if (tx) tx.dirty = true;
             const pending = this.failures.get(entity);
             if (pending && pending.after > 0) {
               pending.after--;
@@ -155,7 +170,29 @@ export class InMemoryDb {
         }
         return repos.get(entity)!;
       },
+      /**
+       * Only `SELECT pg_advisory_xact_lock(hashtext($1))`: queues behind the current holder of the key and,
+       * once granted, refreshes the transaction's view with what the holder committed (READ COMMITTED).
+       */
+      query: async (sql: string, params: unknown[] = []) => {
+        if (!/pg_advisory_xact_lock/.test(sql)) throw new Error(`Query not supported by InMemoryDb: ${sql}`);
+        if (!tx) throw new Error('pg_advisory_xact_lock is only meaningful inside a transaction');
+        if (tx.dirty) throw new Error('The advisory lock must be taken before the transaction writes');
+        await this.acquire(String(params[0]), tx);
+        tx.refresh();
+        return [];
+      },
     };
+  }
+
+  private async acquire(key: string, tx: TxState): Promise<void> {
+    const previous = this.lockTails.get(key) ?? Promise.resolve();
+    let release!: () => void;
+    const mine = new Promise<void>((resolve) => (release = resolve));
+    this.lockTails.set(key, previous.then(() => mine));
+    await previous;
+    tx.held.push(release);
+    this.locks.push(key);
   }
 
   /** Repository over committed data (what a repository injected outside a transaction sees). */
@@ -169,17 +206,29 @@ export class InMemoryDb {
       manager: this.managerOver(this.committed),
       transaction: async <T>(work: (manager: any) => Promise<T>): Promise<T> => {
         const staged: Tables = new Map();
-        for (const [entity, rows] of this.committed) {
-          staged.set(entity, rows.map((r) => ({ ...r })));
+        // In place, so repositories already created over `staged` see the refreshed rows.
+        const refresh = () => {
+          for (const [entity, rows] of this.committed) {
+            const copies = rows.map((r) => ({ ...r }));
+            const target = staged.get(entity);
+            if (target) target.splice(0, target.length, ...copies);
+            else staged.set(entity, copies);
+          }
+        };
+        refresh();
+        const tx: TxState = { held: [], dirty: false, refresh };
+        try {
+          const result = await work(this.managerOver(staged, tx));
+          // Commit in place so repositories created before the transaction see the new rows.
+          for (const [entity, rows] of staged) {
+            const target = this.committed.get(entity);
+            if (target) target.splice(0, target.length, ...rows);
+            else this.committed.set(entity, rows);
+          }
+          return result;
+        } finally {
+          tx.held.forEach((release) => release());
         }
-        const result = await work(this.managerOver(staged));
-        // Commit in place so repositories created before the transaction see the new rows.
-        for (const [entity, rows] of staged) {
-          const target = this.committed.get(entity);
-          if (target) target.splice(0, target.length, ...rows);
-          else this.committed.set(entity, rows);
-        }
-        return result;
       },
     };
   }

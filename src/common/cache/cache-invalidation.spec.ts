@@ -36,7 +36,8 @@ describe('Cache invalidation keys (M-56)', () => {
       db.repo(MedicalAppointment),
       {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any,
       cache as any,
-      {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any,
+      {} as any, {} as any, {} as any, {} as any, {} as any, {} as any,
+      db.dataSource,
     );
     // The reload joins many relations; it is not what this test is about.
     jest.spyOn(service as any, 'loadFullAppointment').mockResolvedValue({});

@@ -329,8 +329,12 @@ export class MedicalAppointmentsService {
     }
   }
 
-  /** Every booking rule that depends on doctor, center and time; shared by create and reschedule. */
+  /**
+   * Every booking rule that depends on doctor, center and time; shared by create and reschedule.
+   * Runs inside the caller's transaction: the capacity counts happen under the doctor/day lock.
+   */
   private async validateBooking(
+    manager: EntityManager,
     doctorId: string,
     medicalCenterId: string,
     appointmentDate: Date,
@@ -339,8 +343,19 @@ export class MedicalAppointmentsService {
   ): Promise<void> {
     await this.assertDoctorInCenter(doctorId, medicalCenterId);
     await this.validateDoctorSchedule(doctorId, medicalCenterId, appointmentDate, durationMinutes);
-    await this.validateSlotCapacity(doctorId, medicalCenterId, appointmentDate, durationMinutes, excludeId);
-    await this.validateDailyAppointmentLimit(doctorId, medicalCenterId, appointmentDate, excludeId);
+    await this.lockDoctorDay(manager, doctorId, appointmentDate);
+    await this.validateSlotCapacity(manager, doctorId, medicalCenterId, appointmentDate, durationMinutes, excludeId);
+    await this.validateDailyAppointmentLimit(manager, doctorId, medicalCenterId, appointmentDate, excludeId);
+  }
+
+  /**
+   * Serializes the bookings of one doctor on one calendar day (RN-06b): concurrent requests queue here,
+   * so count-then-insert sees the rows committed by the previous holder. Released with the transaction.
+   */
+  private async lockDoctorDay(manager: EntityManager, doctorId: string, appointmentDate: Date): Promise<void> {
+    await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+      `${doctorId}:${formatLocalDate(appointmentDate)}`,
+    ]);
   }
 
   /**
@@ -383,6 +398,7 @@ export class MedicalAppointmentsService {
    * overlapping appointment in another center is a double booking (the doctor cannot be in two places).
    */
   private async validateSlotCapacity(
+    manager: EntityManager,
     doctorId: string,
     medicalCenterId: string,
     appointmentDate: Date,
@@ -403,7 +419,9 @@ export class MedicalAppointmentsService {
     // Window = the covered slots (wider than the appointment when slots are longer than it)
     const windowStart = atMinutes(appointmentDate, Math.min(slots[0].start, startMinutes));
     const windowEnd = new Date(Math.max(atMinutes(appointmentDate, slots[slots.length - 1].end).getTime(), endTime.getTime()));
-    const qb = this.appointmentRepository
+    // The transaction's own connection: it holds the doctor/day lock the count relies on.
+    const qb = manager
+      .getRepository(MedicalAppointment)
       .createQueryBuilder('apt')
       .where('apt.doctorId = :doctorId', { doctorId })
       .andWhere('apt.deletedAt IS NULL')
@@ -472,6 +490,7 @@ export class MedicalAppointmentsService {
    * configurado en su horario para ese centro médico.
    */
   private async validateDailyAppointmentLimit(
+    manager: EntityManager,
     doctorId: string,
     medicalCenterId: string,
     appointmentDate: Date,
@@ -494,7 +513,8 @@ export class MedicalAppointmentsService {
     const dayEnd = new Date(appointmentDate);
     dayEnd.setHours(23, 59, 59, 999);
 
-    const qb = this.appointmentRepository
+    const qb = manager
+      .getRepository(MedicalAppointment)
       .createQueryBuilder('apt')
       .where('apt.doctorId = :doctorId', { doctorId })
       .andWhere('apt.medicalCenterId = :medicalCenterId', { medicalCenterId })
@@ -592,7 +612,6 @@ export class MedicalAppointmentsService {
           `Centro médico con ID ${dto.medicalCenterId} no encontrado.`,
         );
       }
-      await this.validateBooking(dto.doctorId, dto.medicalCenterId, appointmentDate, duration);
 
       if (dto.specialtyId) {
         const specialty = await this.specialtyRepository.findOne({
@@ -618,6 +637,8 @@ export class MedicalAppointmentsService {
 
       // Patient (found or created) and appointment commit together: a failure leaves no orphan patient.
       const saved = await this.dataSource.transaction(async (manager) => {
+        // Schedule and capacity under the doctor/day lock, before the patient step writes anything.
+        await this.validateBooking(manager, dto.doctorId, dto.medicalCenterId, appointmentDate, duration);
         const patient = await this.resolvePatient(dto, userId, manager);
         await this.checkPatientConflict(patient.id, appointmentDate, duration);
 
@@ -867,11 +888,11 @@ export class MedicalAppointmentsService {
       dto.doctorId !== undefined ||
       dto.medicalCenterId !== undefined ||
       dto.durationMinutes !== undefined;
+    const newDate = dto.appointmentDate ? new Date(dto.appointmentDate) : apt.appointmentDate;
+    const doctorId = dto.doctorId ?? apt.doctorId;
+    const medicalCenterId = dto.medicalCenterId ?? apt.medicalCenterId;
+    const duration = dto.durationMinutes ?? apt.durationMinutes;
     if (reschedules) {
-      const newDate = dto.appointmentDate ? new Date(dto.appointmentDate) : apt.appointmentDate;
-      const doctorId = dto.doctorId ?? apt.doctorId;
-      const medicalCenterId = dto.medicalCenterId ?? apt.medicalCenterId;
-      const duration = dto.durationMinutes ?? apt.durationMinutes;
       if (dto.appointmentDate && newDate <= new Date()) {
         throw new BadRequestException(
           'La fecha de la cita no puede ser en el pasado.',
@@ -880,9 +901,16 @@ export class MedicalAppointmentsService {
       if (!medicalCenterId) {
         throw new BadRequestException('Indique el centro médico de la cita para reprogramarla.');
       }
+      // Same order as create: an unknown center is 404 before "not assigned to this center" (400).
+      if (dto.medicalCenterId) {
+        const center = await this.medicalCenterRepository.findOne({
+          where: { id: dto.medicalCenterId, deletedAt: IsNull() },
+        });
+        if (!center) {
+          throw new NotFoundException(`Centro médico con ID ${dto.medicalCenterId} no encontrado.`);
+        }
+      }
       await this.checkPatientConflict(apt.patientId, newDate, duration, id);
-      await this.validateBooking(doctorId, medicalCenterId, newDate, duration, id);
-      apt.appointmentDate = newDate;
     }
 
     const {
@@ -894,9 +922,15 @@ export class MedicalAppointmentsService {
       ...rest
     } = dto;
 
-    Object.assign(apt, { ...rest, updatedBy: userId ?? null });
-
-    await this.appointmentRepository.save(apt);
+    // The reschedule is validated and saved under the doctor/day lock, like a new booking.
+    await this.dataSource.transaction(async (manager) => {
+      if (reschedules) {
+        await this.validateBooking(manager, doctorId, medicalCenterId!, newDate, duration, id);
+        apt.appointmentDate = newDate;
+      }
+      Object.assign(apt, { ...rest, updatedBy: userId ?? null });
+      await manager.getRepository(MedicalAppointment).save(apt);
+    });
 
     await this.clearQueryCache();
 
