@@ -254,3 +254,74 @@ describe('AuthService — credentials are trimmed and case-insensitive', () => {
     expect(dto.credential).toBe('cmendoza@example.com');
   });
 });
+
+describe('AuthService — logout with an expired access token', () => {
+  const creds = { credential: 'marta', password: 'clave123', isSystemUser: false };
+  const jwt = new JwtService({});
+  const claims = { id: 'u1', roleId: 'r1', name: 'marta' };
+  const expired = (secret: string) =>
+    jwt.sign({ ...claims, exp: Math.floor(Date.now() / 1000) - 60 }, { secret });
+
+  it('an expired token with a valid signature that matches the session deletes it', async () => {
+    const { service, sessions } = await setup();
+    await service.login(creds);
+    const token = expired('access-secret');
+    sessions.set('u1', { ...sessions.get('u1'), access_token: token });
+
+    await service.logout(token);
+
+    expect(sessions.has('u1')).toBe(false);
+  });
+
+  it('the current, unexpired access token deletes the session', async () => {
+    const { service, sessions } = await setup();
+    const { access_token } = await service.login(creds);
+
+    await service.logout(access_token);
+
+    expect(sessions.has('u1')).toBe(false);
+  });
+
+  it('a validly signed token that is not the stored one leaves the newer session alive', async () => {
+    const { service, sessions, redis } = await setup();
+    await service.login(creds);
+
+    await service.logout(expired('access-secret'));
+
+    expect(sessions.has('u1')).toBe(true);
+    expect(redis.deleteSession).not.toHaveBeenCalled();
+  });
+
+  it('a token signed with another secret does not delete, even if it is the stored one', async () => {
+    const { service, sessions, redis } = await setup();
+    await service.login(creds);
+    const forged = expired('not-the-secret');
+    sessions.set('u1', { ...sessions.get('u1'), access_token: forged });
+
+    await expect(service.logout(forged)).resolves.toBeUndefined();
+
+    expect(sessions.has('u1')).toBe(true);
+    expect(redis.deleteSession).not.toHaveBeenCalled();
+  });
+
+  it('a malformed token or no token at all is a no-op', async () => {
+    const { service, sessions } = await setup();
+    await service.login(creds);
+
+    await service.logout('not-a-jwt');
+    await service.logout(null, undefined);
+
+    expect(sessions.has('u1')).toBe(true);
+  });
+
+  it('the stored refresh token closes the session; an access token passed as refresh does not', async () => {
+    const { service, sessions } = await setup();
+    const { access_token, refresh_token } = await service.login(creds);
+
+    await service.logout(null, access_token);
+    expect(sessions.has('u1')).toBe(true);
+
+    await service.logout(null, refresh_token);
+    expect(sessions.has('u1')).toBe(false);
+  });
+});

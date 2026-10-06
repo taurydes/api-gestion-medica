@@ -8,6 +8,7 @@ import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { extractAccessToken } from '../utils/extract-access-token';
 
 /**
  * Guard: JwtAuthGuard
@@ -33,24 +34,8 @@ export class JwtAuthGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest<Request>();
 
-    // Intentar obtener el token desde el header Authorization
-    let token: string | null = null;
-    const authHeader = request.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      token = authHeader.split(' ')[1];
-    }
-
-    // Si no está en el header, buscar en las cookies
-    if (!token && request.headers.cookie) {
-      const rawCookie = request.headers.cookie;
-      const cookies = Object.fromEntries(
-        rawCookie.split(';').map((c) => {
-          const [key, ...v] = c.trim().split('=');
-          return [key, decodeURIComponent(v.join('='))];
-        }),
-      );
-      token = cookies['access_token'];
-    }
+    // Bearer header first, then the access_token cookie
+    const token = extractAccessToken(request);
 
     if (!token) {
       throw new UnauthorizedException('Token requerido para esta petición');

@@ -6,8 +6,10 @@ import { AuthService } from './auth.service';
 import { GetUser } from './decorators/get-user.decorator';
 import { Public } from './decorators/public.decorator';
 import { LoginUserDto } from './dto/login-auth.dto';
+import { LogoutDto } from './dto/logout.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { AuthUser } from './interfaces/User';
+import { extractAccessToken } from './utils/extract-access-token';
 
 @ApiTags('Auth')
 @ApiBearerAuth()
@@ -40,20 +42,13 @@ export class AuthController {
   // ======================================================
 
   /**
-   * @summary Cierra sesión y elimina la sesión de Redis.
-   * @description
-   * Elimina la sesión activa asociada al usuario autenticado.
-   * También limpia la cookie del cliente (si existe).
-   *
-   * @route POST /auth/logout
-   * @auth JWT + RedisSession
+   * Public and idempotent: works with an expired access token (or a body `refreshToken`) and always clears the cookie.
+   * The Redis session is deleted only when the presented token is the one stored in it.
    */
+  @Public()
   @Post('logout')
-  async logout(@Req() req: Request, @Res() res: Response) {
-    const userId = (req as any).user?.id;
-    if (userId) {
-      await this.authService.logout(userId.toString());
-    }
+  async logout(@Req() req: Request, @Body() dto: LogoutDto, @Res() res: Response) {
+    await this.authService.logout(extractAccessToken(req), dto?.refreshToken);
     res.clearCookie('access_token');
     return res.json({ message: 'Sesión cerrada correctamente' });
   }

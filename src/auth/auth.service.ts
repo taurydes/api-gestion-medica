@@ -250,12 +250,31 @@ export class AuthService {
   // 🔹 LOGOUT / INVALIDACIÓN DE SESIÓN
   // ======================================================
 
-  /**
-   * @summary Elimina una sesión activa de Redis.
-   * @param userId ID del usuario
-   */
-  async logout(userId: string): Promise<void> {
-    await this.redisSession.deleteSession(userId);
+  /** Ends the session the given tokens belong to; expired tokens count, forged ones and older sessions' tokens do not. */
+  async logout(accessToken?: string | null, refreshToken?: string | null): Promise<void> {
+    await this.endSessionOwnedBy(accessToken, process.env.JWT_SECRET, 'access_token');
+    await this.endSessionOwnedBy(refreshToken, process.env.JWT_REFRESH_SECRET, 'refresh_token');
+  }
+
+  private async endSessionOwnedBy(
+    token: string | null | undefined,
+    secret: string | undefined,
+    field: 'access_token' | 'refresh_token',
+  ): Promise<void> {
+    if (!token) return;
+    let userId: string | undefined;
+    try {
+      // Expiry is ignored on purpose: the client usually logs out after the access token lapsed.
+      userId = this.jwtService.verify<{ id?: string }>(token, { secret, ignoreExpiration: true }).id;
+    } catch {
+      return;
+    }
+    if (!userId) return;
+    // Only the token stored in the session may close it, so a stale token cannot end a newer login.
+    const session = await this.redisSession.getSession<Partial<JwtPayload>>(userId);
+    if (session?.[field] === token) {
+      await this.redisSession.deleteSession(userId);
+    }
   }
 
   // ======================================================
