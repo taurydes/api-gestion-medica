@@ -8,10 +8,11 @@ const mapCache = () => createCache({ ttl: CACHE_TTL.LIST }) as any;
 // Records the count mapping and evaluates its condition against a recording sub-query.
 function recordingRepo(rows: () => any[]) {
   const counts: { property: string; relation: string; conditions: string[] }[] = [];
+  const filters: string[] = [];
   const qb: any = {
     leftJoinAndSelect: () => qb,
-    where: () => qb,
-    andWhere: () => qb,
+    where: (c: string) => (filters.push(c), qb),
+    andWhere: (c: string) => (filters.push(c), qb),
     orderBy: () => qb,
     skip: () => qb,
     take: () => qb,
@@ -25,7 +26,7 @@ function recordingRepo(rows: () => any[]) {
     getOne: async () => rows()[0] ?? null,
     getManyAndCount: async () => [rows(), rows().length],
   };
-  return { repo: { createQueryBuilder: jest.fn(() => qb) } as any, counts };
+  return { repo: { createQueryBuilder: jest.fn(() => qb) } as any, counts, filters };
 }
 
 describe('Department doctorsCount', () => {
@@ -46,6 +47,15 @@ describe('Department doctorsCount', () => {
         conditions: ['doctor.deletedAt IS NULL'],
       });
     }
+  });
+
+  it('the detail keeps excluding a soft-deleted department', async () => {
+    const { repo, filters } = recordingRepo(() => [{ id: 'dep-1', doctorsCount: 0 }]);
+    const service = new DepartmentsService(repo, {} as any, {} as any, mapCache());
+
+    await service.findOne('dep-1');
+
+    expect(filters).toEqual(['department.id = :id', 'department.deletedAt IS NULL']);
   });
 
   it('a cached detail is dropped when the department scope is invalidated (doctor changes do this)', async () => {

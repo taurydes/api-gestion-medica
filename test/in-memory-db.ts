@@ -103,6 +103,8 @@ export class FakeRepo {
       where: () => qb,
       andWhere: () => qb,
       orderBy: () => qb,
+      leftJoinAndSelect: () => qb,
+      loadRelationCountAndMap: () => qb,
       getOne: async () => null,
       getMany: async () => this.rows.map((r) => ({ ...r })),
       getCount: async () => this.rows.length,
