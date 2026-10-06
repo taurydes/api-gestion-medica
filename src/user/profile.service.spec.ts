@@ -70,6 +70,12 @@ describe('ProfileService.updateProfile (M-31)', () => {
   });
 });
 
+/** Only the Patient count is read through the data source (legacy user photo rule). */
+const dataSourceWithPatients = (rows: number) => ({
+  manager: { getRepository: () => ({ count: jest.fn().mockResolvedValue(rows) }) },
+});
+const notPatient = dataSourceWithPatients(0);
+
 describe('GET /auth/profile: perfil propio sin permiso de módulo (fase 2)', () => {
   const stored = {
     id: 'u1',
@@ -86,7 +92,7 @@ describe('GET /auth/profile: perfil propio sin permiso de módulo (fase 2)', () 
     const images = { findOne: jest.fn().mockResolvedValue({ id: 'img1' }) };
     const files = { getCommonPersonImageUrl: jest.fn((id: string) => `/files/common-person-image/${id}`) };
     const userService = new UserService(
-      repo as any, {} as any, images as any, files as any, {} as any, {} as any, {} as any,
+      repo as any, {} as any, images as any, files as any, {} as any, notPatient as any, {} as any,
       { find: jest.fn().mockResolvedValue([{ medicalCenter: { id: 'mc1', name: 'Centro 1', address: 'x' } }]) } as any,
     );
 
@@ -100,13 +106,13 @@ describe('GET /auth/profile: perfil propio sin permiso de módulo (fase 2)', () 
     expect(repo.findOne.mock.calls[0][0].where.id).toBe('u1');
   });
 
-  function buildUserService(found: any, image: any) {
+  function buildUserService(found: any, image: any, patientRows = 0) {
     const images = { findOne: jest.fn().mockResolvedValue(image) };
     const files = { getCommonPersonImageUrl: jest.fn((id: string) => `/files/common-person-image/${id}`) };
     const cache = { get: jest.fn().mockResolvedValue(undefined), set: jest.fn(), del: jest.fn() };
     const userService = new UserService(
       { findOne: jest.fn().mockResolvedValue(found) } as any, {} as any, images as any, files as any,
-      cache as any, {} as any, {} as any, { find: jest.fn().mockResolvedValue([]) } as any,
+      cache as any, dataSourceWithPatients(patientRows) as any, {} as any, { find: jest.fn().mockResolvedValue([]) } as any,
     );
     return { userService, images };
   }
@@ -133,6 +139,13 @@ describe('GET /auth/profile: perfil propio sin permiso de módulo (fase 2)', () 
     expect((await withImage.userService.getOwnProfile('u1') as any).imageUrl).toBe('/files/common-person-image/img9');
     expect((await withImage.userService.findOne('u1') as any).imageUrl).toBe('/files/common-person-image/img9');
     expect((await withoutImage.userService.getOwnProfile('u1') as any).imageUrl).toBeNull();
+  });
+
+  it('a person who is (or was) a patient never falls back: that image is the patient photo', async () => {
+    const patient = buildUserService({ ...stored, commonPerson: { ...stored.commonPerson, photoUrl: null } }, { id: 'img9' }, 1);
+
+    expect((await patient.userService.getOwnProfile('u1') as any).imageUrl).toBeNull();
+    expect(patient.images.findOne).not.toHaveBeenCalled();
   });
 
   it('un usuario de seguridad sin persona recibe commonPerson null', async () => {

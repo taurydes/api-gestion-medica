@@ -7,6 +7,7 @@ import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { AuthContextService } from 'src/common/services/auth-context.service';
 import { APPOINTMENT_CACHE_SCOPE, invalidateScope } from 'src/common/cache/cache-registry';
 import { CommonPerson } from 'src/common-person/entities/common-person.entity';
+import { deactivateLegacyUserPhotos } from 'src/common-person/legacy-user-photo';
 import { Doctor } from 'src/doctors/entities/doctor.entity';
 import { DoctorImage } from 'src/doctors/entities/doctor-image.entity';
 import { User } from 'src/user/entities/user.entity';
@@ -91,9 +92,7 @@ export class ProfilePhotoSyncService {
     });
     const doctorId = alsoForDoctor ? await this.authContext.getDoctorIdForUser(actorId) : null;
     await this.dataSource.transaction(async (manager) => {
-      if (user?.commonPerson) {
-        await manager.getRepository(CommonPerson).update(user.commonPerson.id, { photoUrl: null });
-      }
+      if (user?.commonPerson) await this.clearUserPhoto(manager, user.commonPerson.id);
       if (doctorId) await this.deactivateDoctorImages(manager, doctorId);
     });
     if (doctorId) await this.invalidateDoctorViews();
@@ -113,9 +112,7 @@ export class ProfilePhotoSyncService {
 
     await this.dataSource.transaction(async (manager) => {
       await this.deactivateDoctorImages(manager, doctorId);
-      if (linked) {
-        await manager.getRepository(CommonPerson).update(linked.commonPerson.id, { photoUrl: null });
-      }
+      if (linked) await this.clearUserPhoto(manager, linked.commonPerson.id);
     });
     await this.invalidateDoctorViews();
     if (linked) await this.invalidateUser(linked.id);
@@ -153,6 +150,11 @@ export class ProfilePhotoSyncService {
         filePath: stored.filePath,
       }),
     );
+  }
+
+  private async clearUserPhoto(manager: EntityManager, personId: string): Promise<void> {
+    await manager.getRepository(CommonPerson).update(personId, { photoUrl: null });
+    await deactivateLegacyUserPhotos(manager, personId);
   }
 
   private async deactivateDoctorImages(manager: EntityManager, doctorId: string): Promise<void> {

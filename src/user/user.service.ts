@@ -32,6 +32,7 @@ import { Role } from 'src/role/entities/role.entity';
 import { RoleEnum } from 'src/role/role.const';
 import { CommonPerson } from '../common-person/entities/common-person.entity';
 import { CommonPersonImage } from '../common-person/entities/common-person-image.entity';
+import { hasLegacyUserPhotos } from '../common-person/legacy-user-photo';
 import {
   assertDocumentAvailable,
   PERSON_DOCUMENT_CONFLICT,
@@ -96,12 +97,13 @@ export class UserService {
     return centers.map(({ id, name }) => ({ id, name }));
   }
 
-  /** Effective photo: `commonPerson.photoUrl` (set by POST /files/profile-photo) wins over the legacy image table. */
+  /** Effective photo: `commonPerson.photoUrl`, else a legacy common_person_images row that is a user photo (never a patient's). */
   private async getUserImageUrl(
     person: Pick<CommonPerson, 'id' | 'photoUrl'> | null | undefined,
   ): Promise<string | null> {
     if (!person?.id) return null;
     if (person.photoUrl) return person.photoUrl;
+    if (!(await hasLegacyUserPhotos(this.dataSource.manager, person.id))) return null;
     const img = await this.commonPersonImageRepo.findOne({
       where: { commonPersonId: person.id, isActive: true, deletedAt: IsNull() },
       order: { createdAt: 'DESC' },

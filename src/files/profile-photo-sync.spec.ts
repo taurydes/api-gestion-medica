@@ -4,6 +4,8 @@ import * as os from 'os';
 import * as path from 'path';
 import * as sharp from 'sharp';
 import { CommonPerson } from 'src/common-person/entities/common-person.entity';
+import { CommonPersonImage } from 'src/common-person/entities/common-person-image.entity';
+import { Patient } from 'src/patient/entities/patient.entity';
 import { DoctorImage } from 'src/doctors/entities/doctor-image.entity';
 import { authContextForUsers } from '../../test/auth-context-stub';
 import { FilesService } from './files.service';
@@ -23,7 +25,7 @@ const USERS = {
 };
 
 /** Real FilesService over a temp uploads folder, real access rules, stubbed repositories. */
-async function build() {
+async function build(options: { patient?: boolean } = {}) {
   const uploadsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'photo-sync-spec-'));
   const config = { get: (key: string) => ({ UPLOADS_PATH: uploadsDir, URL_HOST: 'localhost', PORT: '8008' })[key] };
   const files = new FilesService({} as any, {} as any, {} as any, {} as any, {} as any, config as any);
@@ -37,7 +39,12 @@ async function build() {
     create: jest.fn((x) => x),
     save: jest.fn(async (x) => ({ id: 'img-1', ...x })),
   };
-  const manager = { getRepository: (entity: unknown) => (entity === CommonPerson ? personRepo : entity === DoctorImage ? imageRepo : null) };
+  const legacyRepo = { update: jest.fn() };
+  const patientRepo = { count: jest.fn().mockResolvedValue(options.patient ? 1 : 0) };
+  const repos = new Map<unknown, unknown>([
+    [CommonPerson, personRepo], [DoctorImage, imageRepo], [CommonPersonImage, legacyRepo], [Patient, patientRepo],
+  ]);
+  const manager = { getRepository: (entity: unknown) => repos.get(entity) };
   const dataSource = { transaction: jest.fn(async (cb: any) => cb(manager)) };
   // The doctor's person is cp-<its user>; a user is found by id or by its person.
   const doctorRepo = {
@@ -59,7 +66,7 @@ async function build() {
     const dir = path.join(uploadsDir, ...segments);
     return fs.existsSync(dir) ? fs.readdirSync(dir) : [];
   };
-  return { service, file, stored, personRepo, imageRepo, dataSource };
+  return { service, file, stored, personRepo, imageRepo, legacyRepo, dataSource };
 }
 
 describe('Profile and doctor photo sync', () => {
@@ -135,6 +142,8 @@ describe('Profile and doctor photo sync', () => {
     expect(both.personRepo.update).toHaveBeenCalledWith(`cp-${USER_A}`, { photoUrl: null });
     expect(both.imageRepo.update).toHaveBeenCalledWith({ doctorId: DOC_A, isActive: true }, { isActive: false });
 
+    expect(both.legacyRepo.update).toHaveBeenCalledWith({ commonPersonId: `cp-${USER_A}`, isActive: true }, { isActive: false });
+
     const userOnly = await build();
     await expect(userOnly.service.removeUserPhoto(USER_A, false)).resolves.toEqual({ userPhotoRemoved: true, doctorPhotoRemoved: false });
     expect(userOnly.imageRepo.update).not.toHaveBeenCalled();
@@ -146,5 +155,12 @@ describe('Profile and doctor photo sync', () => {
     expect(imageRepo.update).not.toHaveBeenCalled();
     await expect(service.removeDoctorPhoto(USER_A, DOC_A, true)).resolves.toEqual({ userPhotoRemoved: true, doctorPhotoRemoved: true });
     expect(personRepo.update).toHaveBeenCalledWith(`cp-${USER_A}`, { photoUrl: null });
+  });
+
+  it('removing the user photo of a person who is also a patient keeps the patient photo rows', async () => {
+    const { service, personRepo, legacyRepo } = await build({ patient: true });
+    await service.removeUserPhoto(USER_A, false);
+    expect(personRepo.update).toHaveBeenCalledWith(`cp-${USER_A}`, { photoUrl: null });
+    expect(legacyRepo.update).not.toHaveBeenCalled();
   });
 });
