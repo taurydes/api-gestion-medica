@@ -2,6 +2,7 @@ import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable } from '@nestjs/common';
 import { Queue } from 'bullmq';
+import { MAINTENANCE_QUEUE } from 'src/audit/access-log-retention.const';
 import { DOCUMENTS_QUEUE, EMAIL_QUEUE } from 'src/documents/documents.const';
 
 /**
@@ -18,6 +19,7 @@ export class QueuesService {
   constructor(
     @InjectQueue(DOCUMENTS_QUEUE) private documentsQueue: Queue,
     @InjectQueue(EMAIL_QUEUE) private emailQueue: Queue,
+    @InjectQueue(MAINTENANCE_QUEUE) private maintenanceQueue: Queue,
   ) {}
 
   /**
@@ -33,6 +35,7 @@ export class QueuesService {
     return [
       new BullMQAdapter(this.documentsQueue),
       new BullMQAdapter(this.emailQueue),
+      new BullMQAdapter(this.maintenanceQueue),
     ];
   }
 }

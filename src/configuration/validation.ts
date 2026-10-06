@@ -106,4 +106,10 @@ export const validationSchema = Joi.object({
   SMTP_USER: Joi.string().allow('').optional(),
   SMTP_PASS: Joi.string().allow('').optional(),
   MAIL_FROM: Joi.string().default('MedOS <no-reply@medos.local>'),
+
+  // ---------------------------
+  // 🔹 Auditoría (cola `maintenance`)
+  // ---------------------------
+  // Days kept in auditoria.access_log; string on purpose: a bad value falls back to 90 with a warning instead of blocking boot.
+  ACCESS_LOG_RETENTION_DAYS: Joi.string().allow('').optional(),
 });

@@ -2,6 +2,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { DEFAULT_JOB_OPTIONS, DOCUMENTS_QUEUE, EMAIL_QUEUE } from 'src/documents/documents.const';
+import { MAINTENANCE_QUEUE } from 'src/audit/access-log-retention.const';
 import { QueuesService } from './queues.service';
 
 /**
@@ -39,9 +40,11 @@ import { QueuesService } from './queues.service';
     }),
 
     // `documents` renders PDFs and `email` sends mail; the email flow waits on a documents child job.
+    // `maintenance` runs scheduled housekeeping such as the access-log purge.
     BullModule.registerQueue(
       { name: DOCUMENTS_QUEUE, defaultJobOptions: DEFAULT_JOB_OPTIONS },
       { name: EMAIL_QUEUE, defaultJobOptions: DEFAULT_JOB_OPTIONS },
+      { name: MAINTENANCE_QUEUE },
     ),
     BullModule.registerFlowProducer({ name: EMAIL_QUEUE }),
   ],
