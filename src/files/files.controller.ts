@@ -39,7 +39,11 @@ import { ModuleItemsMenu } from 'src/menu/menu.const';
 import { PermissionActionsMenu } from 'src/permission/permission.const';
 import { Permission } from 'src/auth/decorators/permission.decorator';
 import { GetUser } from 'src/auth/decorators/get-user.decorator';
-import { DICOM_MAX_BYTES, FileUpload, uploadTmpStorage } from './upload-limits';
+import { DICOM_MAX_BYTES, FileUpload, PHOTO_MAX_BYTES, uploadTmpStorage } from './upload-limits';
+import { ProfilePhotoSyncService } from './profile-photo-sync.service';
+
+/** Multipart and query flags arrive as strings. */
+const isTrue = (value: string | boolean | undefined): boolean => value === true || value === 'true';
 
 @ApiTags('Files & Videos')
 @ApiBearerAuth()
@@ -50,6 +54,7 @@ export class FilesController {
     private readonly dicomConverterService: DicomConverterService,
     private readonly fileAccess: AppointmentFileAccessService,
     private readonly photoAccess: PhotoAccessService,
+    private readonly photoSync: ProfilePhotoSyncService,
   ) {}
 
   /* ============================================================
@@ -237,25 +242,35 @@ export class FilesController {
       properties: {
         file: { type: 'string', format: 'binary' },
         ownerId: { type: 'string' },
+        alsoUseForDoctor: { type: 'boolean', description: 'También como foto de médico del dueño (si es médico)' },
       },
       required: ['file'],
     },
   })
   @Post('profile-photo')
-  @UseInterceptors(
-    FileInterceptor('file', {
-      storage: multer.memoryStorage(),
-      limits: { fileSize: 5 * 1024 * 1024 },
-    }),
-  )
+  @FileUpload('file', PHOTO_MAX_BYTES)
   // Session only: every role can set its own photo (MJ-46); another owner needs an admin (MJ-43).
   async uploadProfilePhoto(
     @UploadedFile() file: Express.Multer.File,
     @Body('ownerId') ownerId: string,
     @GetUser('id') userId: string,
-  ): Promise<{ url: string }> {
-    await this.photoAccess.assertProfileOwner(userId, ownerId);
-    return this.filesService.uploadProfilePhoto(file, ownerId || userId);
+    @Body('alsoUseForDoctor') alsoUseForDoctor?: string,
+  ): Promise<{ url: string; doctorImageUrl?: string | null }> {
+    return this.photoSync.uploadUserPhoto(userId, file, ownerId || undefined, isTrue(alsoUseForDoctor));
+  }
+
+  @ApiOperation({
+    summary: 'Quitar la foto de perfil propia',
+    description:
+      'Vacía commonPerson.photoUrl del usuario autenticado. Con alsoUseForDoctor=true también desactiva su foto de médico.',
+  })
+  @Delete('profile-photo')
+  // Session only, own account only: the admin edits another user's photo through the user form.
+  async removeProfilePhoto(
+    @GetUser('id') userId: string,
+    @Query('alsoUseForDoctor') alsoUseForDoctor?: string,
+  ): Promise<{ userPhotoRemoved: boolean; doctorPhotoRemoved: boolean }> {
+    return this.photoSync.removeUserPhoto(userId, isTrue(alsoUseForDoctor));
   }
 
   /* ============================================================
@@ -438,23 +453,35 @@ export class FilesController {
    * ============================================================ */
   @ApiOperation({
     summary: 'Subir foto de doctor',
-    description: 'Recibe una imagen en formato binario, la almacena en UPLOADS_PATH/doctors/{doctorId}/ y crea un registro en doctor_images.',
+    description:
+      'Recibe una imagen en formato binario, la almacena en UPLOADS_PATH/doctors/{doctorId}/ y crea un registro en doctor_images. ' +
+      'Con alsoUseForUser=true también la usa como foto de perfil del usuario del médico.',
   })
   @Post('doctor-photo')
-  @UseInterceptors(
-    FileInterceptor('file', {
-      storage: multer.memoryStorage(),
-      limits: { fileSize: 5 * 1024 * 1024 },
-    }),
-  )
+  @FileUpload('file', PHOTO_MAX_BYTES)
   @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.CREATE}`)
   async uploadDoctorPhoto(
     @UploadedFile() file: Express.Multer.File,
-    @Body('doctorId') doctorId: string,
+    @Body('doctorId', ParseUuid) doctorId: string,
     @GetUser('id') userId: string,
-  ): Promise<{ url: string }> {
-    await this.photoAccess.assertCanSetDoctorPhoto(userId, doctorId);
-    return this.filesService.uploadDoctorPhoto(file, { doctorId, uploadedBy: userId });
+    @Body('alsoUseForUser') alsoUseForUser?: string,
+  ): Promise<{ url: string; userPhotoUrl?: string | null }> {
+    return this.photoSync.uploadDoctorPhoto(userId, file, doctorId, isTrue(alsoUseForUser));
+  }
+
+  @ApiOperation({
+    summary: 'Quitar la foto de doctor',
+    description:
+      'Desactiva la foto activa del doctor. Con alsoUseForUser=true también vacía la foto de perfil de su usuario. El propio médico o un administrador (403).',
+  })
+  @Delete('doctor-photo/:doctorId')
+  @Permission(`${ModuleItemsMenu.FilesModule}.${PermissionActionsMenu.CREATE}`)
+  async removeDoctorPhoto(
+    @Param('doctorId', ParseUuid) doctorId: string,
+    @GetUser('id') userId: string,
+    @Query('alsoUseForUser') alsoUseForUser?: string,
+  ): Promise<{ userPhotoRemoved: boolean; doctorPhotoRemoved: boolean }> {
+    return this.photoSync.removeDoctorPhoto(userId, doctorId, isTrue(alsoUseForUser));
   }
 
   /* ============================================================

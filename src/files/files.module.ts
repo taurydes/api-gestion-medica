@@ -16,17 +16,19 @@ import { AppointmentFileAccessService } from './appointment-file-access.service'
 import { PhotoAccessService } from './photo-access.service';
 import { User } from 'src/user/entities/user.entity';
 import { Patient } from 'src/patient/entities/patient.entity';
+import { Doctor } from 'src/doctors/entities/doctor.entity';
+import { ProfilePhotoSyncService } from './profile-photo-sync.service';
 
 @Module({
   imports: [
     CommonModule,
     TypeOrmModule.forFeature(
-      [VideoPublicity, AppointmentFile, MedicalCenterImage, DoctorImage, CommonPersonImage, MedicalAppointment, MedicalHistory, User, Patient],
+      [VideoPublicity, AppointmentFile, MedicalCenterImage, DoctorImage, CommonPersonImage, MedicalAppointment, MedicalHistory, User, Patient, Doctor],
       DatabaseConnectionName.DB_MAIN,
     ),
   ],
   controllers: [FilesController],
-  providers: [FilesService, DicomConverterService, AppointmentFileAccessService, PhotoAccessService],
+  providers: [FilesService, DicomConverterService, AppointmentFileAccessService, PhotoAccessService, ProfilePhotoSyncService],
   exports: [FilesService, DicomConverterService],
 })
 export class FilesModule {}

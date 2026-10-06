@@ -63,6 +63,7 @@ describe('Own profile photo with a session only (MJ-46)', () => {
   it('the profile photo routes carry no module permission (session is enough)', () => {
     expect(Reflect.getMetadata(PERMISSIONS_KEY, FilesController.prototype.uploadProfilePhoto)).toBeUndefined();
     expect(Reflect.getMetadata(PERMISSIONS_KEY, FilesController.prototype.serveProfilePhoto)).toBeUndefined();
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, FilesController.prototype.removeProfilePhoto)).toBeUndefined();
   });
 
   it('person photos accept patient.crear/actualizar (upload) and patient.consultar (read) besides file.*', () => {
@@ -75,10 +76,12 @@ describe('Own profile photo with a session only (MJ-46)', () => {
     }
   });
 
-  it('the upload defaults the owner to the caller', async () => {
-    const filesService = { uploadProfilePhoto: jest.fn().mockResolvedValue({ url: 'u' }) };
-    const controller = new FilesController(filesService as any, {} as any, {} as any, build());
+  it('the upload defaults the owner to the caller and reads the sync flag', async () => {
+    const photoSync = { uploadUserPhoto: jest.fn().mockResolvedValue({ url: 'u' }) };
+    const controller = new FilesController({} as any, {} as any, {} as any, build(), photoSync as any);
     await controller.uploadProfilePhoto({} as any, undefined as any, 'nurse-1');
-    expect(filesService.uploadProfilePhoto).toHaveBeenCalledWith({}, 'nurse-1');
+    expect(photoSync.uploadUserPhoto).toHaveBeenCalledWith('nurse-1', {}, undefined, false);
+    await controller.uploadProfilePhoto({} as any, '', 'nurse-1', 'true');
+    expect(photoSync.uploadUserPhoto).toHaveBeenLastCalledWith('nurse-1', {}, undefined, true);
   });
 });

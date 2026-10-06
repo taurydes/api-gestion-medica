@@ -20,6 +20,9 @@ export const MB = 1024 * 1024;
 /** Same cap as the detector's `/predict`: a larger raster image cannot be analyzed. */
 export const ANALYSIS_IMAGE_MAX_BYTES = 20 * MB;
 
+/** Profile and doctor photos (PNG, JPEG or WebP, stored as WebP). */
+export const PHOTO_MAX_BYTES = 5 * MB;
+
 /** DICOM needs the whole buffer in memory to parse; 100 MB bounds that peak. */
 export const DICOM_MAX_BYTES = 100 * MB;
 

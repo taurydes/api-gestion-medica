@@ -30,7 +30,9 @@ import {
   assertSafeFileName,
   resolveUploadPath,
 } from './upload-path.util';
-import { ANALYSIS_IMAGE_MAX_BYTES, tooLargeMessage } from './upload-limits';
+import { ANALYSIS_IMAGE_MAX_BYTES, PHOTO_MAX_BYTES, tooLargeMessage } from './upload-limits';
+
+const PHOTO_MIME_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
 import { canonicalMimeType, detectFileType, readSignature } from './file-signature';
 
 
@@ -419,50 +421,55 @@ export class FilesService {
    * 🖼️  FOTOS DE PERFIL Y CENTROS MÉDICOS
    * ============================================================ */
 
-  /**
-   * @summary Subir foto de perfil de una persona
-   * @description
-   * - Valida MIME type (PNG, JPEG, JPG, WEBP)
-   * - Valida tamaño máximo (5 MB)
-   * - Convierte a WebP con sharp (calidad 85)
-   * - Si se provee ownerId: guarda en UPLOADS_PATH/{ownerId}/images/profile/
-   * - Si no: guarda en UPLOADS_PATH/images/profile/
-   * - Retorna URL pública completa
-   */
-  async uploadProfilePhoto(
-    file: Express.Multer.File,
-    ownerId?: string,
-  ): Promise<{ url: string }> {
+  /** Checks type, size and magic bytes of a profile or doctor photo and returns it as WebP. */
+  async toPhotoWebp(file: Express.Multer.File | undefined): Promise<Buffer> {
     if (!file) {
       throw new BadRequestException('Debe enviar un archivo de imagen.');
     }
-
-    const allowedMimes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
-    if (!allowedMimes.includes(file.mimetype)) {
+    if (!PHOTO_MIME_TYPES.includes(file.mimetype)) {
       throw new BadRequestException(
         `Tipo de archivo no permitido: ${file.mimetype}. Solo se aceptan PNG, JPEG, JPG o WEBP.`,
       );
     }
-
-    const maxSize = 5 * 1024 * 1024; // 5 MB
-    if (file.size > maxSize) {
-      throw new BadRequestException('La imagen no puede superar los 5 MB.');
+    if (file.size > PHOTO_MAX_BYTES) {
+      throw new PayloadTooLargeException(tooLargeMessage(PHOTO_MAX_BYTES));
     }
+    if (detectFileType(readSignature(file)) !== canonicalMimeType(file.mimetype)) {
+      throw new UnsupportedMediaTypeException(
+        `El contenido del archivo no corresponde al tipo declarado (${file.mimetype}).`,
+      );
+    }
+    return sharp(file.buffer).webp({ quality: 85 }).toBuffer();
+  }
 
-    const webpBuffer = await sharp(file.buffer).webp({ quality: 85 }).toBuffer();
-
+  /** Writes a WebP profile photo under users/{owner}/profile and returns its served URL. */
+  storeProfilePhoto(webp: Buffer, ownerId?: string): string {
     const folder = ownerId ? assertFolderId(ownerId, 'ownerId') : GENERAL_FOLDER;
-    const dir = resolveUploadPath(this.uploadsDir, 'users', folder, 'profile');
+    fs.mkdirSync(resolveUploadPath(this.uploadsDir, 'users', folder, 'profile'), { recursive: true });
+    const storedName = this.newWebpName();
+    fs.writeFileSync(resolveUploadPath(this.uploadsDir, 'users', folder, 'profile', storedName), webp);
+    return this.buildFilesEndpointUrl(`profile-photos/${folder}/${storedName}`);
+  }
 
-    fs.mkdirSync(dir, { recursive: true });
+  /** Writes a WebP doctor photo under doctors/{doctorId}; the caller records it in doctor_images. */
+  storeDoctorPhotoFile(webp: Buffer, doctorId: string): { storedName: string; filePath: string } {
+    assertFolderId(doctorId, 'doctorId');
+    fs.mkdirSync(resolveUploadPath(this.uploadsDir, 'doctors', doctorId), { recursive: true });
+    const storedName = this.newWebpName();
+    fs.writeFileSync(resolveUploadPath(this.uploadsDir, 'doctors', doctorId, storedName), webp);
+    return { storedName, filePath: `doctors/${doctorId}/${storedName}` };
+  }
 
-    const storedName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`;
-    const filePath = resolveUploadPath(this.uploadsDir, 'users', folder, 'profile', storedName);
+  private newWebpName(): string {
+    return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`;
+  }
 
-    fs.writeFileSync(filePath, webpBuffer);
-
-    const url = this.buildFilesEndpointUrl(`profile-photos/${folder}/${storedName}`);
-    return { url };
+  /** Stores a profile photo (users/{ownerId}/profile, or the general folder) and returns its URL. */
+  async uploadProfilePhoto(
+    file: Express.Multer.File,
+    ownerId?: string,
+  ): Promise<{ url: string }> {
+    return { url: this.storeProfilePhoto(await this.toPhotoWebp(file), ownerId) };
   }
 
   /**
@@ -650,53 +657,6 @@ export class FilesService {
    */
   getDoctorImageUrl(imageId: string): string {
     return `${this.publicUrl}/files/doctor-images/${imageId}`;
-  }
-
-  /**
-   * @summary Subir foto de doctor
-   * - Desactiva imágenes previas activas del doctor
-   * - Convierte a WebP con sharp
-   * - Guarda en UPLOADS_PATH/doctors/{doctorId}/
-   * - Persiste registro en doctor_images
-   */
-  async uploadDoctorPhoto(
-    file: Express.Multer.File,
-    data: { doctorId: string; uploadedBy?: string },
-  ): Promise<{ url: string; image: DoctorImage }> {
-    if (!file) throw new BadRequestException('Debe enviar un archivo de imagen.');
-    const allowedMimes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
-    if (!allowedMimes.includes(file.mimetype))
-      throw new BadRequestException(`Tipo no permitido: ${file.mimetype}.`);
-    if (file.size > 5 * 1024 * 1024)
-      throw new BadRequestException('La imagen no puede superar los 5 MB.');
-
-    const webpBuffer = await sharp(file.buffer).webp({ quality: 85 }).toBuffer();
-    assertFolderId(data.doctorId, 'doctorId');
-    const dir = resolveUploadPath(this.uploadsDir, 'doctors', data.doctorId);
-    fs.mkdirSync(dir, { recursive: true });
-
-    const storedName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`;
-    fs.writeFileSync(resolveUploadPath(this.uploadsDir, 'doctors', data.doctorId, storedName), webpBuffer);
-
-    const filePathRelative = `doctors/${data.doctorId}/${storedName}`;
-
-    // Desactivar imágenes previas
-    await this.doctorImageRepository.update(
-      { doctorId: data.doctorId, isActive: true },
-      { isActive: false },
-    );
-
-    const record = this.doctorImageRepository.create({
-      doctorId: data.doctorId,
-      uploadedBy: data.uploadedBy ?? null,
-      originalName: file.originalname,
-      storedName,
-      mimeType: 'image/webp',
-      fileSize: webpBuffer.length,
-      filePath: filePathRelative,
-    });
-    const image = await this.doctorImageRepository.save(record);
-    return { url: this.getDoctorImageUrl(image.id), image };
   }
 
   /**
