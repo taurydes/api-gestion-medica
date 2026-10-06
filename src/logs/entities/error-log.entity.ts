@@ -5,6 +5,7 @@ export class ErrorLog {
   @PrimaryGeneratedColumn()
   id: number;
 
+  @Index('idx_error_log_occurred_at')
   @CreateDateColumn({ name: 'occurred_at' })
   occurredAt: Date;
 

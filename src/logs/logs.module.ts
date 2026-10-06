@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from 'src/auth/auth.module';
 import { DatabaseConnectionName } from 'src/database/DatabaseConnectionName';
 import { ErrorLog } from './entities/error-log.entity';
+import { ErrorLogRetentionService } from './error-log-retention.service';
 import { LogsController } from './logs.controller';
 import { LogsService } from './logs.service';
 
@@ -14,7 +15,7 @@ import { LogsService } from './logs.service';
     ConfigModule,
   ],
   controllers: [LogsController],
-  providers: [LogsService],
-  exports: [LogsService],
+  providers: [LogsService, ErrorLogRetentionService],
+  exports: [LogsService, ErrorLogRetentionService],
 })
 export class LogsModule {}

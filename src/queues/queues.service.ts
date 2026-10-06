@@ -2,7 +2,7 @@ import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable } from '@nestjs/common';
 import { Queue } from 'bullmq';
-import { MAINTENANCE_QUEUE } from 'src/audit/access-log-retention.const';
+import { MAINTENANCE_QUEUE } from 'src/maintenance/maintenance.const';
 import { DOCUMENTS_QUEUE, EMAIL_QUEUE } from 'src/documents/documents.const';
 
 /**

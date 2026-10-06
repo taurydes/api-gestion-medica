@@ -3,7 +3,6 @@ import {
   ACCESS_LOG_PURGE_BATCH,
   ACCESS_LOG_PURGE_LOCK_KEY,
   ACCESS_LOG_PURGE_LOCK_SECONDS,
-  parseRetentionDays,
 } from './access-log-retention.const';
 import { AccessLogRetentionService } from './access-log-retention.service';
 
@@ -93,18 +92,5 @@ describe('AccessLogRetentionService', () => {
       keys: [ACCESS_LOG_PURGE_LOCK_KEY],
       arguments: [token],
     });
-  });
-});
-
-describe('parseRetentionDays', () => {
-  it.each([
-    [undefined, 90],
-    ['', 90],
-    ['1', 1],
-    [' 365 ', 365],
-    ['0', null],
-    ['1e3', null],
-  ])('%p → %p', (raw, expected) => {
-    expect(parseRetentionDays(raw)).toBe(expected);
   });
 });

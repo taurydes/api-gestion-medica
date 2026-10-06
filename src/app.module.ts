@@ -14,6 +14,7 @@ import { getMainConnection } from './database/getMainConnection';
 import { HealthModule } from './health/health.module';
 import { LogsModule } from './logs/logs.module';
 import { AuditModule } from './audit/audit.module';
+import { MaintenanceModule } from './maintenance/maintenance.module';
 import { PermissionModule } from './permission/permission.module';
 import { BullBoardModule } from './queues/bull-board/bull-board.module';
 import { QueuesModule } from './queues/queues.module';
@@ -81,6 +82,7 @@ import { DocumentsModule } from './documents/documents.module';
     PermissionModule,
     LogsModule,
     AuditModule,
+    MaintenanceModule,
     QueuesModule,
     BullBoardModule,
     RedisSessionModule,

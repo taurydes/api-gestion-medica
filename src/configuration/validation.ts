@@ -112,4 +112,6 @@ export const validationSchema = Joi.object({
   // ---------------------------
   // Days kept in auditoria.access_log; string on purpose: a bad value falls back to 90 with a warning instead of blocking boot.
   ACCESS_LOG_RETENTION_DAYS: Joi.string().allow('').optional(),
+  // Days kept in auditoria.error_log (default 7); same fallback rule as above.
+  ERROR_LOG_RETENTION_DAYS: Joi.string().allow('').optional(),
 });
