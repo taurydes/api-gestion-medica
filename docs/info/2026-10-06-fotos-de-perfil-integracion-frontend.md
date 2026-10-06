@@ -12,7 +12,7 @@ las **fotos son dos registros distintos**:
 
 | Foto | Dónde vive | Cómo se lee |
 |---|---|---|
-| Foto de **usuario** | `persona_comun.photo_url` (URL `/files/profile-photos/:ownerId/:file`); respaldo legado: última fila activa de `common_person_images` | `imageUrl` de `GET /auth/profile` y `GET /users/:id` |
+| Foto de **usuario** | `persona_comun.photo_url` (URL `/files/profile-photos/:ownerId/:file`); respaldo legado: última fila activa de `common_person_images` **solo si la persona nunca fue paciente** (§5) | `imageUrl` de `GET /auth/profile` y `GET /users/:id` |
 | Foto de **médico** | Fila activa de `doctor_images` (archivo en `doctors/:doctorId/`) | `imageUrl` de `GET /doctors/:id` y `GET /doctors`; `doctor.photoUrl` en citas |
 
 Por eso subir una no cambia la otra. Esta versión agrega un flag para fijar las dos en **una sola petición**.
@@ -27,6 +27,8 @@ Por eso subir una no cambia la otra. Esta versión agrega un flag para fijar las
 | Nuevo `DELETE /files/doctor-photo/:doctorId?alsoUseForUser=true` | "Quitar foto" en el formulario del médico |
 | Fotos de perfil y de médico validan los *magic bytes* | Un archivo cuyo contenido no es el tipo declarado → **415** |
 | Más de 5 MB en esas dos subidas → **413** con mensaje en español (antes 413 con "File too large") | Validar 5 MB en el cliente igual que antes |
+| `imageUrl` del usuario ya no cae a `common_person_images` cuando la persona es (o fue) paciente | Nada; quitar la foto de usuario ya no deja ver la foto de paciente |
+| Editar un usuario (admin) debe subir con `POST /files/profile-photo` + `ownerId` y guardar `commonPerson.photoUrl` en `PATCH /users/:id` | Dejar de usar `POST /files/common-person-image` para usuarios: esa tabla es de pacientes |
 | `doctorId` de `POST /files/doctor-photo` debe ser UUID | Sin cambio si ya se envía el id real (antes un valor inválido daba 400 de otra forma) |
 
 **Qué NO cambió**:
@@ -94,8 +96,8 @@ Respuesta con flag (forma real de `ProfilePhotoSyncService.uploadUserPhoto`):
 | `DELETE /files/doctor-photo/:doctorId` | Desactiva la foto activa del médico | `{ "userPhotoRemoved": false, "doctorPhotoRemoved": true }` |
 | `DELETE /files/doctor-photo/:doctorId?alsoUseForUser=true` | Lo anterior + `photoUrl = null` del usuario del médico | `{ "userPhotoRemoved": true, "doctorPhotoRemoved": true }` |
 
-Después de quitar la foto de usuario, **releer `GET /auth/profile`**: si la persona tiene una imagen legado en
-`common_person_images`, `imageUrl` vuelve a ella (ver §5).
+Después de quitar la foto de usuario conviene releer `GET /auth/profile`; con la regla de §5 `imageUrl` queda en
+`null` (la baja también retira las fotos legado de usuario).
 
 ## 4. Errores
 
@@ -115,9 +117,15 @@ Los chequeos de permiso corren **antes** de escribir: un 403 no deja archivos ni
 - Datos reales: la foto de usuario de `cmendoza` que se veía como "cuadrado azul" era una imagen 64×64 de color
   sólido azul (`31,119,203`) subida en pruebas el 2026-10-04, no un fallo del avatar. Al verificar este cambio se
   reemplazó por una 32×32 verde (con `alsoUseForUser`), así que hoy ambas fotos de `cmendoza` coinciden.
-- Respaldo legado: `imageUrl` del usuario cae a `common_person_images` cuando `photoUrl` es null. Si la misma persona
-  es paciente con foto, quitar la foto de usuario mostrará la foto de paciente. No se desactiva esa fila porque es
-  la foto del paciente.
+- Foto efectiva de usuario (`UserService.getUserImageUrl`): `photoUrl`; si es null, la última fila activa de
+  `common_person_images` **solo si la persona nunca fue paciente** (también pacientes dados de baja). Esa tabla no tiene
+  tipo y es la de fotos de paciente: para quien no es paciente sus filas solo pudieron venir del formulario de edición
+  de usuario anterior a este cambio (fotos legado de usuario). Para un paciente nunca se usa como foto de usuario.
+- Quitar la foto de usuario (`DELETE /files/profile-photo`, o `alsoUseForUser` al quitar la del médico) vacía
+  `photoUrl` y, si la persona no es paciente, desactiva esas filas legado: no aparece ninguna imagen anterior. La foto
+  de paciente nunca se toca.
+- Regla en `src/common-person/legacy-user-photo.ts`; pruebas en `src/user/profile.service.spec.ts` y
+  `src/files/profile-photo-sync.spec.ts`.
 - Las cachés de médico, receta, historia y citas se invalidan al cambiar la foto de médico (antes la subida sola no
   las invalidaba y el detalle cacheado mostraba la foto anterior hasta otro guardado).
 
