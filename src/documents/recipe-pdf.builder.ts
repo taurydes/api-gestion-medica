@@ -41,7 +41,10 @@ export interface RecipePdfExtras {
   verificationUrl?: string | null;
 }
 
-export const VERIFY_LEGEND = 'Verifique la autenticidad de esta receta escaneando el código';
+export const VERIFY_LEGEND = 'Verifique la autenticidad de esta receta escaneando el código QR';
+export const VERIFY_LINK_TEXT = 'o haga clic aquí para verificarla';
+// Bump when the printed layout changes, so PDFs cached under the old layout regenerate.
+const LAYOUT_VERSION = 2;
 
 export interface PersonName {
   firstName?: string | null;
@@ -159,6 +162,7 @@ export function recipePdfFingerprint(recipe: RecipePdfData, extras: RecipePdfExt
     p?.documentNumber ?? null,
   ];
   const printed = {
+    layout: LAYOUT_VERSION,
     id: recipe.id,
     recipeNumber: recipe.recipeNumber,
     issueDate: new Date(recipe.issueDate).toISOString(),
@@ -411,13 +415,13 @@ export function buildRecipePdfDefinition(
           color: '#94a3b8',
           stack: [
             `Fecha de impresión: ${formatDate(printedAt, true)}`,
-            `ID Gestión: ${recipe.id}`,
+            `ID Gestión: ${recipe.id.slice(0, 8)}`,
           ],
         },
       ],
     },
     ...(extras.verificationUrl && recipe.verificationCode
-      ? [verificationBlock(extras.verificationUrl, recipe.verificationCode)]
+      ? [verificationBlock(extras.verificationUrl)]
       : []),
   ];
 
@@ -433,8 +437,8 @@ export function buildRecipePdfDefinition(
   };
 }
 
-/** QR to the public verify page, with the code and URL in text for whoever cannot scan it. */
-function verificationBlock(url: string, code: string): Content {
+/** QR to the public verify page plus a masked link to it; neither the URL nor the code is printed as text. */
+function verificationBlock(url: string): Content {
   return {
     margin: [0, 18, 0, 0],
     columnGap: 12,
@@ -447,8 +451,13 @@ function verificationBlock(url: string, code: string): Content {
         margin: [0, 10, 0, 0],
         stack: [
           { text: VERIFY_LEGEND, bold: true, color: '#1e293b' },
-          { text: `Código de verificación: ${code}`, margin: [0, 3, 0, 0] },
-          { text: url, color: ACCENT, link: url, margin: [0, 2, 0, 0] },
+          {
+            text: VERIFY_LINK_TEXT,
+            color: ACCENT,
+            decoration: 'underline',
+            link: url,
+            margin: [0, 3, 0, 0],
+          },
         ],
       },
     ],

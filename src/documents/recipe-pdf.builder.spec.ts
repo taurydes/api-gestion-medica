@@ -20,7 +20,8 @@ describe('Recipe PDF builder', () => {
     expect(json).toContain('Especialidad: Otorrinolaringología');
     expect(json).toContain('Clínica Central');
     expect(json).toContain('REC-2026-00042');
-    expect(json).toContain(`ID Gestión: ${RECIPE_FIXTURE.id}`);
+    expect(json).toContain(`ID Gestión: ${RECIPE_FIXTURE.id.slice(0, 8)}"`);
+    expect(json).not.toContain(RECIPE_FIXTURE.id);
     expect(json).not.toMatch(/undefined|null/);
   });
 

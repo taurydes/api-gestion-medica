@@ -7,7 +7,7 @@ import { FakeRepo } from '../../test/in-memory-db';
 import { RECIPE_FIXTURE } from '../../test/recipe-pdf-fixture';
 import { DoctorCredentialsService } from 'src/doctors/doctor-credentials.service';
 import * as builder from './recipe-pdf.builder';
-import { VERIFY_LEGEND, buildRecipePdfDefinition, recipePdfFingerprint } from './recipe-pdf.builder';
+import { VERIFY_LEGEND, VERIFY_LINK_TEXT, buildRecipePdfDefinition, recipePdfFingerprint } from './recipe-pdf.builder';
 import { RecipePdfService } from './recipe-pdf.service';
 
 const DOCTOR = 'd0000000-0000-4000-8000-0000000000aa';
@@ -46,20 +46,33 @@ function build() {
 const upload = (buffer: Buffer) => ({ buffer, size: buffer.length, mimetype: 'image/png' }) as Express.Multer.File;
 
 describe('Recipe PDF: signature, stamp and verification QR', () => {
-  it('the definition prints both images, the QR to /verificar/<code>, the code and the legend', () => {
-    const json = JSON.stringify(
-      buildRecipePdfDefinition({ ...RECIPE_FIXTURE, verificationCode: CODE }, new Date(), {
-        signature: 'data:image/png;base64,SIG',
-        stamp: 'data:image/png;base64,STAMP',
-        verificationUrl: URL,
-      }),
-    );
+  it('the definition prints both images, the QR to /verificar/<code>, the legend and a masked link', () => {
+    const definition = buildRecipePdfDefinition({ ...RECIPE_FIXTURE, verificationCode: CODE }, new Date(), {
+      signature: 'data:image/png;base64,SIG',
+      stamp: 'data:image/png;base64,STAMP',
+      verificationUrl: URL,
+    });
+    const json = JSON.stringify(definition);
 
     expect(json).toContain('"image":"data:image/png;base64,SIG"');
     expect(json).toContain('"image":"data:image/png;base64,STAMP"');
     expect(json).toContain(`"qr":"${URL}"`);
-    expect(json).toContain(`Código de verificación: ${CODE}`);
     expect(json).toContain(VERIFY_LEGEND);
+    expect(json).toContain(`{"text":"${VERIFY_LINK_TEXT}","color":"#3b82f6","decoration":"underline","link":"${URL}"`);
+  });
+
+  it('neither the verification URL nor the code is printed as text', () => {
+    const definition = buildRecipePdfDefinition({ ...RECIPE_FIXTURE, verificationCode: CODE }, new Date(), {
+      verificationUrl: URL,
+    });
+    const printedTexts: string[] = [];
+    JSON.stringify(definition, (key, value) => {
+      if (typeof value === 'string' && key !== 'qr' && key !== 'link') printedTexts.push(value);
+      return value;
+    });
+
+    expect(printedTexts.filter((t) => t.includes(URL) || t.includes(CODE))).toEqual([]);
+    expect(printedTexts.some((t) => t.includes('Código de verificación'))).toBe(false);
   });
 
   it('without images or code the PDF keeps the plain signature line and no QR', () => {
