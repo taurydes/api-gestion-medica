@@ -18,6 +18,7 @@ const BOOTSTRAP_USER = process.env.SEED_ADMIN || 'qa_super_clean';
 const UPLOADS = path.resolve(process.cwd(), process.env.UPLOADS_PATH || 'uploads');
 const ONLY_TODAY = process.argv.includes('--today');
 const CLEAN_JUNK = process.argv.includes('--clean-junk');
+const CHECK_FILES = process.argv.includes('--check-files');
 const DAY = 86_400_000;
 const MIN = 60_000;
 // Past appointments are created this far ahead (same weekday and hour), processed, then moved back with SQL.
@@ -1053,12 +1054,50 @@ async function purgeCache() {
   log(`cache: ${deleted} key(s) deleted (session:* and bull:* kept)`);
 }
 
+/** Fails before any appointment is written when a source mammogram is gone from the volume. */
+function assertSourceImages() {
+  const missing = Object.entries(SOURCE_IMAGES).filter(([, v]) => !fs.existsSync(path.join(UPLOADS, v.rel)));
+  if (missing.length) {
+    throw new Error(`source mammogram(s) ${missing.map(([k]) => k).join(', ')} missing under ${UPLOADS}; restore them or edit SOURCE_IMAGES`);
+  }
+}
+
+// Every stored file path, relative to UPLOADS; profile photos are stored as a /files URL.
+const FILE_REFERENCES = `
+  SELECT 'appointment_files' AS kind, id::text, file_path AS rel FROM public.appointment_files WHERE deleted_at IS NULL
+  UNION ALL SELECT 'mammography_analyses', id::text, image_path FROM public.mammography_analyses WHERE deleted_at IS NULL AND image_path IS NOT NULL
+  UNION ALL SELECT 'common_person_images', id::text, file_path FROM public.common_person_images WHERE deleted_at IS NULL
+  UNION ALL SELECT 'doctor_images', id::text, file_path FROM public.doctor_images WHERE deleted_at IS NULL
+  UNION ALL SELECT 'medical_center_images', id::text, file_path FROM parametro.medical_center_images WHERE deleted_at IS NULL
+  UNION ALL SELECT 'doctor_signature', id::text, signature_path FROM public.doctors WHERE deleted_at IS NULL AND signature_path IS NOT NULL
+  UNION ALL SELECT 'doctor_stamp', id::text, stamp_path FROM public.doctors WHERE deleted_at IS NULL AND stamp_path IS NOT NULL
+  UNION ALL SELECT 'profile_photo', id::text, regexp_replace(photo_url, '^.*/profile-photos/([^/]+)/(.*)$', 'users/\\1/profile/\\2')
+    FROM public.persona_comun WHERE deleted_at IS NULL AND photo_url ~ '/profile-photos/'
+  UNION ALL SELECT 'medical_center_image_url', mc.id::text, coalesce(i.file_path, '<no image row>')
+    FROM parametro.medical_centers mc
+    LEFT JOIN parametro.medical_center_images i ON i.deleted_at IS NULL AND i.id::text = regexp_replace(mc.image_url, '^.*/medical-center-images/', '')
+    WHERE mc.deleted_at IS NULL AND mc.image_url ~ '/medical-center-images/'`;
+
+/** Counts stored file references whose file is not on disk (each one is a 404 under /files). */
+async function checkFileReferences() {
+  const rows = await q(FILE_REFERENCES);
+  const broken = rows.filter((r) => !fs.existsSync(path.join(UPLOADS, r.rel)));
+  for (const r of broken) log(`broken file reference: ${r.kind} ${r.id} → ${r.rel}`);
+  stats.brokenFileRefs = broken.length;
+  log(`files: ${rows.length} reference(s) checked, ${broken.length} broken`);
+  return broken.length;
+}
+
 // ───────────────────────────── main ─────────────────────────────
 
 async function main() {
   db = new Client({ host: process.env.DB_HOST, port: Number(process.env.DB_PORT || 5432), user: process.env.DB_USER, password: process.env.DB_PASS, database: process.env.DB_NAME });
   await db.connect();
   try {
+    if (CHECK_FILES) {
+      process.exitCode = (await checkFileReferences()) ? 1 : 0;
+      return;
+    }
     await ensurePasswords();
     const admin = await tokenFor(BOOTSTRAP_USER);
     if (CLEAN_JUNK) {
@@ -1084,11 +1123,15 @@ async function main() {
     const today = await planToday(doctors, roster);
     const needImages = [...history, ...today].some((p) => p.family);
     log(`plan: ${history.length} historical appointment(s), ${today.length} for today`);
-    if (needImages) await buildPool();
+    if (needImages) {
+      assertSourceImages();
+      await buildPool();
+    }
     await runPlans(admin, history, medIds, 'history');
     await runPlans(admin, today, medIds, 'today');
     await backdatePatients(roster);
     await purgeCache();
+    await checkFileReferences();
   } finally {
     await db.end();
   }
