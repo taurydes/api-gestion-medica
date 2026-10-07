@@ -41,4 +41,4 @@
 ## Workflows rápidos
 - Dev: `npm run dev` | Debug: `npm run start:debug` | Lint: `npm run lint` | Tests: `npm test` (ver scripts en [package.json](package.json)).
 - Docker: [docker-compose.yml](docker-compose.yml) levanta API + Redis; Postgres está comentado (normalmente se usa un Postgres externo). También monta `UPLOADS_PATH:/app/uploads`.
-- UIs internas: Swagger solo en `NODE_ENV=development` en `/api`; Logs UI en `/logs/ui/view`; Bull Board en `/admin/queues` (ver [src/main.ts](src/main.ts)).
+- UIs internas: docs Scalar solo en `NODE_ENV=development` en `/api` (OpenAPI en `/api-json`); Logs UI en `/logs/ui/view`; Bull Board en `/admin/queues` (ver [src/main.ts](src/main.ts)).

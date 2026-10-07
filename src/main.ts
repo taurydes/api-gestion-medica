@@ -2,7 +2,6 @@ import { Logger } from '@nestjs/common';
 import { NestFactory, Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { NestExpressApplication } from '@nestjs/platform-express';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as cookieParser from 'cookie-parser';
 import * as express from 'express';
 import { join } from 'path';
@@ -18,6 +17,7 @@ import {
   bodyParserErrorMiddleware,
 } from './common/exceptions/HttpExceptionFilter';
 import { HttpResponseInterceptor } from './common/interceptors/HttpResponse.interceptor';
+import { API_DOCS_JSON_PATH, API_DOCS_PATH, setupApiDocs } from './docs/api-docs.setup';
 import { LogsService } from './logs/logs.service';
 import { registerHandlebarsHelpers } from './logs/views/helpers';
 import { BullBoardService } from './queues/bull-board/bull-board.service';
@@ -77,18 +77,10 @@ async function bootstrap() {
 
   const NODE_ENV = configService.get<string>('NODE_ENV') || 'development';
   if (NODE_ENV === 'development') {
-    const swaggerConfig = new DocumentBuilder()
-      .setTitle(configService.get('APP_NAME') || 'API BASE')
-      .setDescription('Documentación de la API BASE')
-      .setVersion('1.0')
-      .addBearerAuth()
-      .build();
-
-    const document = SwaggerModule.createDocument(app, swaggerConfig);
-    SwaggerModule.setup('api', app, document);
-    Logger.log('📘 Swagger habilitado en /api');
+    setupApiDocs(app, configService.get('APP_NAME') || 'API BASE');
+    Logger.log(`📘 Scalar habilitado en ${API_DOCS_PATH} (OpenAPI en ${API_DOCS_JSON_PATH})`);
   } else {
-    Logger.log('⚙️ Swagger deshabilitado en ambiente PROD');
+    Logger.log('⚙️ Documentación de la API deshabilitada fuera de development');
   }
 
   // -------------------------------------------------
@@ -137,9 +129,10 @@ async function bootstrap() {
   const URL_HOST = configService.get<string>('URL_HOST') ?? 'localhost';
   await app.listen(PORT);
 
-  // Sin prefijo global: /api es Swagger y solo existe en development
+  // Sin prefijo global: /api es la documentación (Scalar) y solo existe en development
   Logger.log(`🚀 App corriendo en: http://${URL_HOST}:${PORT}`);
-  if (NODE_ENV === 'development') Logger.log(`📘 Swagger: http://${URL_HOST}:${PORT}/api`);
+  if (NODE_ENV === 'development')
+    Logger.log(`📘 Scalar: http://${URL_HOST}:${PORT}${API_DOCS_PATH}`);
   Logger.log(`🧠 Logs UI disponible en: http://${URL_HOST}:${PORT}/logs/ui/view`);
   Logger.log(`📦 Bull Board login: http://${URL_HOST}:${PORT}/admin/login`);
 }

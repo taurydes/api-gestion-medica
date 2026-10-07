@@ -8,7 +8,7 @@
 - **Caché/Sesiones**: Redis (CacheModule + RedisSessionService)
 - **Colas asíncronas**: BullMQ
 - **Autenticación**: JWT (access + refresh token) + sesión única en Redis
-- **Documentación**: Swagger (solo en `NODE_ENV=development`)
+- **Documentación**: OpenAPI con `@nestjs/swagger`, UI Scalar en `/api` (solo en `NODE_ENV=development`)
 
 ### Estructura de Carpetas
 ```

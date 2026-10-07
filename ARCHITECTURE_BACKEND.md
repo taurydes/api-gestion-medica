@@ -110,7 +110,7 @@ RESPONSE ({ code, data })
 
 ```
 src/
-├── main.ts                  ← Bootstrap: vistas, body limit, CORS, Swagger (dev), guards globales, Bull Board
+├── main.ts                  ← Bootstrap: vistas, body limit, CORS, docs Scalar (dev), guards globales, Bull Board
 ├── app.module.ts            ← Root module: imports, ValidationPipe (APP_PIPE), ThrottlerGuard (APP_GUARD), caché
 │
 ├── auth/                    # Autenticación JWT
@@ -1574,7 +1574,7 @@ La lista autoritativa es el esquema Joi de `src/configuration/validation.ts`; `C
 
 | Variable | Obligatoria | Por defecto | Uso |
 |----------|-------------|-------------|-----|
-| `NODE_ENV` | No | `development` | `development` \| `production` \| `test`. Swagger solo existe en `development` |
+| `NODE_ENV` | No | `development` | `development` \| `production` \| `test`. La documentación (Scalar + OpenAPI) solo existe en `development` |
 | `PORT` | No | `7008` | Puerto HTTP (en Docker, `8008`; ver [Puerto](#puerto-y-log-de-arranque)) |
 | `URL_HOST` | No | `localhost` | Host para el log de arranque y las URLs de archivos |
 | `TZ` | No | `America/Caracas` | Zona horaria |
@@ -1607,7 +1607,7 @@ La lista autoritativa es el esquema Joi de `src/configuration/validation.ts`; `C
 | `UPLOADS_PATH` | `uploads` | Carpeta de archivos |
 | `MAX_VIDEO_MB` | `20` | Tamaño máximo de video multipart |
 | `PERMISSIONS_SECRET` | clave fija interna | Clave de la ofuscación de `/auth/me` (ver [Ofuscación de Permisos](#ofuscación-de-permisos)) |
-| `APP_NAME` | `API BASE` | Título de Swagger |
+| `APP_NAME` | `API BASE` | Título del documento OpenAPI y de Scalar |
 | `APP_VERSION` | `npm_package_version` | Versión registrada en los logs de error (la cabecera `x-app-version` tiene prioridad) |
 
 Ejemplo de `.env` para desarrollo local (solo marcadores):
@@ -1683,8 +1683,8 @@ async function bootstrap() {
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
   });
 
-  // Swagger en /api, solo con NODE_ENV=development
-  if (NODE_ENV === 'development') SwaggerModule.setup('api', app, document);
+  // Scalar en /api y OpenAPI en /api-json, solo con NODE_ENV=development (src/docs/api-docs.setup.ts)
+  if (NODE_ENV === 'development') setupApiDocs(app, APP_NAME);
 
   // ValidationPipe NO se registra aquí: es APP_PIPE en app.module.ts
   app.useGlobalInterceptors(new HttpResponseInterceptor());
@@ -1699,13 +1699,13 @@ async function bootstrap() {
 }
 ```
 
-- **Sin prefijo global:** las rutas cuelgan de la raíz (`/auth/login`, `/patient`, ...). `/api` es solo Swagger.
+- **Sin prefijo global:** las rutas cuelgan de la raíz (`/auth/login`, `/patient`, ...). `/api` es solo la documentación (Scalar).
 - **Sin `/uploads` público:** no se registra `ServeStaticModule` ni `express.static` para los archivos subidos.
 
 ### Puerto y log de arranque
 
 - Joi fija `PORT=7008` si la variable no está; el `?? 3000` de `main.ts` solo aplicaría si `ConfigService` no devolviera valor. El `Dockerfile` y `tesis/docker-compose.yml` fijan **`PORT=8008`**: el valor desplegado es 8008 (`http://localhost:8008`).
-- El log de arranque imprime la URL base sin `/api` (`🚀 App corriendo en: http://<URL_HOST>:<PORT>`), la URL de Swagger solo en `development`, la de la vista de logs (`/logs/ui/view`) y la del login de Bull Board (`/admin/login`).
+- El log de arranque imprime la URL base sin `/api` (`🚀 App corriendo en: http://<URL_HOST>:<PORT>`), la URL de Scalar solo en `development`, la de la vista de logs (`/logs/ui/view`) y la del login de Bull Board (`/admin/login`).
 - En el contenedor `NODE_ENV=production`, así que `/api` responde 404.
 
 ---
@@ -1840,7 +1840,8 @@ GET /auth/me
 | `redis` | ^4.7.1 | Cliente Redis de sesiones |
 | `ioredis` | ^5.8.2 | Declarada; `src/` no la importa directamente |
 | `@nestjs/throttler` | ^6.4.0 | Rate limiting |
-| `@nestjs/swagger` | ^11.2.6 | Documentación API |
+| `@nestjs/swagger` | ^11.2.6 | Genera el documento OpenAPI (decoradores); sin Swagger UI |
+| `@scalar/nestjs-api-reference` | ^1.2.27 | UI de la documentación en `/api` |
 | `@nestjs/terminus` | ^11.0.0 | Health checks |
 | `@nestjs/config` | ^4.0.2 | Config management |
 | `@nestjs/serve-static` | ^5.0.4 | Declarada; `src/` no la usa (no hay `/uploads` público) |

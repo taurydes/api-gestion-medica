@@ -40,7 +40,8 @@ Versiones instaladas según `package-lock.json` (el rango de `package.json` entr
 | joi | 18.0.1 | Validación de `.env` |
 | dicom-parser / sharp | 1.8.21 / 0.34.5 | Conversión DICOM → JPEG, procesamiento de imágenes |
 | fluent-ffmpeg | ^2.1.3 | Validación de video |
-| `@nestjs/swagger` | ^11.2.6 | OpenAPI en `/api` (solo `development`) |
+| `@nestjs/swagger` | ^11.2.6 | Documento OpenAPI en `/api-json` (solo `development`) |
+| `@scalar/nestjs-api-reference` | ^1.2.27 | UI Scalar en `/api` (solo `development`) |
 | hbs | ^4.2.0 | Vistas de Logs UI y login de Bull Board |
 | Jest / ts-jest | ^29.7.0 / ^29.2.5 | Pruebas (8 specs de plantilla) |
 
@@ -52,7 +53,7 @@ Base de datos: PostgreSQL (el servicio está comentado en `docker-compose.yml`; 
 
 ```
 src/
-├── main.ts                    # bootstrap: vistas hbs, CORS, Swagger, pipes, interceptor, filtro, guards, Bull Board
+├── main.ts                    # bootstrap: vistas hbs, CORS, docs Scalar, pipes, interceptor, filtro, guards, Bull Board
 ├── app.module.ts              # Config, Cache (Redis), Throttler, ServeStatic /uploads, TypeORM, módulos de negocio
 ├── configuration/             # configuration.ts (factory) + validation.ts (Joi)
 ├── database/                  # conexión nombrada DB_MAIN + SchemaInitService (crea esquemas y sincroniza)
@@ -209,7 +210,7 @@ State 1─N Municipality 1─N Parish
 
 ## 8. Tabla de endpoints
 
-Notación: `P(slug.accion)` = `@Permission(...)` con los valores reales. "Autenticado" = sin `@Permission`, basta JWT + sesión. No hay prefijo global ni versionado: las rutas cuelgan de la raíz y Swagger vive en `/api`.
+Notación: `P(slug.accion)` = `@Permission(...)` con los valores reales. "Autenticado" = sin `@Permission`, basta JWT + sesión. No hay prefijo global ni versionado: las rutas cuelgan de la raíz y la documentación (Scalar) vive en `/api`.
 
 ### Auth, usuarios y RBAC
 
@@ -387,7 +388,7 @@ Leídas con `process.env` sin validar: `JWT_REFRESH_SECRET`, `JWT_REFRESH_EXPIRE
 npm ci                    # node_modules no está instalado en esta copia
 cp .env.example .env      # completar valores
 npm run dev               # nest start --watch
-# Swagger: http://localhost:<PORT>/api  (solo NODE_ENV=development)
+# Docs (Scalar): http://localhost:<PORT>/api  (solo NODE_ENV=development)
 # Docker: docker compose up --build  (API 8008, Redis 8010, ML 8009, front 8007)
 ```
 

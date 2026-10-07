@@ -137,7 +137,7 @@ La lista autoritativa es `src/configuration/validation.ts`: si falta una variabl
 
 ```env
 # App
-NODE_ENV=development            # development | production | test (Swagger solo en development)
+NODE_ENV=development            # development | production | test (docs Scalar solo en development)
 PORT=7008                       # Joi usa 7008 si falta; en Docker es 8008
 URL_HOST=localhost
 TZ=America/Caracas
@@ -291,7 +291,7 @@ npm run dev
 
 Con `NODE_ENV=development` y `PORT=7008`:
 
-- **Swagger UI:** `http://localhost:7008/api` (solo en `development`)
+- **Docs de la API (Scalar):** `http://localhost:7008/api` (solo en `development`); OpenAPI en `/api-json` y `/api-yaml`
 - **Bull Board:** `http://localhost:7008/admin/queues` (login en `/admin/login`)
 - **Logs UI:** `http://localhost:7008/logs/ui/view`
 
@@ -313,4 +313,4 @@ Requisitos: `api-gestion-medica/.env` (lo carga el servicio `backend`) y `tesis/
 docker compose -f ../docker-compose.yml up -d --build backend redis-shared
 ```
 
-El contenedor aplica las migraciones pendientes al arrancar y corre con `NODE_ENV=production` y `PORT=8008`: la API queda en `http://localhost:8008` y **Swagger no existe** (`/api` → 404). Para el análisis de mamografías, levantar también `machine-learning`.
+El contenedor aplica las migraciones pendientes al arrancar y corre con `NODE_ENV=production` y `PORT=8008`: la API queda en `http://localhost:8008` y **la documentación no existe** (`/api` y `/api-json` → 404). Para el análisis de mamografías, levantar también `machine-learning`.
