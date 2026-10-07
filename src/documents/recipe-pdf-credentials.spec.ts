@@ -7,7 +7,7 @@ import { FakeRepo } from '../../test/in-memory-db';
 import { RECIPE_FIXTURE } from '../../test/recipe-pdf-fixture';
 import { DoctorCredentialsService } from 'src/doctors/doctor-credentials.service';
 import * as builder from './recipe-pdf.builder';
-import { VERIFY_LEGEND, VERIFY_LINK_TEXT, buildRecipePdfDefinition, recipePdfFingerprint } from './recipe-pdf.builder';
+import { VERIFY_HINT, VERIFY_LEGEND, VERIFY_LINK_TEXT, buildRecipePdfDefinition, recipePdfFingerprint } from './recipe-pdf.builder';
 import { RecipePdfService } from './recipe-pdf.service';
 
 const DOCTOR = 'd0000000-0000-4000-8000-0000000000aa';
@@ -58,7 +58,7 @@ describe('Recipe PDF: signature, stamp and verification QR', () => {
     expect(json).toContain('"image":"data:image/png;base64,STAMP"');
     expect(json).toContain(`"qr":"${URL}"`);
     expect(json).toContain(VERIFY_LEGEND);
-    expect(json).toContain(`{"text":"${VERIFY_LINK_TEXT}","color":"#3b82f6","decoration":"underline","link":"${URL}"`);
+    expect(json).toContain(`"text":["${VERIFY_HINT}",{"text":"${VERIFY_LINK_TEXT}","color":"#0f766e","decoration":"underline","link":"${URL}"}]`);
   });
 
   it('neither the verification URL nor the code is printed as text', () => {
