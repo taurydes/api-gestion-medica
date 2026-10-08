@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
+import { resolvePublicBaseUrl } from 'src/configuration/public-url';
 
 import * as fs from 'fs';
 import * as path from 'path';
@@ -62,10 +63,7 @@ export class FilesService {
     private readonly configService: ConfigService,
   ) {
     this.uploadsDir = this.configService.get<string>('UPLOADS_PATH') || 'uploads';
-    const host = this.configService.get<string>('URL_HOST') || 'localhost';
-    const port = this.configService.get<string>('PORT') || '8008';
-    const baseHost = host.startsWith('http') ? host : `http://${host}`;
-    this.publicUrl = `${baseHost}:${port}`;
+    this.publicUrl = resolvePublicBaseUrl(this.configService);
     this.maxSize = Number(this.configService.get<string>('MAX_VIDEO_MB') || 20) * 1024 * 1024;
 
   }

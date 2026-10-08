@@ -8,6 +8,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { resolvePublicBaseUrl } from 'src/configuration/public-url';
 import * as dicomParser from 'dicom-parser';
 import * as sharp from 'sharp';
 import * as fs from 'fs';
@@ -75,10 +76,7 @@ export class DicomConverterService implements OnModuleInit, OnModuleDestroy {
   constructor(private readonly configService: ConfigService) {
     this.uploadsDir =
       this.configService.get<string>('UPLOADS_PATH') || 'uploads';
-    const host = this.configService.get<string>('URL_HOST') || 'localhost';
-    const port = this.configService.get<string>('PORT') || '8008';
-    const baseHost = host.startsWith('http') ? host : `http://${host}`;
-    this.publicUrl = `${baseHost}:${port}`;
+    this.publicUrl = resolvePublicBaseUrl(this.configService);
   }
 
   onModuleInit(): void {

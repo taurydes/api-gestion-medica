@@ -49,6 +49,6 @@ export function mailSettings(get: (key: string) => unknown): MailSettings {
     secure: truthy(get('SMTP_SECURE')),
     user: (get('SMTP_USER') as string) || undefined,
     pass: (get('SMTP_PASS') as string) || undefined,
-    from: (get('MAIL_FROM') as string) || 'MedOS <no-reply@medos.local>',
+    from: (get('MAIL_FROM') as string) || 'VIBE <no-reply@vibe.local>',
   };
 }

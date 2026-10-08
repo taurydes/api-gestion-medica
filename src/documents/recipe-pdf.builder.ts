@@ -887,7 +887,7 @@ function footer(printedAt: Date, id: string, centerName: string): Content {
             text: `Fecha de impresión: ${formatDate(printedAt, true)}`,
           },
           { width: 'auto', text: `ID Gestión: ${id.slice(0, 8)}` },
-          { width: '*', text: `${centerName} • MedOS`, alignment: 'right' },
+          { width: '*', text: `${centerName} • VIBE`, alignment: 'right' },
         ],
         columnGap: 12,
         fontSize: 7,

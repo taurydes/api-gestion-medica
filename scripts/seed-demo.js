@@ -463,7 +463,7 @@ async function ensureCenters(admin, specialtyIds) {
 
 const person = (p) => ({ letter: 'V', documentNumber: p.doc, firstName: p.f, middleName: p.m, lastName: p.l, secondLastName: p.l2,
   phoneNumber: `+58 414-${p.doc.slice(-7).padStart(7, '3')}` });
-const emailOf = (u) => `${u.replace(/\./g, '')}@medos-demo.example.com`;
+const emailOf = (u) => `${u.replace(/\./g, '')}@vibe-demo.example.com`;
 
 async function ensureDoctors(admin, centers, specialtyIds) {
   const out = {};

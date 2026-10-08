@@ -105,7 +105,7 @@ export const validationSchema = Joi.object({
   SMTP_SECURE: Joi.boolean().default(false),
   SMTP_USER: Joi.string().allow('').optional(),
   SMTP_PASS: Joi.string().allow('').optional(),
-  MAIL_FROM: Joi.string().default('MedOS <no-reply@medos.local>'),
+  MAIL_FROM: Joi.string().default('VIBE <no-reply@vibe.local>'),
 
   // ---------------------------
   // 🔹 Auditoría (cola `maintenance`)

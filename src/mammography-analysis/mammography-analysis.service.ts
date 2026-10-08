@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
+import { resolvePublicBaseUrl } from 'src/configuration/public-url';
 import { IsNull, Repository } from 'typeorm';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -75,10 +76,7 @@ export class MammographyAnalysisService {
   ) {
     this.uploadsDir =
       this.configService.get<string>('UPLOADS_PATH') || 'uploads';
-    const host = this.configService.get<string>('URL_HOST') || 'localhost';
-    const port = this.configService.get<string>('PORT') || '8008';
-    const baseHost = host.startsWith('http') ? host : `http://${host}`;
-    this.publicUrl = `${baseHost}:${port}`;
+    this.publicUrl = resolvePublicBaseUrl(this.configService);
   }
 
   /* ============================================================

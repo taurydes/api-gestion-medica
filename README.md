@@ -301,10 +301,10 @@ Este repositorio ya no tiene `docker-compose.yml`. El compose real es `tesis/doc
 
 | Servicio | Contenedor | Puerto en el host |
 |----------|------------|-------------------|
-| `backend` | `medos-backend` | 8008 |
-| `frontend` | `medos-frontend` | 8007 |
-| `machine-learning` | `medos-ml-api` | sin puerto publicado (solo red interna) |
-| `redis-shared` | `medos-redis` | 8010 |
+| `backend` | `vibe-backend` | 8008 |
+| `frontend` | `vibe-frontend` | 8007 |
+| `machine-learning` | `vibe-ml-api` | sin puerto publicado (solo red interna) |
+| `redis-shared` | `vibe-redis` | 8010 |
 
 Requisitos: `api-gestion-medica/.env` (lo carga el servicio `backend`) y `tesis/.env` (no versionado) con `REDIS_PASSWORD` y `DETECTOR_SECRET`; el compose no arranca sin ellas. PostgreSQL corre en el host (`DB_HOST=host.docker.internal`).
 

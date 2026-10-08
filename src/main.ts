@@ -25,9 +25,12 @@ import { PanelAccessService } from './auth/services/panel-access.service';
 import { ModuleItemsMenu } from './menu/menu.const';
 import { PermissionActionsMenu } from './permission/permission.const';
 import { ConfigService } from '@nestjs/config';
+import { buildPublicBaseUrl } from './configuration/public-url';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // Behind Caddy (one hop): trust X-Forwarded-* so req.secure/req.ip are real and secure cookies get set.
+  app.set('trust proxy', 1);
 
   // -------------------------------------------------
   // ⚙️ Inyectamos ConfigService (ya disponible globalmente)
@@ -126,15 +129,15 @@ async function bootstrap() {
   // 🚀 Arranque
   // -------------------------------------------------
   const PORT = configService.get<number>('PORT') ?? 3000;
-  const URL_HOST = configService.get<string>('URL_HOST') ?? 'localhost';
+  const BASE_URL = buildPublicBaseUrl(configService.get<string>('URL_HOST'), PORT);
   await app.listen(PORT);
 
   // Sin prefijo global: /api es la documentación (Scalar) y solo existe en development
-  Logger.log(`🚀 App corriendo en: http://${URL_HOST}:${PORT}`);
+  Logger.log(`🚀 App corriendo en: ${BASE_URL}`);
   if (NODE_ENV === 'development')
-    Logger.log(`📘 Scalar: http://${URL_HOST}:${PORT}${API_DOCS_PATH}`);
-  Logger.log(`🧠 Logs UI disponible en: http://${URL_HOST}:${PORT}/logs/ui/view`);
-  Logger.log(`📦 Bull Board login: http://${URL_HOST}:${PORT}/admin/login`);
+    Logger.log(`📘 Scalar: ${BASE_URL}${API_DOCS_PATH}`);
+  Logger.log(`🧠 Logs UI disponible en: ${BASE_URL}/logs/ui/view`);
+  Logger.log(`📦 Bull Board login: ${BASE_URL}/admin/login`);
 }
 
 bootstrap();

@@ -139,7 +139,7 @@ describe('Recipe PDF builder', () => {
     const printed = json(RECIPE_FIXTURE);
     expect(printed).toContain('Fecha de impresión: ');
     expect(printed).toContain(`"ID Gestión: ${RECIPE_FIXTURE.id.slice(0, 8)}"`);
-    expect(printed).toContain('Clínica Central • MedOS');
+    expect(printed).toContain('Clínica Central • VIBE');
   });
 
   it('the newly printed fields invalidate the cached PDF', () => {
